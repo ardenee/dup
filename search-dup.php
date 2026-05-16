@@ -46,6 +46,13 @@ function ChopName($name)
     return $name;
 }
 
+function PrintProfileHeader($profileId, $path)
+{
+    echo "<TR class=\"nowrap tablesorter-infoOnly\">\n";
+    echo " <td colspan=7><b><a href=\"profile-view.php?profile=" . intval($profileId) . "\">" . DupHtml($path) . "</a></b></td>\n";
+    echo "</TR>\n";
+}
+
 function FetchDupGroups($profileId, $profileInfo, $search, $case, $start)
 {
     global $dblink;
@@ -86,12 +93,17 @@ function FetchDupGroups($profileId, $profileInfo, $search, $case, $start)
     foreach($dupKeys as $dupKeyRow)
     {
         $dupKey = isset($dupKeyRow['dupkey']) ? $dupKeyRow['dupkey'] : "";
+        $rowWhere = array("profile=:profile");
 
         if($type == "size")
-            $query = "SELECT id, file, size, fdate, crc32, profile, link FROM files WHERE profile=:profile AND size=:dupkey ORDER BY link ASC, file ASC;";
+            $rowWhere[] = "size=:dupkey";
         else
-            $query = "SELECT id, file, size, fdate, crc32, profile, link FROM files WHERE profile=:profile AND crc32=:dupkey ORDER BY link ASC, file ASC;";
+            $rowWhere[] = "crc32=:dupkey";
 
+        if(intval($dup->Settings['displaymoved']) == 0 && isset($profileInfo['mpath']) && trim($profileInfo['mpath']) != "")
+            $rowWhere[] = "file NOT LIKE :mpath";
+
+        $query = "SELECT id, file, size, fdate, crc32, profile, link FROM files WHERE " . implode(" AND ", $rowWhere) . " ORDER BY link ASC, file ASC;";
         LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
 
         $sdt2 = $dblink->prepare($query);
@@ -102,30 +114,15 @@ function FetchDupGroups($profileId, $profileInfo, $search, $case, $start)
         else
             $sdt2->bindValue(":dupkey", $dupKey, PDO::PARAM_STR);
 
+        if(intval($dup->Settings['displaymoved']) == 0 && isset($profileInfo['mpath']) && trim($profileInfo['mpath']) != "")
+            $sdt2->bindValue(":mpath", rtrim($profileInfo['mpath'], "/") . "/%", PDO::PARAM_STR);
+
         $sdt2->execute();
         $rows = $sdt2->fetchAll(PDO::FETCH_ASSOC);
         $sdt2->closeCursor();
 
-        $filteredRows = array();
-
-        foreach($rows as $row)
-        {
-            if(intval($dup->Settings['displaymoved']) == 0 && isset($profileInfo['mpath']) && trim($profileInfo['mpath']) != "" && strpos($row['file'], rtrim($profileInfo['mpath'], "/") . "/") === 0)
-                continue;
-
-            if(strlen($search) > 0)
-            {
-                $haystack = $case ? $row['file'] : strtolower($row['file']);
-
-                if(strpos($haystack, $searchValue) === false)
-                    continue;
-            }
-
-            $filteredRows[] = $row;
-        }
-
-        if(count($filteredRows) > 1)
-            $groups[] = array("type" => $type, "key" => $dupKey, "rows" => $filteredRows);
+        if(count($rows) > 1)
+            $groups[] = array("type" => $type, "key" => $dupKey, "rows" => $rows);
     }
 
     return $groups;
@@ -237,14 +234,8 @@ if(strlen($search) > 0)
             if($profile != 0 && $profileId != $profile)
                 continue;
 
+            PrintProfileHeader($profileId, isset($profileInfo['path']) ? $profileInfo['path'] : "");
             $groups = FetchDupGroups($profileId, $profileInfo, $search, $case, $start);
-
-            if(count($groups) == 0)
-                continue;
-
-            echo "<TR class=\"nowrap tablesorter-infoOnly\">\n";
-            echo " <td colspan=7><b><a href=\"profile-view.php?profile=" . $profileId . "\">" . DupHtml($profileInfo['path']) . "</a></b></td>\n";
-            echo "</TR>\n";
 
             foreach($groups as $group)
             {
