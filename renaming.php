@@ -348,6 +348,7 @@ mark{background:#fff3a3;color:inherit;padding:0 2px;border-radius:2px;}
 <input type="hidden" name="profile" value="<?php echo intval($profileId); ?>">
 <input type="hidden" name="filters" id="filters" value="<?php echo DupHtml($filters); ?>">
 <input type="hidden" name="dups" id="dups" value="<?php echo $dupsOnly ? 1 : 0; ?>">
+<input type="hidden" name="act" id="act" value="Rename">
 <TABLE id="showListTable" class="tablesorter" border="0" cellSpacing="1" cellPadding="0">
 <THEAD>
 <TR>
@@ -411,7 +412,7 @@ foreach($pageCandidateSets as $profileSet)
 <TH align="middle"><input type="Button" Value="Inverse" OnClick="checkedAll('rename')"></TH>
 <TH colSpan="2" align="left">Displayed / Total:</TH>
 <TH align="left"><?php echo number_format($displayed) . " / " . number_format($totalFound); ?></TH>
-<TH></TH>
+<TH align="middle"><a href="javascript:handleClick('rename','Delete')"><I class=icon-trash title="Delete Selected"></I></a> <b>/</b> <a href="javascript:handleClick('rename','Move')"><I class=icon-share title="Move Selected"></I></a></TH>
 </TR>
 </TFOOT>
 </TABLE>
@@ -432,8 +433,35 @@ function checkedAll(val)
 
 function handleClick(form, act)
 {
-    if(confirm('Are you sure you want to Mass ' + act + ' the selected files?'))
-        document.getElementById(form).submit();
+    var formElement = document.getElementById(form);
+    var actionInput = document.getElementById('act');
+    var selected = document.querySelectorAll('#' + form + ' input[type="checkbox"][name="files[]"]:checked').length;
+
+    if(selected <= 0)
+    {
+        alert('No files are selected.');
+        return;
+    }
+
+    if(actionInput != null)
+        actionInput.value = act;
+
+    if(act == 'Rename')
+    {
+        if(confirm('Rename ' + selected + ' selected file(s) on this page?'))
+        {
+            formElement.action = 'rename-renaming.php';
+            formElement.submit();
+        }
+
+        return;
+    }
+
+    if(confirm(act + ' ' + selected + ' selected file(s) on this page?'))
+    {
+        formElement.action = 'action-files.php';
+        formElement.submit();
+    }
 }
 
 function SingleFileAction(profile, act, fileid)
