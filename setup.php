@@ -68,8 +68,8 @@ $setupHasBlockingIssues = false;
 
 foreach($setupChecks as $check)
 {
-if(!$check["ok"] && ($check["name"] == "PHP version" || $check["name"] == "PDO" || $check["name"] == "pdo_mysql" || $check["name"] == "db.php writable" || $check["name"] == "old mysql extension" || $check["name"] == "mcrypt"))
-    $setupHasBlockingIssues = true;
+    if(!$check["ok"] && ($check["name"] == "PHP version" || $check["name"] == "PDO" || $check["name"] == "pdo_mysql" || $check["name"] == "db.php writable" || $check["name"] == "old mysql extension" || $check["name"] == "mcrypt"))
+        $setupHasBlockingIssues = true;
 }
 ?>
 
@@ -103,7 +103,7 @@ if(!$check["ok"] && ($check["name"] == "PHP version" || $check["name"] == "PDO" 
             $("#NAVsystem").addClass("active");
         });
     //-->
-  </SCRIPT>	
+  </SCRIPT>
 <SCRIPT type="text/javascript">
             $.Browser = {
                 defaults: {
@@ -117,13 +117,14 @@ if(!$check["ok"] && ($check["name"] == "PHP version" || $check["name"] == "PDO" 
 function handleClick()
 {
     var answer = confirm(
-        "DUP setup will connect to MariaDB 10, recreate the dup database, import the required tables, and write the database settings to db.php.\n\n" +
+        "DUP setup will connect to MariaDB 10, recreate the dup database, import the required tables, and write the database settings.\n\n" +
         "Before continuing, make sure:\n" +
         "- Web Station is installed and running\n" +
         "- PHP 8.2 or higher is selected for DUP\n" +
         "- pdo_mysql is enabled in DUP's PHP profile\n" +
         "- MariaDB 10 is installed and running\n" +
-        "- The MariaDB root password is correct\n\n" +
+        "- The configured MariaDB user/password is correct\n" +
+        "- The configured MariaDB user can create/drop the dup database\n\n" +
         "This will reset the dup database unless an upgrade/import path is being used.\n\n" +
         "Continue?"
     );
@@ -245,7 +246,7 @@ function handleClick()
     <?php if($setupHasBlockingIssues) { ?>
         <p><b>Fix the failed required checks before running setup.</b></p>
     <?php } else { ?>
-        <p><b>Required PHP checks passed. You can now enter the MariaDB 10 root password and run setup.</b></p>
+        <p><b>Required PHP checks passed. You can now enter the MariaDB 10 username and password and run setup.</b></p>
     <?php } ?>
 </div>
 
@@ -255,119 +256,116 @@ function handleClick()
     <form id="configForm" action="setup-save.php" method="post">
      <div id="config-components">
       <div id="core-component-group" class="component-group clearfix">
-	  
        <div class="component-group-desc">
         <h3>MySQL</h3>
         <p>Login details</p>
        </div>	   
        <fieldset class="component-group-list">
         <div class="field-pair">
-		 <label class="nocheck clearfix" for="user">
-		  <span class="component-title">MySQL User</span>
-		  <input type="text" name="user" id="user" value="root" size="35" readonly>
-		 </label>
-		</div>
+         <label class="nocheck clearfix" for="db_user">
+          <span class="component-title">MySQL User</span>
+          <input type="text" name="db_user" id="db_user" value="root" size="35" maxlength="64" autocomplete="username" required>
+          <span class="component-desc">MariaDB user with permission to create/drop the dup database. Default: root.</span>
+         </label>
+        </div>
         <div class="field-pair">
-		 <label class="nocheck clearfix" for="password">
-		  <span class="component-title">Password</span>
-		  <input type="password" name="password" id="password" value="" size="35" maxlength="256" autocomplete="current-password" required> <a href="https://www.synology.com/en-us/support/faq/319" target="_blank" rel="noopener noreferrer"><b>?</b></a>
-		 </label>
-		</div>
-		<div class="field-pair">
-		 <input type="checkbox" name="upgrade" id="upgrade"/>
-		 <label class="clearfix" for="upgrade">
-		  <span class="component-title">Keep Old Data</span>
-		  <span class="component-desc">Exports and then Imports your old data to the new DB Structure (v0.6 onwards only!) May take some time!!</span>
-		 </label>
-		</div>
-		</fieldset>	
-		
-		<div class="field-pair">
-		 <label class="nocheck clearfix">
-		  <span class="component-title">&nbsp;</span>
-		 </label>
-		</div>
-		
-		<div class="component-group-desc">
+         <label class="nocheck clearfix" for="password">
+          <span class="component-title">Password</span>
+          <input type="password" name="password" id="password" value="" size="35" maxlength="256" autocomplete="current-password" required> <a href="https://www.synology.com/en-us/support/faq/319" target="_blank" rel="noopener noreferrer"><b>?</b></a>
+         </label>
+        </div>
+        <div class="field-pair">
+         <input type="checkbox" name="upgrade" id="upgrade"/>
+         <label class="clearfix" for="upgrade">
+          <span class="component-title">Keep Old Data</span>
+          <span class="component-desc">Exports and then Imports your old data to the new DB Structure (v0.6 onwards only!) May take some time!!</span>
+         </label>
+        </div>
+       </fieldset>
+
+       <div class="field-pair">
+        <label class="nocheck clearfix">
+         <span class="component-title">&nbsp;</span>
+        </label>
+       </div>
+
+       <div class="component-group-desc">
         <h3>SQLite</h3>
         <p>File details</p>
-       </div>	
-	   <fieldset class="component-group-list">
-         <div class="field-pair">
-          <label class="nocheck clearfix" for="db_dir">
-		   <span class="component-title">Database Folder</span>
-           <input type="text" name="db_dir" id="db_dir" value="<?php echo htmlspecialchars(getcwd(), ENT_QUOTES, "UTF-8"); ?>" size="35" readonly>	   
-          </label>
-         </div>
-		 
-		<div class="field-pair">
-		 <input type="checkbox" name="filebd" id="filebd" disabled/>
-		 <label class="clearfix" for="filebd">
-		  <span class="component-title">Use Database File</span>
-		  <span class="component-desc">SQLite 3 local file instead of MySQL</span>
-		 </label>
-		</div>
-	
-		
+       </div>
+       <fieldset class="component-group-list">
+        <div class="field-pair">
+         <label class="nocheck clearfix" for="db_dir">
+          <span class="component-title">Database Folder</span>
+          <input type="text" name="db_dir" id="db_dir" value="<?php echo htmlspecialchars(getcwd(), ENT_QUOTES, "UTF-8"); ?>" size="35" readonly>
+         </label>
+        </div>
+
+        <div class="field-pair">
+         <input type="checkbox" name="filebd" id="filebd" disabled/>
+         <label class="clearfix" for="filebd">
+          <span class="component-title">Use Database File</span>
+          <span class="component-desc">SQLite 3 local file instead of MySQL</span>
+         </label>
+        </div>
+
         <div class="component-group-save">
          <input type="button" class="btn config_submitter" value="Run Setup" OnClick="javascript:handleClick();" <?php echo $setupHasBlockingIssues ? "disabled" : ""; ?>/>
         </div>
-		<br />
-       </fieldset>	
-	   
-      
-	  </div>
+        <br />
+       </fieldset>
+      </div>
       <DIV id="summary" class="align-left">
-	   <label class="nocheck clearfix">
-	    <span class="component-title">Web Settings</span>
-	    <img src="images/websettings1.png" width="98%" />
-	   </label>
+       <label class="nocheck clearfix">
+        <span class="component-title">Web Settings</span>
+        <img src="images/websettings1.png" width="98%" />
+       </label>
        <BR>
-	   <label class="nocheck clearfix">
-	    <span class="component-title">PHP Settings</span>
-	    <img src="images/websettings2.png" width="98%" />
-	   </label>
-	   <BR>
+       <label class="nocheck clearfix">
+        <span class="component-title">PHP Settings</span>
+        <img src="images/websettings2.png" width="98%" />
+       </label>
+       <BR>
 
-		<label class="nocheck clearfix">
-			<B>Required Packages / Settings for DSM 7</B><BR><BR>
+        <label class="nocheck clearfix">
+            <B>Required Packages / Settings for DSM 7</B><BR><BR>
 
-			Web Station must be installed and running.<BR>
-			PHP 8.2 or higher must be installed.<BR>
-			MariaDB 10 must be installed and running, with TCP/IP enabled.<BR>
-			The Web Station PHP profile used by DUP must have <B>pdo_mysql</B> enabled.<BR><BR>
+            Web Station must be installed and running.<BR>
+            PHP 8.2 or higher must be installed.<BR>
+            MariaDB 10 must be installed and running, with TCP/IP enabled.<BR>
+            The Web Station PHP profile used by DUP must have <B>pdo_mysql</B> enabled.<BR><BR>
 
-			Optional but useful for debugging: phpMyAdmin.<BR><BR>
+            Optional but useful for debugging: phpMyAdmin.<BR><BR>
 
-			Do not enable the old <B>mysql</B> PHP extension. It is removed on modern PHP.<BR>
-			Do not enable <B>mcrypt</B>. It is obsolete and not required by DUP.<BR>
-		</label>
+            Do not enable the old <B>mysql</B> PHP extension. It is removed on modern PHP.<BR>
+            Do not enable <B>mcrypt</B>. It is obsolete and not required by DUP.<BR>
+        </label>
 
-	   <label class="nocheck clearfix">
-	    <B>About the above settings</B><BR><BR>
-		The above settings are the ones I used when developing and making dup and I had no issues with its functionality. Packages made with Python run with full permissions by default so why not your php packages too?<BR><BR>
-	    PHP has a bit more security which will allow you to lock down directory's  and restrict functionality.<BR><BR>
-	    By all means if you want this go ahead but it's up to you to figure out how! Enough said ;)
-	   </label>
-	  </div> 
+       <label class="nocheck clearfix">
+        <B>About the above settings</B><BR><BR>
+        The above settings are the ones I used when developing and making dup and I had no issues with its functionality. Packages made with Python run with full permissions by default so why not your php packages too?<BR><BR>
+        PHP has a bit more security which will allow you to lock down directory's  and restrict functionality.<BR><BR>
+        By all means if you want this go ahead but it's up to you to figure out how! Enough said ;)
+       </label>
+      </div> 
      </div><!-- /config-components -->
-	</form> 
+    </form> 
    </div><!-- /config-content -->
   </div><!-- /config -->
  </DIV><!-- /content -->
 </DIV><!-- /contentWrapper -->
 
-	<script type="text/javascript" charset="utf-8">
-	<!--
-	$(document).ready(function(){
-		$('#db_dir').fileBrowser({ title: 'Select Database Directory' });
-	});
-	//-->
-	</script>
+    <script type="text/javascript" charset="utf-8">
+    <!--
+    $(document).ready(function(){
+        $('#db_dir').fileBrowser({ title: 'Select Database Directory' });
+    });
+    //-->
+    </script>
 
 
   <FOOTER>
    <DIV class="container footer"><B>dup Setup</B></DIV><!-- /container footer -->
   </FOOTER>	
  </BODY>
-</HTML> 
+</HTML>
