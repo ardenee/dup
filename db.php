@@ -662,8 +662,9 @@ function PageHeader()
    $data.="       <UL class=dropdown-menu>\n";
    $data.="	       <LI><A href=\"config-help.php\"><I class=icon-question-sign></I> Help &amp; Info</A></LI>\n";
    $data.="	       <LI class=divider></LI>\n";
-   $data.="	       <LI><A href=\"config-general.php\"><I class=icon-wrench></I> General</A></LI>\n";
-   $data.="	       <LI><A href=\"config-profiletypes.php\"><I class=icon-cog></I> Profile Types</A></LI>\n";
+   $data.="         <LI><A href=\"config-general.php\"><I class=icon-wrench></I> General</A></LI>\n";
+   $data.="         <LI><A href=\"config-profiletypes.php\"><I class=icon-cog></I> Profile Types</A></LI>\n";
+   $data.="         <LI><A href=\"config-viewer.php\"><I class=icon-eye-open></I> File Viewer</A></LI>\n";
    $data.="       </UL>\n";   
    $data.="      </LI>\n";
    
@@ -675,6 +676,7 @@ function PageHeader()
    $data.="       <UL class=dropdown-menu>\n";
    $data.="	       <LI><A href=\"search-general.php\"><I class=icon-search></I> General Search</A></LI>\n";
    $data.="	       <LI><A href=\"search-dup.php\"><I class=icon-search></I> Dup Search</A></LI>\n";
+   $data.="        <LI><A href=\"search-moved.php\"><I class=icon-search></I> Moved Files</A></LI>\n";
    $data.="       </UL>\n";
    $data.="      </LI>\n";   
    
