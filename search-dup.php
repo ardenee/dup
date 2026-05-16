@@ -167,7 +167,10 @@ if($start < 0)
   <SCRIPT TYPE="text/javascript" CHARSET="utf-8">sbRoot = '/'; top_image_html = '<img src="images/top.gif" style="width:31px; height:11px" alt="Jump to top" />';</SCRIPT>
   <SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>
   <SCRIPT type="text/javascript">
-    $(document).ready(function(){ $("#NAVsearch").addClass("active"); });
+    $(document).ready(function(){
+        $("#NAVsearch").addClass("active");
+        $("#showListTable:has(tbody tr)").tablesorter({ widgets: ['saveSort', 'zebra', 'stickyHeaders'], cssChildRow: 'tablesorter-childRow', headers: { 6: { sorter: false } } });
+    });
   </SCRIPT>
  </HEAD>
  <BODY>
@@ -239,7 +242,7 @@ if(strlen($search) > 0)
             if(count($groups) == 0)
                 continue;
 
-            echo "<TR class=nowrap>\n";
+            echo "<TR class=\"nowrap tablesorter-infoOnly\">\n";
             echo " <td colspan=7><b><a href=\"profile-view.php?profile=" . $profileId . "\">" . DupHtml($profileInfo['path']) . "</a></b></td>\n";
             echo "</TR>\n";
 
@@ -256,11 +259,13 @@ if(strlen($search) > 0)
                     $icon = (isset($row['link']) && strlen($row['link']) > 0) ? "<I class=icon-magnet></I>" : "<I class=icon-file></I>";
                     $rowClass = $class;
                     $rowAttr = "";
+                    $sorterChildClass = "";
 
                     if($k > 0)
                     {
                         $rowClass = ($childNum % 2 == 0) ? "subchild" : "child";
                         $rowAttr = " data-dupgroup=\"" . $dupGroupId . "\" style=\"display:none\"";
+                        $sorterChildClass = " tablesorter-childRow";
                     }
 
                     $file = DropProfile($row['file'], isset($profileInfo['path']) ? $profileInfo['path'] : "");
@@ -275,7 +280,7 @@ if(strlen($search) > 0)
                     $fileJs = JavaScriptSafeString($row['file']);
                     $dropTitle = DupHtml($file);
 
-                    echo "<TR class=\"" . $rowClass . "\"" . $rowAttr . ">\n";
+                    echo "<TR class=\"" . $rowClass . $sorterChildClass . "\"" . $rowAttr . ">\n";
                     echo " <TD class=\"" . $rowClass . "\" align=\"right\" nowrap>" . $b1 . $displayNum . $b2 . $countText . "</TD>\n";
                     echo " <TD class=\"" . $rowClass . "\" nowrap><span title=\"" . (($icon == "<I class=icon-file></I>") ? "File" : "Symlink") . "\">" . $icon . "</span> &nbsp; <input type=checkbox id=\"" . (($k == 0) ? "pri" : "sec") . "\" name=\"files[]\" value=\"" . $rowId . "\"" . (($k == 0) ? "" : " CHECKED") . "> " . $rowId . "</TD>\n";
 
