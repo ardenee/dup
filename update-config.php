@@ -9,13 +9,13 @@ function CleanFilters($filters)
 {
     LogStr("CleanFilters() Clean up filters via passed pram", 2, __FILE__, __LINE__, __FUNCTION__);
 
-    $filters = str_replace(array("\r", "\n"), "", (string)$filters);
+    $filters = str_replace(array("\r", "\n", "\0"), "", (string)$filters);
     $tmp = explode(",", $filters);
     $clean = array();
 
     foreach($tmp as $val)
     {
-        $val = trim($val);
+        $val = trim(strtolower($val));
 
         if($val != "" && !in_array($val, $clean))
             $clean[] = $val;
@@ -34,7 +34,17 @@ function PostInt($name, $default = 0)
 
 function PostCheckbox($name)
 {
-    return (isset($_POST[$name]) && $_POST[$name] == "on") ? 1 : 0;
+    return isset($_POST[$name]) ? 1 : 0;
+}
+
+function EnsureSettingsColumn($name, $definition)
+{
+    global $dblink;
+
+    try {
+        $dblink->exec("ALTER TABLE settings ADD " . $name . " " . $definition . ";");
+    }
+    catch(PDOException $ex) {}
 }
 
 function SetConfigMessage($success)
@@ -64,6 +74,11 @@ function SetConfigMessage($success)
     }
 }
 
+EnsureSettingsColumn("view_enable", "int(11) NOT NULL DEFAULT '1'");
+EnsureSettingsColumn("view_image_exts", "text COLLATE utf8_bin NOT NULL");
+EnsureSettingsColumn("view_text_exts", "text COLLATE utf8_bin NOT NULL");
+EnsureSettingsColumn("view_pdf_exts", "text COLLATE utf8_bin NOT NULL");
+
 $renametype = PostInt("renametype", isset($dup->Settings["renametype"]) ? $dup->Settings["renametype"] : 0);
 $namecleanup = PostCheckbox("namecleanup");
 $cleanupfilter = isset($_POST["cleanupfilter"]) ? CleanFilters($_POST["cleanupfilter"]) : (isset($dup->Settings["cleanupfilter"]) ? $dup->Settings["cleanupfilter"] : "");
@@ -78,6 +93,10 @@ $shortfilenames = PostInt("shortfilenames", isset($dup->Settings["shortfilenames
 $runtime = PostInt("runtime", isset($dup->Settings["runtime"]) ? $dup->Settings["runtime"] : 10800);
 $ifolders = isset($_POST["ifolders"]) ? CleanFilters($_POST["ifolders"]) : (isset($dup->Settings["ifolders"]) ? $dup->Settings["ifolders"] : "");
 $download = PostCheckbox("download");
+$viewEnable = PostCheckbox("view_enable");
+$viewImageExts = isset($_POST["view_image_exts"]) ? CleanFilters($_POST["view_image_exts"]) : "jpg,jpeg,png,gif,webp,bmp";
+$viewTextExts = isset($_POST["view_text_exts"]) ? CleanFilters($_POST["view_text_exts"]) : "txt,log,json,xml,csv,nfo,srt,md";
+$viewPdfExts = isset($_POST["view_pdf_exts"]) ? CleanFilters($_POST["view_pdf_exts"]) : "pdf";
 
 if($runtime < 30)
     $runtime = 10800;
@@ -99,7 +118,11 @@ try
             shortfilenames=:shortfilenames,
             runtime=:runtime,
             ifolders=:ifolders,
-            download=:download
+            download=:download,
+            view_enable=:view_enable,
+            view_image_exts=:view_image_exts,
+            view_text_exts=:view_text_exts,
+            view_pdf_exts=:view_pdf_exts
     ";
 
     LogStr("MySQL/SQLite: update settings", 3, __FILE__, __LINE__, __FUNCTION__);
@@ -119,6 +142,10 @@ try
     $sdt->bindValue(":runtime", $runtime, PDO::PARAM_INT);
     $sdt->bindValue(":ifolders", $ifolders, PDO::PARAM_STR);
     $sdt->bindValue(":download", $download, PDO::PARAM_INT);
+    $sdt->bindValue(":view_enable", $viewEnable, PDO::PARAM_INT);
+    $sdt->bindValue(":view_image_exts", $viewImageExts, PDO::PARAM_STR);
+    $sdt->bindValue(":view_text_exts", $viewTextExts, PDO::PARAM_STR);
+    $sdt->bindValue(":view_pdf_exts", $viewPdfExts, PDO::PARAM_STR);
     $sdt->execute();
     $sdt->closeCursor();
 
