@@ -14,7 +14,7 @@ CREATE TABLE `files_link` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`old` VARCHAR
 CREATE TABLE `accounts` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`name` VARCHAR(50), `level` INT NOT NULL, `password` VARCHAR(50));
 
 INSERT INTO accounts VALUES(1,'Admin',1,'afb7127bdf13d61f0cfd4819a0faf804');
-INSERT INTO settings VALUES(1,0,1,'DVDRip,BRRip,720p,1080p,1080i,480p,DVD',1,1,1,0,0,0,1,0,3600,'0.6.3','#recycle,@eaDir', 0);
+INSERT INTO settings VALUES(1,0,1,'DVDRip,BRRip,720p,1080p,1080i,480p,DVD',1,1,1,0,0,0,1,0,3600,'0.7.0','#recycle,@eaDir', 0);
 INSERT INTO profiletypes VALUES(1,'mobi,prc','Books');
 INSERT INTO profiletypes VALUES(2,'cbr,cbz','Comics');
 INSERT INTO profiletypes VALUES(3,'pdf,rtf,doc,docx','Documents');
