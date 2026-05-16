@@ -37,6 +37,17 @@ function PostCheckbox($name)
     return isset($_POST[$name]) ? 1 : 0;
 }
 
+function SafeReturnTo()
+{
+    $allowed = array("config-general.php", "config-viewer.php", "config-profiletypes.php");
+    $returnTo = isset($_POST["return_to"]) ? basename((string)$_POST["return_to"]) : "config-general.php";
+
+    if(!in_array($returnTo, $allowed))
+        return "config-general.php";
+
+    return $returnTo;
+}
+
 function EnsureSettingsColumn($name, $definition)
 {
     global $dblink;
@@ -73,6 +84,8 @@ function SetConfigMessage($success)
         LogError(print_r($ex, true));
     }
 }
+
+$returnTo = SafeReturnTo();
 
 EnsureSettingsColumn("view_enable", "int(11) NOT NULL DEFAULT '1'");
 EnsureSettingsColumn("view_image_exts", "text COLLATE utf8_bin NOT NULL");
@@ -159,6 +172,6 @@ catch(PDOException $ex)
     exit;
 }
 
-header("Location: config-general.php");
+header("Location: " . $returnTo);
 exit;
 ?>
