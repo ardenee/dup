@@ -90,7 +90,7 @@ $fileDate = $fileExists ? filemtime($fullPath) : false;
 </table>
 <p>
     <a class="btn" href="download-files.php?profile=<?php echo $profileId; ?>&file=<?php echo $fileId; ?>">Download</a>
-    <a class="btn" href="profile-view.php?profile=<?php echo $profileId; ?>">Back to Profile</a>
+    <a class="btn" href="javascript:history.back();">Back</a>
 </p>
 <p>Inline previews for images and text files will be added after this metadata route is tested.</p>
 </DIV>
