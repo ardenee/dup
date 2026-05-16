@@ -15,44 +15,12 @@ function DupInt($value)
 
 function HighlightSearch($value, $search)
 {
-    $value = (string)$value;
-    $search = (string)$search;
     $escapedValue = DupHtml($value);
 
-    if($search == "")
+    if((string)$search == "")
         return $escapedValue;
 
-    $escapedSearch = preg_quote(DupHtml($search), "/");
-    return preg_replace("/(" . $escapedSearch . ")/i", "<mark>$1</mark>", $escapedValue);
-}
-
-function BuildMovedFilter(&$whereParts, &$bindValues, $profiles, $profile)
-{
-    $movedParts = array();
-
-    foreach($profiles as $profileRow)
-    {
-        $profileId = isset($profileRow['id']) ? intval($profileRow['id']) : 0;
-        $movedPath = isset($profileRow['mpath']) ? trim((string)$profileRow['mpath']) : "";
-
-        if($profileId <= 0 || $movedPath == "")
-            continue;
-
-        if($profile != 0 && $profileId != $profile)
-            continue;
-
-        $profileKey = ":moved_profile_" . $profileId;
-        $pathKey = ":moved_path_" . $profileId;
-
-        $movedParts[] = "(f.profile=" . $profileKey . " AND f.file LIKE " . $pathKey . ")";
-        $bindValues[$profileKey] = array($profileId, PDO::PARAM_INT);
-        $bindValues[$pathKey] = array(rtrim($movedPath, "/") . "/%", PDO::PARAM_STR);
-    }
-
-    if(count($movedParts) > 0)
-        $whereParts[] = "(" . implode(" OR ", $movedParts) . ")";
-    else
-        $whereParts[] = "1=0";
+    return preg_replace("/(" . preg_quote(DupHtml($search), "/") . ")/i", "<mark>$1</mark>", $escapedValue);
 }
 
 $case = false;
@@ -66,121 +34,75 @@ else if(isset($_GET["search"]))
 $search = str_replace(array("\r", "\n", "\0"), "", $search);
 $profile = isset($_REQUEST["profile"]) ? intval($_REQUEST["profile"]) : 0;
 $case = isset($_REQUEST["case"]) && intval($_REQUEST["case"]) == 1;
-$dupsOnly = isset($_REQUEST["dups"]) && intval($_REQUEST["dups"]) == 1;
-$searchType = isset($_REQUEST["search_type"]) ? trim((string)$_REQUEST["search_type"]) : "files";
 $start = isset($_REQUEST["start"]) ? intval($_REQUEST["start"]) : 0;
-
-if($searchType != "moved")
-    $searchType = "files";
 
 if($start < 0)
     $start = 0;
 ?>
-
 <!DOCTYPE HTML>
 <HTML>
- <HEAD>
-  <TITLE>dup - General Search</TITLE>
-  <META CHARSET="utf-8">
-  <META content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
-  <META name="robots" content="noindex">
-  <!--[if lt IE 9]>
-  <SCRIPT SRC="files/html5.js"></SCRIPT>
-  <![endif]-->
-  <LINK REL="shortcut icon" HREF="images/dup.png">
-  <LINK REL="stylesheet" TYPE="text/css" HREF="files/bootstrap.css">
-  <LINK REL="stylesheet" TYPE="text/css" HREF="files/jquery-ui-1.8.24.custom.css">
-  <LINK REL="stylesheet" TYPE="text/css" HREF="files/style.css">
-  <LINK REL="stylesheet" TYPE="text/css" HREF="files/imgs.css">
-  <SCRIPT TYPE="text/javascript" SRC="files/jquery-1.7.2.min.js"></SCRIPT>
-  <SCRIPT TYPE="text/javascript" SRC="files/jquery-ui-1.8.24.custom.min.js"></SCRIPT>
-  <SCRIPT TYPE="text/javascript" SRC="files/jquery.tablesorter-2.1.19.min.js"></SCRIPT>
-  <SCRIPT SRC="files/script.js"></SCRIPT>
-  <SCRIPT TYPE="text/javascript" CHARSET="utf-8">
-        sbRoot = '/';
-        top_image_html = '<img src="images/top.gif" style="width:31px; height:11px" alt="Jump to top" />';
-  </SCRIPT>
-  <SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>
-  <SCRIPT type="text/javascript">
-    $(document).ready(function(){
-        $("#NAVsearch").addClass("active");
-    });
-  </SCRIPT>
-  <SCRIPT type="text/javascript" charset="utf-8">
-    $(document).ready(function(){
-        $("#showListTable:has(tbody tr)").tablesorter({
-            widgets: ['saveSort', 'zebra', 'stickyHeaders']
-        });
-    });
-  </SCRIPT>
-  <style>
-    mark { background: #fff3a3; color: inherit; padding: 0 2px; border-radius: 2px; }
-    .search-options { font-size: 14px; line-height: 28px; }
-  </style>
-  <META name="GENERATOR" content="MSHTML 8.00.7601.17940">
- </HEAD>
-
- <BODY>
-  <?php echo PageHeader(); ?>
-  </HEADER>
-
+<HEAD>
+<TITLE>dup - General Search</TITLE>
+<META CHARSET="utf-8">
+<META content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
+<META name="robots" content="noindex">
+<!--[if lt IE 9]><SCRIPT SRC="files/html5.js"></SCRIPT><![endif]-->
+<LINK REL="shortcut icon" HREF="images/dup.png">
+<LINK REL="stylesheet" TYPE="text/css" HREF="files/bootstrap.css">
+<LINK REL="stylesheet" TYPE="text/css" HREF="files/jquery-ui-1.8.24.custom.css">
+<LINK REL="stylesheet" TYPE="text/css" HREF="files/style.css">
+<LINK REL="stylesheet" TYPE="text/css" HREF="files/imgs.css">
+<SCRIPT TYPE="text/javascript" SRC="files/jquery-1.7.2.min.js"></SCRIPT>
+<SCRIPT TYPE="text/javascript" SRC="files/jquery-ui-1.8.24.custom.min.js"></SCRIPT>
+<SCRIPT TYPE="text/javascript" SRC="files/jquery.tablesorter-2.1.19.min.js"></SCRIPT>
+<SCRIPT SRC="files/script.js"></SCRIPT>
+<SCRIPT TYPE="text/javascript" CHARSET="utf-8">sbRoot = '/'; top_image_html = '<img src="images/top.gif" style="width:31px; height:11px" alt="Jump to top" />';</SCRIPT>
+<SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>
+<SCRIPT type="text/javascript">
+$(document).ready(function(){
+    $("#NAVsearch").addClass("active");
+    $("#showListTable:has(tbody tr)").tablesorter({ widgets: ['saveSort', 'zebra', 'stickyHeaders'] });
+});
+</SCRIPT>
+<style>mark { background: #fff3a3; color: inherit; padding: 0 2px; border-radius: 2px; } .search-options { font-size: 14px; line-height: 28px; }</style>
+</HEAD>
+<BODY>
+<?php echo PageHeader(); ?>
+</HEADER>
 <DIV id=contentWrapper>
- <DIV id=content>
- <form id=searchform name=searchform method=post action=search-general.php>
- <H1 class=title>General Search</H1>
- <div class="search-options">
-  Search: <input type="text" name="search" size="30" value="<?php echo DupHtml($search); ?>"> &nbsp;
-  Scope:
-  <?php
-    $Profiles = $dup->GetProfiles("path");
-
-    echo "<select name=\"profile\" id=\"profile\" class=\"input-medium\" style=\"width: 270px\">\n";
-    echo " <option value=\"0\"" . (($profile == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
-
-    foreach($Profiles as $key => $val)
-    {
-        $id = DupInt($val['id']);
-        $pathHtml = DupHtml($val['path']);
-        $selected = ($id == $profile) ? " SELECTED" : "";
-        echo " <option value=\"" . $id . "\"" . $selected . "> (" . $id . ") " . $pathHtml . " </option>\n";
-    }
-
-    echo "</select>\n";
-  ?>
-  &nbsp;Search Type:
-  <select name="search_type" id="search_type" class="input-medium">
-    <option value="files"<?php echo (($searchType == "files") ? " SELECTED" : ""); ?>>Files</option>
-    <option value="moved"<?php echo (($searchType == "moved") ? " SELECTED" : ""); ?>>Moved Files</option>
-  </select>
-  &nbsp;Case Sensitive: <input type="checkbox" name="case" value="1"<?php echo (($case == true) ? " CHECKED" : ""); ?>>
-  &nbsp;Dups Only: <input type="checkbox" name="dups" value="1"<?php echo (($dupsOnly == true) ? " CHECKED" : ""); ?>>
-  &nbsp;<input type="Submit" value="Search">
- </div>
- </form>
-
- <form id=search name=search method=post action=action-files.php>
+<DIV id=content>
+<form id=searchform name=searchform method=post action=search-general.php>
+<H1 class=title>General Search</H1>
+<div class="search-options">
+Search: <input type="text" name="search" size="30" value="<?php echo DupHtml($search); ?>"> &nbsp;
+Scope:
+<?php
+$Profiles = $dup->GetProfiles("path");
+echo "<select name=\"profile\" id=\"profile\" class=\"input-medium\" style=\"width: 270px\">\n";
+echo " <option value=\"0\"" . (($profile == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
+foreach($Profiles as $key => $val)
+{
+    $id = DupInt($val['id']);
+    $selected = ($id == $profile) ? " SELECTED" : "";
+    echo " <option value=\"" . $id . "\"" . $selected . "> (" . $id . ") " . DupHtml($val['path']) . " </option>\n";
+}
+echo "</select>\n";
+?>
+&nbsp;Case Sensitive: <input type="checkbox" name="case" value="1"<?php echo (($case == true) ? " CHECKED" : ""); ?>>
+&nbsp;<input type="Submit" value="Search">
+</div>
+</form>
+<form id=search name=search method=post action=action-files.php>
 <TABLE id=showListTable class=tablesorter border=0 cellSpacing=1 cellPadding=0>
-<THEAD>
-  <TR>
-    <TH class=nowrap>Num</TH>
-    <TH>id</TH>
-    <TH>File</TH>
-    <TH>Size</TH>
-    <TH>Modified Date</TH>
-    <TH>CRC32</TH>
-    <TH>Options</TH>
-   </TR>
-  </THEAD>
-   <input type="hidden" name="profile" value="<?php echo $profile; ?>">
-   <input type="hidden" id="act" name="act" value="none">
-  <TBODY>
-
+<THEAD><TR><TH class=nowrap>Num</TH><TH>id</TH><TH>File</TH><TH>Size</TH><TH>Modified Date</TH><TH>CRC32</TH><TH>Options</TH></TR></THEAD>
+<input type="hidden" name="profile" value="<?php echo $profile; ?>">
+<input type="hidden" id="act" name="act" value="none">
+<TBODY>
 <?php
 $num = 1;
 $tsize = 0;
-$doSearch = (strlen($search) > 0 || $searchType == "moved");
 
-if($doSearch)
+if(strlen($search) > 0)
 {
     $ps = $dup->GetProfiles("id");
     $searchValue = $case ? $search : strtolower($search);
@@ -189,54 +111,29 @@ if($doSearch)
     try
     {
         $whereParts = array();
-        $bindValues = array();
-
-        if(strlen($search) > 0)
-        {
-            if($case)
-                $whereParts[] = "f.file LIKE :search";
-            else
-                $whereParts[] = "LOWER(f.file) LIKE :search";
-
-            $bindValues[":search"] = array($likeValue, PDO::PARAM_STR);
-        }
+        $whereParts[] = $case ? "f.file LIKE :search" : "LOWER(f.file) LIKE :search";
 
         if($profile != 0)
-        {
             $whereParts[] = "f.profile=:profile";
-            $bindValues[":profile"] = array($profile, PDO::PARAM_INT);
-        }
-
-        if($searchType == "moved")
-            BuildMovedFilter($whereParts, $bindValues, $ps, $profile);
-
-        if($dupsOnly)
-            $whereParts[] = "EXISTS (SELECT 1 FROM files f2 WHERE f2.profile=f.profile AND f2.id<>f.id AND ((p.crc32=0 AND f2.size=f.size) OR (p.crc32<>0 AND f.crc32<>'' AND f.crc32<>'0 Filled' AND f2.crc32=f.crc32)))";
-
-        if(count($whereParts) == 0)
-            $whereParts[] = "1=1";
 
         $where = implode(" AND ", $whereParts);
-
-        if($profile != 0)
-            $query = "SELECT f.id, f.file, f.size, f.fdate, f.crc32, f.profile, f.link FROM files f INNER JOIN profiles p ON p.id=f.profile WHERE " . $where . " ORDER BY f.file ASC LIMIT :start, 995;";
-        else
-            $query = "SELECT f.id, f.file, f.size, f.fdate, f.crc32, f.profile, f.link FROM files f INNER JOIN profiles p ON p.id=f.profile WHERE " . $where . " ORDER BY f.profile ASC, f.file ASC LIMIT :start, 995;";
-
+        $order = ($profile != 0) ? " ORDER BY f.file ASC" : " ORDER BY f.profile ASC, f.file ASC";
+        $query = "SELECT f.id, f.file, f.size, f.fdate, f.crc32, f.profile, f.link FROM files f WHERE " . $where . $order . " LIMIT :start, 995;";
         LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
 
         $sdt = $dblink->prepare($query);
-        foreach($bindValues as $key => $data)
-            $sdt->bindValue($key, $data[0], $data[1]);
-
+        $sdt->bindValue(":search", $likeValue, PDO::PARAM_STR);
         $sdt->bindValue(":start", $start, PDO::PARAM_INT);
+
+        if($profile != 0)
+            $sdt->bindValue(":profile", $profile, PDO::PARAM_INT);
+
         $sdt->execute();
         $files = $sdt->fetchAll(PDO::FETCH_ASSOC);
         $sdt->closeCursor();
-
         $ppath = "";
 
-        foreach($files as $key => $row)
+        foreach($files as $row)
         {
             $fid = DupInt($row['profile']);
             $rowId = DupInt($row['id']);
@@ -277,7 +174,6 @@ if($doSearch)
             echo " <a href=\"javascript:SingleFileAction('" . $fid . "', 'Move', '" . $rowId . "');\"> <I class=icon-share title=\"Move '" . $dropTitle . "'\"></I></a></b>";
             echo "</center></TD>\n";
             echo "</TR>\n";
-
             $num++;
             $tsize += $size;
         }
@@ -289,62 +185,39 @@ if($doSearch)
     }
 }
 ?>
-
-  </TBODY>
-  </form>
-  <TFOOT>
-   <TR>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;"><input type=Button Value=Expand OnClick="displayAll()"></TH>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;"><input type=Button Value=Inverse OnClick="checkedAll('search')"></TH>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Listed Data size :</TH>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;"><?php echo $dup->format_bytes($tsize) ?></TH>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Total Found:</TH>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;"><?php echo ($num-1) ?></TH>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;"><center>
-   <?php
-    echo "<a href=\"javascript:handleClick('search', 'Delete')\"><I class=icon-trash title=\"Delete Selected\"></I></a> /";
-    echo "<a href=\"javascript:handleClick('search', 'Rename')\"><I class=icon-edit title=\"Rename Selected\"></I></a> / ";
-    echo "<a href=\"javascript:handleClick('search', 'Move')\"><I class=icon-share title=\"Move Selected\"></I></a></b>\n";
-    ?></center></TH>
-  </TR>
- </TFOOT>
- </TABLE>
-   </DIV><!-- /content -->
-  </DIV><!-- /contentWrapper -->
-  <?php echo PageFooter(); ?>
- </BODY>
-
+</TBODY>
+</form>
+<TFOOT><TR>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><input type=Button Value=Inverse OnClick="checkedAll('search')"></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;">Listed Data size :</TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><?php echo $dup->format_bytes($tsize) ?></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;">Total Found:</TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><?php echo ($num-1) ?></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><center><?php echo "<a href=\"javascript:handleClick('search', 'Delete')\"><I class=icon-trash title=\"Delete Selected\"></I></a> / <a href=\"javascript:handleClick('search', 'Rename')\"><I class=icon-edit title=\"Rename Selected\"></I></a> / <a href=\"javascript:handleClick('search', 'Move')\"><I class=icon-share title=\"Move Selected\"></I></a>"; ?></center></TH>
+</TR></TFOOT>
+</TABLE>
+</DIV>
+</DIV>
+<?php echo PageFooter(); ?>
+</BODY>
 <script type="text/javascript">
 var checked = true;
 function checkedAll(val)
 {
     checked = !checked;
-
     for(var i = 0; i < document.getElementById(val).elements.length; i++)
     {
         if(document.getElementById(val).elements[i].id == 'sec')
             document.getElementById(val).elements[i].checked = checked;
     }
 }
-</script>
-<script type="text/javascript">
-function Download(profile, file)
-{
-    window.open("download-files.php?profile=" + encodeURIComponent(profile) + "&file=" + encodeURIComponent(file), "Download File", "height=50,width=100,menubar=no,resizable=no,scrollbars=no,titlebar=no,toolbar=no");
-}
-</script>
-<script type="text/javascript">
 function SingleFileAction(profile, act, fileid)
 {
     var form = document.createElement("form");
     form.method = "POST";
     form.action = "action-files.php";
-
-    var fields = {
-        profile: profile,
-        act: act
-    };
-
+    var fields = { profile: profile, act: act };
     for(var key in fields)
     {
         if(fields.hasOwnProperty(key))
@@ -356,63 +229,43 @@ function SingleFileAction(profile, act, fileid)
             form.appendChild(input);
         }
     }
-
     var fileInput = document.createElement("input");
     fileInput.type = "hidden";
     fileInput.name = "files[]";
     fileInput.value = fileid;
     form.appendChild(fileInput);
-
     document.body.appendChild(form);
     form.submit();
 }
-
 function DeleteFile(profile, file, fid)
 {
-    var answer = confirm("Are you sure you want to Delete\n\n" + file + " ?");
-
-    if(answer == true)
+    if(confirm("Are you sure you want to Delete\n\n" + file + " ?"))
         SingleFileAction(profile, "Delete", fid);
 }
-</script>
-<script type="text/javascript">
 function handleClick(form, act)
 {
-    var answer = confirm("Are you sure you want to '" + act + "' all the selected files?");
-
-    if(answer == true)
+    if(confirm("Are you sure you want to '" + act + "' all the selected files?"))
     {
         document.getElementById('act').value = act;
         document.getElementById(form).submit();
     }
 }
 </script>
-
 </HTML>
 <?php
 function DropProfile($full, $part)
 {
     if($part != "" && strpos($full, $part) === 0)
         return trim(substr($full, strlen($part), strlen($full)), "//");
-
     return $full;
 }
-//--------------------------------------------------------------------------
 function ChopName($name)
 {
     global $dup;
-
-    if($dup->Settings['shortfilenames'] != 0)
-    {
-        if(strlen($name) > $dup->Settings['shortfilenames'])
-            return "..." . substr($name, (strlen($name) - $dup->Settings['shortfilenames']), strlen($name));
-        else
-            return $name;
-    }
-    else
-        return $name;
+    if($dup->Settings['shortfilenames'] != 0 && strlen($name) > $dup->Settings['shortfilenames'])
+        return "..." . substr($name, (strlen($name) - $dup->Settings['shortfilenames']), strlen($name));
+    return $name;
 }
-//--------------------------------------------------------------------------
 function JavaScriptSafeString($value)
 {
     return str_replace(array("\\", "'", "\r", "\n"), array("\\\\", "\\'", "", ""), (string)$value);
