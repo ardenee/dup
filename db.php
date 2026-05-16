@@ -68,6 +68,9 @@ $start    = 0;
 
 $configLocal = __DIR__ . "/config.local.php";
 
+if(is_file($configLocal))
+    include($configLocal);
+
 if(isset($_GET["profile"]))
 	$profile = $_GET["profile"];
 	
