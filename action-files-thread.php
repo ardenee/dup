@@ -36,11 +36,9 @@ if(!in_array($action, $allowedActions))
 }
 
 $dup = new dup($profileId);
-
 $profilePath = isset($dup->Profile["path"]) ? $dup->Profile["path"] : "";
 
 LogStr("Action " . $action . " '" . $profilePath . "'", 1, __FILE__, __LINE__, __FUNCTION__);
-
 
 if(intval($dup->Profile['scan']) == 1)
 {
@@ -51,24 +49,14 @@ if(intval($dup->Profile['scan']) == 1)
 $max = 0;
 $num = 1;
 $FilesToAction = array();
-
-$dup->Profile['scan'] = 1;
+$successCount = 0;
+$failCount = 0;
 
 try
 {
-    $query = "UPDATE profiles SET scan=:scan WHERE id=:profile;";
-    LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
+    SetActionRunning(1);
 
-    $sdt = $dblink->prepare($query);
-    $sdt->bindValue(":scan", intval($dup->Profile['scan']), PDO::PARAM_INT);
-    $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
-    $sdt->execute();
-    $sdt->closeCursor();
-
-    $table = "files_" . strtolower($action);
-
-    if(!in_array($table, array("files_delete", "files_rename", "files_move", "files_link")))
-        throw new Exception("Invalid action table: " . $table);
+    $table = GetActionTable($action);
 
     $query = "SELECT file, new, profile FROM `" . $table . "` WHERE profile=:profile;";
     LogStr("MySQL/SQLite: $query", 2, __FILE__, __LINE__, __FUNCTION__);
@@ -76,11 +64,11 @@ try
     $sdt = $dblink->prepare($query);
     $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
     $sdt->execute();
-
     $FilesToAction = $sdt->fetchAll(PDO::FETCH_ASSOC);
     $sdt->closeCursor();
 
     $max = count($FilesToAction);
+    UpdateActionStatus("Starting " . ActionVerb($action) . "...", $profilePath);
 }
 catch(Exception $ex)
 {
@@ -94,71 +82,110 @@ catch(PDOException $ex)
     ResetProfileStatus();
     exit;
 }
-	
-$successCount = 0;
-$failCount = 0;
-	
-// each block should control their own errors, taken out of above try catch to continue if one file fails.	
+
 foreach($FilesToAction as $key => $row)
-{			
-	$result = false;
+{
+    $result = false;
+    $source = isset($row['file']) ? $row['file'] : "";
+    $target = isset($row['new']) ? $row['new'] : "";
 
-	switch($action)
-	{
-		case "Rename":
-			$result = Rename_File($row['file'], $row['new'], $dup->Settings['renametype']);
-			break;
+    switch($action)
+    {
+        case "Rename":
+            $result = Rename_File($source, $target, $dup->Settings['renametype']);
+            break;
 
-		case "Delete":
-			$result = Delete_File($row['file']);
-			break;
+        case "Delete":
+            $result = Delete_File($source);
+            break;
 
-		case "Move":
-			$result = Move_File($row['file'], $row['new'], $dup->Settings['renametype']);
-			break;
+        case "Move":
+            $result = Move_File($source, $target, $dup->Settings['renametype']);
+            break;
 
-		case "Link":
-			$result = Link_File($row['file'], $row['new']);
-			break;
+        case "Link":
+            $result = Link_File($source, $target);
+            break;
+    }
 
-		default:
-			$result = false;
-			break;
-	}
+    if($result)
+        $successCount++;
+    else
+        $failCount++;
 
-	if($result)
-		$successCount++;
-	else
-		$failCount++;
-		
-	if($num % 20 == 0)
-	{
-		try
-		{
-			$query = "UPDATE status SET value=:value, data=:data WHERE profile=:profile;";
-			LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
+    if($num == 1 || $num % 20 == 0 || $num == $max)
+        UpdateActionStatus(ActionVerb($action) . "... (" . number_format($num) . "/" . number_format($max) . ")", $source);
 
-			$statusValue = $action . "ing... (" . number_format($num) . "/" . number_format($max) . ")";
-			$statusData = isset($row["file"]) ? $row["file"] : "";
-
-			$sdt = $dblink->prepare($query);
-			$sdt->bindValue(":value", $statusValue, PDO::PARAM_STR);
-			$sdt->bindValue(":data", $statusData, PDO::PARAM_STR);
-			$sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
-			$sdt->execute();
-			$sdt->closeCursor();
-		}
-		catch(PDOException $ex) {
-			LogError(print_r($ex, true));
-		}
-	}		
-
-	$num++;
+    $num++;
 }
 
-//----------------------------------------------------------------------------	
 LogStr("Action completed: action=" . $action . " success=" . $successCount . " failed=" . $failCount . " total=" . $max, 1, __FILE__, __LINE__, __FUNCTION__);
 ResetProfileStatus();
+exit;
+
+//----------------------------------------------------------------------------
+function ActionVerb($action)
+{
+    switch($action)
+    {
+        case "Move": return "Moving";
+        case "Rename": return "Renaming";
+        case "Delete": return "Deleting";
+        case "Link": return "Linking";
+    }
+
+    return $action . "ing";
+}
+//----------------------------------------------------------------------------
+function GetActionTable($action)
+{
+    $table = "files_" . strtolower($action);
+
+    if(!in_array($table, array("files_delete", "files_rename", "files_move", "files_link")))
+        throw new Exception("Invalid action table: " . $table);
+
+    return $table;
+}
+//----------------------------------------------------------------------------
+function UpdateActionStatus($value, $data)
+{
+    global $dblink;
+    global $profileId;
+
+    try
+    {
+        $query = "UPDATE status SET value=:value, data=:data WHERE profile=:profile;";
+        LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
+
+        $sdt = $dblink->prepare($query);
+        $sdt->bindValue(":value", $value, PDO::PARAM_STR);
+        $sdt->bindValue(":data", $data, PDO::PARAM_STR);
+        $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
+        $sdt->execute();
+        $sdt->closeCursor();
+    }
+    catch(PDOException $ex) {
+        LogError(print_r($ex, true));
+    }
+}
+//----------------------------------------------------------------------------
+function SetActionRunning($scan)
+{
+    global $dblink;
+    global $profileId;
+    global $dup;
+
+    $dup->Profile['scan'] = intval($scan);
+
+    $query = "UPDATE profiles SET scan=:scan WHERE id=:profile;";
+    LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
+
+    $sdt = $dblink->prepare($query);
+    $sdt->bindValue(":scan", intval($scan), PDO::PARAM_INT);
+    $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
+    $sdt->execute();
+    $sdt->closeCursor();
+}
 //----------------------------------------------------------------------------
 function ResetProfileStatus()
 {
@@ -170,21 +197,9 @@ function ResetProfileStatus()
 
     try
     {
-        $table = "files_" . strtolower($action);
+        $table = GetActionTable($action);
 
-        if(!in_array($table, array("files_delete", "files_rename", "files_move", "files_link")))
-            throw new Exception("Invalid action table in ResetProfileStatus: " . $table);
-
-        $dup->Profile['scan'] = 0;
-
-        $query = "UPDATE profiles SET scan=:scan WHERE id=:profile;";
-        LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
-
-        $sdt = $dblink->prepare($query);
-        $sdt->bindValue(":scan", 0, PDO::PARAM_INT);
-        $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
-        $sdt->execute();
-        $sdt->closeCursor();
+        SetActionRunning(0);
 
         $query = "DELETE FROM `" . $table . "` WHERE profile=:profile;";
         LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
@@ -207,20 +222,11 @@ function ResetProfileStatus()
         $sdt->execute();
         $sdt->closeCursor();
 
-        $query = "UPDATE status SET value=:value, data=:data WHERE profile=:profile;";
-        LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
-
-        $sdt = $dblink->prepare($query);
-        $sdt->bindValue(":value", "Refreshing", PDO::PARAM_STR);
-        $sdt->bindValue(":data", "Refreshing", PDO::PARAM_STR);
-        $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
-        $sdt->execute();
-        $sdt->closeCursor();
+        UpdateActionStatus("Idle", "Complete");
 
         if($dbfile == 0)
         {
-            try
-            {
+            try {
                 $dblink->exec("OPTIMIZE TABLE `" . $table . "`;");
             }
             catch(PDOException $ex) {
@@ -231,10 +237,12 @@ function ResetProfileStatus()
     catch(Exception $ex)
     {
         LogError(print_r($ex, true));
+        try { SetActionRunning(0); UpdateActionStatus("Error", "Action cleanup failed."); } catch(Exception $inner) {}
     }
     catch(PDOException $ex)
     {
         LogError(print_r($ex, true));
+        try { SetActionRunning(0); UpdateActionStatus("Error", "Action cleanup failed."); } catch(Exception $inner) {}
     }
 }
 //----------------------------------------------------------------------------
@@ -245,8 +253,8 @@ function Rename_File($old, $new, $type)
 
     LogStr("Rename_File() renames file using PHP rename()", 2, __FILE__, __LINE__, __FUNCTION__);
 
-    $old = trim($old);
-    $new = trim($new);
+    $old = trim((string)$old);
+    $new = trim((string)$new);
     $type = intval($type);
 
     if($old == "" || $new == "")
@@ -333,7 +341,6 @@ function Rename_File($old, $new, $type)
     }
 
     LogStr("Rename succeeded: " . $old . " -> " . $target, 2, __FILE__, __LINE__, __FUNCTION__);
-
     return true;
 }
 //----------------------------------------------------------------------------
@@ -343,11 +350,9 @@ function GetNewName($name)
 
     $num = 1;
     $nameParts = pathinfo($name);
-
     $dir = isset($nameParts["dirname"]) ? $nameParts["dirname"] : ".";
     $filename = isset($nameParts["filename"]) ? $nameParts["filename"] : basename($name);
     $extension = isset($nameParts["extension"]) && $nameParts["extension"] != "" ? "." . $nameParts["extension"] : "";
-
     $candidate = $dir . "/" . $filename . " (" . $num . ")" . $extension;
 
     while(file_exists($candidate) || is_link($candidate))
@@ -366,8 +371,8 @@ function Move_File($old, $new, $type)
 
     LogStr("Move_File() moves a file using PHP rename()", 2, __FILE__, __LINE__, __FUNCTION__);
 
-    $old = trim($old);
-    $new = trim($new);
+    $old = trim((string)$old);
+    $new = trim((string)$new);
     $type = intval($type);
 
     if($old == "" || $new == "")
@@ -482,8 +487,8 @@ function Link_File($old, $new)
 
     LogStr("Link_File() symlinks a file using PHP symlink()", 2, __FILE__, __LINE__, __FUNCTION__);
 
-    $old = trim($old);
-    $new = trim($new);
+    $old = trim((string)$old);
+    $new = trim((string)$new);
 
     if($old == "" || $new == "")
     {
@@ -584,7 +589,7 @@ function Link_File($old, $new)
 //----------------------------------------------------------------------------
 function NewDelete($file)
 {
-    $file = trim($file);
+    $file = trim((string)$file);
 
     if($file == "")
         return false;
@@ -609,7 +614,7 @@ function Delete_File($old)
 
     LogStr("Delete_File() deletes a file using NewDelete function based on passed pram", 2, __FILE__, __LINE__, __FUNCTION__);
 
-    $old = trim($old);
+    $old = trim((string)$old);
 
     if($old == "")
     {
