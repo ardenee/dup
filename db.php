@@ -282,6 +282,7 @@ function LogStr($str, $type = 0, $file = "", $line = "", $function = "")
 {
     global $dup;
     global $dblink;
+    global $profile;
 
     $type = intval($type);
     $writeLog = true;
@@ -290,10 +291,17 @@ function LogStr($str, $type = 0, $file = "", $line = "", $function = "")
     {
         $logsEnabled = isset($dup->Settings["logs"]) ? intval($dup->Settings["logs"]) : 1;
 
-        // Always keep error/warn-level entries. The setting only controls normal/debug noise.
-        if($logsEnabled == 0 && $type > 2)
-            $writeLog = false;
+        // Match original intended behavior:
+        // - Keep Logs ON: log everything.
+        // - Keep Logs OFF: only keep important/error entries.
+        // - Type 1 = ERROR.
+        // - Type 4 = SQL/special/default-safe log type from original code.
+        $writeLog = ($logsEnabled == 1 || $type == 1 || $type == 4);
     }
+
+    // Original behavior also logged when no profile/settings context was active.
+    if(isset($profile) && intval($profile) == 0)
+        $writeLog = true;
 
     if(!$writeLog)
         return;
@@ -316,10 +324,10 @@ function LogStr($str, $type = 0, $file = "", $line = "", $function = "")
     else
         $msg .= "INFO  | ";
 
-	$displayFile = DupRelativeSourcePath($file);
+    $displayFile = DupRelativeSourcePath($file);
 
-	if($displayFile != "" || $line != "" || $function != "")
-		$msg .= $displayFile . ":" . $line . " " . $function . " | ";
+    if($displayFile != "" || $line != "" || $function != "")
+        $msg .= $displayFile . ":" . $line . " " . $function . " | ";
 
     $msg .= (string)$str . "\n";
 
