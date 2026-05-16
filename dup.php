@@ -1,5 +1,6 @@
 <?php
 include("db.php");
+include_once("db-log-user.php");
 
 class dup
 {		
@@ -540,6 +541,7 @@ class dup
         $sdt->execute();
 
         $row = $sdt->fetch(PDO::FETCH_ASSOC);
+        $sdt->closeCursor();
 
         if($row && isset($row['data']) && $row['data'] != "")
         {
@@ -549,77 +551,14 @@ class dup
                 $value = $decoded;
         }
 
-        $sdt->closeCursor();
+        if(isset($value[$page]) && is_array($value[$page]))
+            return $value[$page];
     }
     catch(PDOException $ex) {
         LogError(print_r($ex, true));
-        header("Location: error.php");
-        exit;
     }
-
-    if(isset($value[$page]) && is_array($value[$page]))
-        return $value[$page];
 
     return array("start" => 0, "end" => 0);
-}
-	//-------------------------------------------------------------------------------
-	function UpdatePages($page, $start, $end)
-{
-    global $profile;
-    global $dblink;
-
-    $profileId = intval($profile);
-    $page = intval($page);
-    $start = intval($start);
-    $end = intval($end);
-
-    LogStr("UpdatePages() Sets page info based on parms - $page, $start, $end", 2, __FILE__, __LINE__, __FUNCTION__);
-
-    if($profileId <= 0 || $page <= 0)
-        return;
-
-    $data = array();
-
-    try
-    {
-        $query = "SELECT data FROM viewpages WHERE profile=:profile LIMIT 1;";
-        LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
-
-        $sdt = $dblink->prepare($query);
-        $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
-        $sdt->execute();
-
-        $row = $sdt->fetch(PDO::FETCH_ASSOC);
-
-        if($row && isset($row['data']) && $row['data'] != "")
-        {
-            $decoded = json_decode($row['data'], true);
-
-            if(is_array($decoded))
-                $data = $decoded;
-        }
-
-        $sdt->closeCursor();
-
-        $data[$page]["start"] = $start;
-        $data[$page]["end"] = $end;
-
-        $jdata = json_encode($data);
-
-        $query = "UPDATE viewpages SET data=:data WHERE profile=:profile;";
-        LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
-
-        $sdt = $dblink->prepare($query);
-        $sdt->bindValue(":data", $jdata, PDO::PARAM_STR);
-        $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
-        $sdt->execute();
-        $sdt->closeCursor();
-    }
-    catch(PDOException $ex) {
-        LogError(print_r($ex, true));
-        header("Location: error.php");
-        exit;
-    }
 }
 	//-------------------------------------------------------------------------------	
 	function FixArray2($MixedArray) // rename, remove 2
