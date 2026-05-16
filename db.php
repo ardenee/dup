@@ -56,7 +56,6 @@ $log = fopen("logs/log.txt", "a+");
 */
 
 $dbuser   = "root";
-$dbpass   = "MyDBPassword";
 $dbdir    = dirname(__FILE__);
 $dbfile   = 0;
 $sqliteOr = "";
@@ -66,6 +65,8 @@ $dbhost   = "127.0.0.1";
 $dbport   = "3306";
 $profile  = 0;  //should be 0 ?
 $start    = 0;
+
+$configLocal = __DIR__ . "/config.local.php";
 
 if(isset($_GET["profile"]))
 	$profile = $_GET["profile"];
