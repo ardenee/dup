@@ -230,7 +230,7 @@ CREATE TABLE IF NOT EXISTS `settings` (
 ) ENGINE=MyISAM  DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1 ;
 
 INSERT INTO `settings` (`id`, `renametype`, `namecleanup`, `cleanupfilter`, `dot`, `under`, `doubleb`, `flatfolders`, `logs`, `displaymoved`, `cpfolder`, `shortfilenames`, `runtime`, `version`, `ifolders`, `download`) VALUES
-(1, 0, 1, 'DVDRip,BRRip,720p,1080p,1080i,480p,DVD', 1, 1, 1, 0, 0, 0, 1, 0, 10800, '0.6.3 Beta 2', '@eaDir,#recycle', 0);
+(1, 0, 1, 'DVDRip,BRRip,720p,1080p,1080i,480p,DVD', 1, 1, 1, 0, 0, 0, 1, 0, 10800, '0.7.0', '@eaDir,#recycle', 0);
 
 
 -- --------------------------------------------------------
