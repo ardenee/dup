@@ -53,6 +53,7 @@ $(document).ready(function(){ $("#NAVconfig").addClass("active"); });
 <div id="config">
 <div id="config-content">
 <form id="configForm" action="update-config.php" method="post">
+<input type="hidden" name="return_to" value="config-viewer.php">
 <input type="hidden" name="renametype" value="<?php echo DupSettingInt("renametype"); ?>">
 <input type="hidden" name="cleanupfilter" value="<?php echo DupHtml(DupSettingStr("cleanupfilter")); ?>">
 <input type="hidden" name="dot" value="<?php echo DupSettingInt("dot"); ?>">
