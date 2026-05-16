@@ -1,0 +1,29 @@
+# Runtime logs
+/logs/*
+!/logs/.gitkeep
+
+# Runtime backup exports/status
+/backup/*
+!/backup/.gitkeep
+
+# Old/manual scratch copies
+/old/
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+*.swp
+*.log
+
+# Local/generated config - use a sample file instead
+db.local.php
+config.local.php
+.env

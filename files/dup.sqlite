@@ -1,0 +1,54 @@
+BEGIN TRANSACTION;
+CREATE TABLE `profiletypes` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`exts` TEXT ,`name` VARCHAR(50));
+CREATE TABLE `files` (`id` INTEGER PRIMARY KEY AUTOINCREMENT,`file` VARCHAR(255) ,`size` FLOAT(0,0) DEFAULT 0 ,`fdate` DATETIME DEFAULT CURRENT_TIMESTAMP ,`crc32` VARCHAR(15),`profile` INT NOT NULL,`link` VARCHAR(255) );
+CREATE TABLE `logs` (`id` INTEGER PRIMARY KEY AUTOINCREMENT,`stamp` DATETIME DEFAULT CURRENT_TIMESTAMP ,`str` TEXT ,`type` INT DEFAULT 1 ,`page` VARCHAR(255) ,`line` INT DEFAULT 0 ,`function` VARCHAR(255) );
+CREATE TABLE `profiles` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`msize` INT DEFAULT 0 ,`path` VARCHAR(255) ,`mpath` VARCHAR(255) ,`crc32` VARCHAR(15),`filetypes` TEXT ,`scan` SMALLINT DEFAULT 0 ,`lastrun` DATETIME DEFAULT CURRENT_TIMESTAMP ,`type` INT DEFAULT 1,`files` INT DEFAULT 0,`dups` INT DEFAULT 0,`runs` INT DEFAULT 0);
+CREATE TABLE `settings` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`renametype` INT DEFAULT 0,`namecleanup` INT DEFAULT 0,`cleanupfilter` TEXT ,`dot` INT  DEFAULT 0,`under` INT DEFAULT 0,`doubleb` INT DEFAULT 0,`flatfolders` INT DEFAULT 0,`logs` INT DEFAULT 0,`displaymoved` INT DEFAULT 0,`cpfolder` INT DEFAULT 0,`shortfilenames` INT DEFAULT 0,`runtime` INT DEFAULT 3600,`version` VARCHAR(15) ,`ifolders` TEXT,`download` INT DEFAULT 0);
+CREATE TABLE `status` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`value` TEXT ,`data` TEXT ,`profile` INT NOT NULL );
+CREATE TABLE `viewpages` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`data` TEXT ,`profile` INT NOT NULL );
+CREATE TABLE `msg` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`message` TEXT);
+CREATE TABLE `files_delete` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`old` VARCHAR(255), `new` VARCHAR(255) ,`profile` INT NOT NULL);
+CREATE TABLE `files_move` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`old` VARCHAR(255), `new` VARCHAR(255) ,`profile` INT NOT NULL);
+CREATE TABLE `files_rename` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`old` VARCHAR(255), `new` VARCHAR(255) ,`profile` INT NOT NULL);
+CREATE TABLE `files_link` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`old` VARCHAR(255), `new` VARCHAR(255) ,`profile` INT NOT NULL);
+CREATE TABLE `accounts` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`name` VARCHAR(50), `level` INT NOT NULL, `password` VARCHAR(50));
+
+INSERT INTO accounts VALUES(1,'Admin',1,'afb7127bdf13d61f0cfd4819a0faf804');
+INSERT INTO settings VALUES(1,0,1,'DVDRip,BRRip,720p,1080p,1080i,480p,DVD',1,1,1,0,0,0,1,0,3600,'0.6.3','#recycle,@eaDir', 0);
+INSERT INTO profiletypes VALUES(1,'mobi,prc','Books');
+INSERT INTO profiletypes VALUES(2,'cbr,cbz','Comics');
+INSERT INTO profiletypes VALUES(3,'pdf,rtf,doc,docx','Documents');
+INSERT INTO profiletypes VALUES(4,'avi,mp4,mkv,divx,mpg,rmvb,wmv,rm,ram,vob,wmv','Films');
+INSERT INTO profiletypes VALUES(5,'iso,zip,rar,exe,msi,nds','Games');
+INSERT INTO profiletypes VALUES(6,'wma,mpc,mp3,flac,wav,ogg','Music');
+INSERT INTO profiletypes VALUES(7,'bmp,png,gif,jpg,jpeg','Pictures');
+INSERT INTO profiletypes VALUES(8,'exe,msi,zip,rar','Programs');
+INSERT INTO profiletypes VALUES(9,'avi,mp4,mkv,divx,mpg,rmvb,wmv,rm,ram,vob,wmv','TV Shows');
+INSERT INTO profiletypes VALUES(10,'avi,mp4,mkv,divx,mpg,rmvb,wmv,rm,ram,vob,wmv','Videos');
+INSERT INTO profiletypes VALUES(11,'','All File Types');
+
+CREATE INDEX 'crc32' ON 'files' (`crc32` DESC);
+CREATE INDEX 'file' ON 'files' (`file` DESC);
+CREATE INDEX 'size' ON 'files' (`size` DESC);
+CREATE UNIQUE INDEX 'file_2' ON 'files' (`file` DESC,`profile` DESC);
+CREATE UNIQUE INDEX 'name' ON 'profiletypes' (`name` DESC);
+CREATE UNIQUE INDEX 'profile' ON 'viewpages' (`profile` DESC);
+CREATE UNIQUE INDEX 'profile_2' ON 'status' (`profile` DESC);
+
+CREATE UNIQUE INDEX 'file_m' ON 'files_move' (`old` DESC,`profile` DESC);
+CREATE UNIQUE INDEX 'file_d' ON 'files_delete' (`old` DESC,`profile` DESC);
+CREATE UNIQUE INDEX 'file_r' ON 'files_rename' (`old` DESC,`profile` DESC);
+CREATE UNIQUE INDEX 'file_l' ON 'files_link' (`new` DESC,`profile` DESC);
+CREATE UNIQUE INDEX 'name_a' ON 'accounts' (`name` DESC);
+
+COMMIT;
+
+
+
+
+
+
+
+
+
+
