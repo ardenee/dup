@@ -3,6 +3,30 @@ include("dup.php");
 $dup = new dup($profile);
 LogStr("Renaming '".$dup->Profile['path']."'", 1, __FILE__, __LINE__, __FUNCTION__);
 
+function DupHtml($value)
+{
+    return htmlspecialchars((string)$value, ENT_QUOTES, "UTF-8");
+}
+
+function HighlightFilterText($value, $filters)
+{
+    $escaped = DupHtml($value);
+    $parts = explode(",", (string)$filters);
+
+    foreach($parts as $part)
+    {
+        $part = trim($part);
+
+        if($part == "")
+            continue;
+
+        $escapedPart = preg_quote(DupHtml($part), "/");
+        $escaped = preg_replace("/(" . $escapedPart . ")/i", "<mark>$1</mark>", $escaped);
+    }
+
+    return $escaped;
+}
+
 $profileId = intval($profile);
 
 if($profileId != 0 && isset($dup->Profile['id']) && $profileId != intval($dup->Profile['id']))
@@ -15,9 +39,9 @@ if(isset($_POST['filters']))
 else if(isset($_GET['filters']))
     $filters = trim($_GET['filters']);
 
-$filters = str_replace(array("\r", "\n"), "", $filters);
-
-$submitted = isset($_POST['submitted']);
+$filters = str_replace(array("\r", "\n", "\0"), "", $filters);
+$dupsOnly = isset($_REQUEST['dups']) && intval($_REQUEST['dups']) == 1;
+$submitted = isset($_POST['submitted']) || isset($_GET['submitted']);
 ?>
 
 <!DOCTYPE HTML>
@@ -40,7 +64,7 @@ $submitted = isset($_POST['submitted']);
   <SCRIPT TYPE="text/javascript" SRC="files/jquery.tablesorter-2.1.19.min.js"></SCRIPT>
   <SCRIPT SRC="files/script.js"></SCRIPT>  
   <SCRIPT TYPE="text/javascript" CHARSET="utf-8">
-		sbRoot = '/'; 
+        sbRoot = '/'; 
         top_image_html = '<img src="images/top.gif" style="width:31px; height:11px" alt="Jump to top" />'; 
   </SCRIPT>
   <SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>  
@@ -53,14 +77,17 @@ $submitted = isset($_POST['submitted']);
     </SCRIPT>	  
  <SCRIPT type="text/javascript" charset="utf-8">
     <!--
-	$(document).ready(function(){ 
+    $(document).ready(function(){ 
 
-		$("#showListTable:has(tbody tr)").tablesorter({
-			widgets: ['saveSort', 'zebra', 'stickyHeaders']
-		});
-	});
-	//-->
+        $("#showListTable:has(tbody tr)").tablesorter({
+            widgets: ['saveSort', 'zebra', 'stickyHeaders']
+        });
+    });
+    //-->
     </SCRIPT>
+<style>
+mark { background: #fff3a3; color: inherit; padding: 0 2px; border-radius: 2px; }
+</style>
 
   <META name="GENERATOR" content="MSHTML 8.00.7601.17940">
  </HEAD>
@@ -76,22 +103,23 @@ $submitted = isset($_POST['submitted']);
     <input type="hidden" name="submitted" id="submitted" value="true">
   <H1 class="title">Mass Renaming 
   <?php
-	$Profiles = $dup->GetProfiles("path"); 
-	
+    $Profiles = $dup->GetProfiles("path"); 
+    
     echo "<select name=\"profile\" id=\"profile\" class=\"input-medium\" style=\"width: 400px\">\n";
-	echo " <option value=\"0\"" . (($profileId == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
+    echo " <option value=\"0\"" . (($profileId == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
 
-	foreach($Profiles as $key => $val)
-	{
-		$id = intval($val['id']);
-		$pathHtml = htmlspecialchars($val['path'], ENT_QUOTES, "UTF-8");
+    foreach($Profiles as $key => $val)
+    {
+        $id = intval($val['id']);
+        $pathHtml = DupHtml($val['path']);
 
-		echo " <option value=\"" . $id . "\"" . (($profileId == $id) ? " SELECTED" : "") . "> (" . $id . ") " . $pathHtml . " </option>\n";
-	}
+        echo " <option value=\"" . $id . "\"" . (($profileId == $id) ? " SELECTED" : "") . "> (" . $id . ") " . $pathHtml . " </option>\n";
+    }
 
-	echo "</select>\n";
+    echo "</select>\n";
 
-	echo " &nbsp;&nbsp; Filters: <input type=\"text\" name=\"filters\" id=\"filters\" value=\"" . htmlspecialchars($filters, ENT_QUOTES, "UTF-8") . "\" size=\"50\">";
+    echo " &nbsp;&nbsp; Filters: <input type=\"text\" name=\"filters\" id=\"filters\" value=\"" . DupHtml($filters) . "\" size=\"50\">";
+    echo " &nbsp;&nbsp; Dups Only: <input type=\"checkbox\" name=\"dups\" value=\"1\"" . (($dupsOnly) ? " CHECKED" : "") . ">";
 
  ?> 
   &nbsp;
@@ -106,88 +134,93 @@ $(document).ready();
 
 <input type="hidden" name="profile" value="<?php echo $profileId; ?>">
 
-<input type="hidden" name="filters" id="filters" value="<?php echo htmlspecialchars($filters, ENT_QUOTES, "UTF-8"); ?>">
+<input type="hidden" name="filters" id="filters" value="<?php echo DupHtml($filters); ?>">
+<input type="hidden" name="dups" id="dups" value="<?php echo $dupsOnly ? 1 : 0; ?>">
 
-	<TABLE id="showListTable" class="tablesorter" border="0" cellSpacing="1" cellPadding="0">
-	<THEAD>
-	  <TR>
-	   <TH class="nowrap">Num</TH>
-	   <TH>Type</TH>
-	   <TH>Current Name</TH>
-	   <TH>New Name</TH>
-	  </TR>
-	  </THEAD>
-	  <TBODY>  
+    <TABLE id="showListTable" class="tablesorter" border="0" cellSpacing="1" cellPadding="0">
+    <THEAD>
+      <TR>
+       <TH class="nowrap">Num</TH>
+       <TH>Type</TH>
+       <TH>Current Name</TH>
+       <TH>New Name</TH>
+      </TR>
+      </THEAD>
+      <TBODY>  
   
 <?php  
 if($submitted)
 {
-	$MovedFolders = $dup->GetMovedFolders($profileId);
-	$num = 1;
+    $MovedFolders = $dup->GetMovedFolders($profileId);
+    $num = 1;
 
-	try
-	{
-		if($profileId != 0)
-		{
-			$query = "SELECT * FROM files WHERE profile=:profile ORDER BY file LIMIT 995;";
-			LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
+    try
+    {
+        $whereParts = array();
 
-			$sdt = $dblink->prepare($query);
-			$sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
-			$sdt->execute();
-		}
-		else
-		{
-			$query = "SELECT * FROM files ORDER BY profile, file LIMIT 995;";
-			LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
+        if($profileId != 0)
+            $whereParts[] = "f.profile=:profile";
 
-			$sdt = $dblink->query($query);
-		}
-		
-		while($row = $sdt->fetch(PDO::FETCH_ASSOC))
-		{			
-			if(IsMovedFile($row['file'], $MovedFolders) and $dup->Settings['displaymoved']==0)
-				continue;			
-			
-			$old = ChopName(trim(NameOnly($row['file'])));
-			$new = ChopName(trim(CleanNameOnly($row['file'])));
-			
-			$icon = "<I class=icon-file></I>";//"<img src='images/file16.png'>";
-			$type = "File";
-			
-			if(strlen($row['link'])>0)
-			{
-				$icon = "<I class=icon-magnet></I>";	
-				$type = "Link";
-			}
-			
-			if($old!=$new)
-			{			
-				$fileHtml = htmlspecialchars($row['file'], ENT_QUOTES, "UTF-8");
-				$oldHtml = htmlspecialchars($old, ENT_QUOTES, "UTF-8");
-				$newHtml = htmlspecialchars($new, ENT_QUOTES, "UTF-8");
-				$typeHtml = htmlspecialchars($type, ENT_QUOTES, "UTF-8");
+        if($dupsOnly)
+            $whereParts[] = "EXISTS (SELECT 1 FROM files f2 INNER JOIN profiles p2 ON p2.id=f2.profile WHERE f2.profile=f.profile AND f2.id<>f.id AND ((p2.crc32=0 AND f2.size=f.size) OR (p2.crc32<>0 AND f.crc32<>'' AND f.crc32<>'0 Filled' AND f2.crc32=f.crc32)))";
 
-				echo "<TR>\n";
-				echo " <TD class=\"nowrap\">" . $num . "</TD>\n";
-				echo " <TD class=\"nowrap\" title=\"" . $typeHtml . "\" align=\"middle\">" . $icon . "</TD>\n";
-				echo " <TD class=\"nowrap\" title=\"" . $fileHtml . "\">" . $oldHtml . "</TD>\n";
-				echo " <TD class=\"nowrap\" title=\"" . $fileHtml . "\">" . $newHtml . "</TD>\n";
-				echo "</TR>\n";
-				$num++;
-			}
-			
-			if($num>995)
-				break;
-		}
-			
-	}
-	catch(PDOException $ex) {
-		LogError(print_r($ex, true));
-		header("Location: error.php");	
-		Exit;
-	}
-}	
+        $whereSql = count($whereParts) > 0 ? " WHERE " . implode(" AND ", $whereParts) : "";
+        $orderSql = ($profileId != 0) ? " ORDER BY f.file" : " ORDER BY f.profile, f.file";
+        $query = "SELECT f.* FROM files f" . $whereSql . $orderSql . " LIMIT 995;";
+
+        LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
+
+        $sdt = $dblink->prepare($query);
+
+        if($profileId != 0)
+            $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
+
+        $sdt->execute();
+        
+        while($row = $sdt->fetch(PDO::FETCH_ASSOC))
+        {            
+            if(IsMovedFile($row['file'], $MovedFolders) and $dup->Settings['displaymoved']==0)
+                continue;            
+            
+            $old = ChopName(trim(NameOnly($row['file'])));
+            $new = ChopName(trim(CleanNameOnly($row['file'])));
+            
+            $icon = "<I class=icon-file></I>";
+            $type = "File";
+            
+            if(isset($row['link']) && strlen($row['link'])>0)
+            {
+                $icon = "<I class=icon-magnet></I>";    
+                $type = "Link";
+            }
+            
+            if($old!=$new)
+            {            
+                $fileHtml = DupHtml($row['file']);
+                $oldHtml = HighlightFilterText($old, $filters);
+                $newHtml = DupHtml($new);
+                $typeHtml = DupHtml($type);
+
+                echo "<TR>\n";
+                echo " <TD class=\"nowrap\">" . $num . "</TD>\n";
+                echo " <TD class=\"nowrap\" title=\"" . $typeHtml . "\" align=\"middle\">" . $icon . "</TD>\n";
+                echo " <TD class=\"nowrap\" title=\"" . $fileHtml . "\">" . $oldHtml . "</TD>\n";
+                echo " <TD class=\"nowrap\" title=\"" . $fileHtml . "\">" . $newHtml . "</TD>\n";
+                echo "</TR>\n";
+                $num++;
+            }
+            
+            if($num>995)
+                break;
+        }
+            
+    }
+    catch(PDOException $ex) {
+        LogError(print_r($ex, true));
+        header("Location: error.php");    
+        Exit;
+    }
+}    
 
 ?>
   </TBODY>
@@ -219,29 +252,29 @@ function handleClick(form, act){
     document.getElementById(form).submit();
   }
 }
-</script>	
+</script>    
 </HTML> 
 <?php
 //--------------------------------------------------------------------------
 function ChopName($name)
 {
-	global $dup;
+    global $dup;
 
-	if($dup->Settings['shortfilenames']!=0)
-	{	
-		if(strlen($name)>$dup->Settings['shortfilenames'])
-		
-			return "...".substr($name, (strlen($name)-$dup->Settings['shortfilenames']), strlen($name));
-		else
-			return $name;
-	}
-	else
-		return $name;
+    if($dup->Settings['shortfilenames']!=0)
+    {    
+        if(strlen($name)>$dup->Settings['shortfilenames'])
+        
+            return "...".substr($name, (strlen($name)-$dup->Settings['shortfilenames']), strlen($name));
+        else
+            return $name;
+    }
+    else
+        return $name;
 }
 //----------------------------------------------------------------------------
 function DropProfile($full, $part)
 {
-	return substr($full, strlen($part), strlen($full));
+    return substr($full, strlen($part), strlen($full));
 }
 //----------------------------------------------------------------------------
 function CleanUpName($name)
