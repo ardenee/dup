@@ -106,31 +106,26 @@ $(document).ready(function(){
  <H1 class=title>Search : <input type="text" name="search" size="30" value="<?php echo DupHtml($search); ?>"> &nbsp;
   Scope :
   <?php
-    $Profiles = $dup->GetProfiles("path");         
-	echo "<select name=\"profile\" id=\"profile\" class=\"input-medium\" style=\"width: 270px\">\n";
-	echo " <option value=\"0\"" . (($profile == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
-	foreach($Profiles as $key => $val)
-	{
-		$id = DupInt($val['id']);
-		$pathHtml = DupHtml($val['path']);
-		$selected = ($id == $profile) ? " SELECTED" : "";
-
-		echo " <option value=\"" . $id . "\"" . $selected . "> (" . $id . ") " . $pathHtml . " </option>\n";
-	}
-	echo "</select>\n";    
-    echo "&nbsp;Case Sensitive : <input type=checkbox name=case".(($case==true)?" CHECKED":"").">";  
- ?> 
+    $Profiles = $dup->GetProfiles("path");
+    echo "<select name=\"profile\" id=\"profile\" class=\"input-medium\" style=\"width: 270px\">\n";
+    echo " <option value=\"0\"" . (($profile == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
+    foreach($Profiles as $key => $val)
+    {
+        $id = DupInt($val['id']);
+        $pathHtml = DupHtml($val['path']);
+        $selected = ($id == $profile) ? " SELECTED" : "";
+        echo " <option value=\"" . $id . "\"" . $selected . "> (" . $id . ") " . $pathHtml . " </option>\n";
+    }
+    echo "</select>\n";
+    echo "&nbsp;Case Sensitive : <input type=checkbox name=case value=1" . (($case == true) ? " CHECKED" : "") . ">";
+ ?>
   &nbsp;
-  <input type=Submit value=Search></B></H1>
- </form> 
- 
-<SCRIPT type="text/javascript" charset="utf-8">
-<!--
-$(document).ready();
-//-->
-</SCRIPT>
- 
+  <input type=Submit value=Search></H1>
+ </form>
+
 <form id=search name=search method=post action=action-files.php>
+<input type="hidden" name="profile" value="<?php echo DupInt($profile); ?>">
+<input type="hidden" id="act" name="act" value="none">
 <TABLE id=showListTable class=tablesorter border=0 cellSpacing=1 cellPadding=0>
 <THEAD>
   <TR>
@@ -142,10 +137,8 @@ $(document).ready();
     <TH>CRC32</TH>
     <TH>Options</TH>
    </TR>
-  </THEAD>
-  <input type="hidden" name="profile" value="<?php echo DupInt($profile); ?>">
-  <input type="hidden" id="act" name="act" value="none">
-  <TBODY>
+</THEAD>
+<TBODY>
 
 <?php
 $num = 1;
@@ -204,7 +197,7 @@ try
             echo " <td colspan=7><b><a href=\"profile-view.php?profile=" . $fid . "\">" . DupHtml($ppath) . "</a></b></td>\n";
             echo "</TR>\n";
             unset($ps[$fid]);
-        }			
+        }
 
         $size      = isset($row['size']) ? intval($row['size']) : 0;
         $fdate     = isset($row['fdate']) ? intval($row['fdate']) : 0;
@@ -241,10 +234,9 @@ catch(PDOException $ex) {
 }
 ?>
 </TBODY>
-</form>
 <TFOOT>
 <TR>
-<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><input type=Button Value=Inverse OnClick="displayAll('search')"></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"></TH>
 <TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><input type=Button Value=Inverse OnClick="checkedAll('search')"></TH>
 <TH style="color: black; background-color:#dfdacf; border: 1pt solid black;">Listed Data size :</TH>
 <TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><?php echo $dup->format_bytes($tsize) ?></TH>
@@ -254,20 +246,18 @@ catch(PDOException $ex) {
 </TR>
 </TFOOT>
 </TABLE>
+</form>
 </DIV>
 </DIV>
 <?php echo PageFooter(); ?>
 </BODY>
 <script type="text/javascript">
-var checked = true;
 function checkedAll(val)
 {
-    checked = !checked;
-    for(var i = 0; i < document.getElementById(val).elements.length; i++)
-    {
-        if(document.getElementById(val).elements[i].id == 'sec')
-            document.getElementById(val).elements[i].checked = checked;
-    }
+    var inputs = document.querySelectorAll('#' + val + ' input[type="checkbox"][name="files[]"]');
+
+    for(var i = 0; i < inputs.length; i++)
+        inputs[i].checked = !inputs[i].checked;
 }
 function SingleFileAction(profile, act, fileid)
 {
