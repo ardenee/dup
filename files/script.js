@@ -110,3 +110,131 @@
     }))
   }
 })(jQuery);
+
+(function($) {
+  function getCellSortValue($row, col) {
+    var $cell = $row.children('td,th').eq(col);
+    var value = '';
+    var title = '';
+
+    if($cell.length === 0)
+      return '';
+
+    title = $.trim($cell.find('[title]').first().attr('title') || '');
+
+    if(col === 3 && / bytes$/.test(title))
+      value = title.replace(/[^0-9]/g, '');
+    else if(col === 4 && /^[0-9]+$/.test(title))
+      value = title;
+    else
+      value = $.trim($cell.text());
+
+    value = value.replace(/^[^0-9A-Za-z]+/, '');
+    return value;
+  }
+
+  function normaliseSortValue(value) {
+    var numeric = String(value).replace(/,/g, '');
+
+    if(numeric !== '' && /^-?[0-9]+(\.[0-9]+)?$/.test(numeric))
+      return parseFloat(numeric);
+
+    return String(value).toLowerCase();
+  }
+
+  function compareValues(a, b, desc) {
+    var av = normaliseSortValue(a.value);
+    var bv = normaliseSortValue(b.value);
+    var result = 0;
+
+    if(typeof av === 'number' && typeof bv === 'number')
+      result = av - bv;
+    else if(av < bv)
+      result = -1;
+    else if(av > bv)
+      result = 1;
+
+    if(result === 0)
+      result = a.index - b.index;
+
+    return desc ? -result : result;
+  }
+
+  function collectRowGroup($row) {
+    var group = [$row[0]];
+    var groupId = $row.next().attr('data-dupgroup');
+    var $next = $row.next();
+
+    while(groupId && $next.length && $next.attr('data-dupgroup') === groupId) {
+      group.push($next[0]);
+      $next = $next.next();
+    }
+
+    return group;
+  }
+
+  function sortDupTable($table, col, desc) {
+    var $tbody = $table.children('tbody').first();
+    var rows = [];
+    var used = [];
+    var headerCount = $table.find('thead th').length;
+
+    $tbody.children('tr').each(function(index) {
+      var $row = $(this);
+
+      if($.inArray(this, used) !== -1)
+        return;
+
+      if($row.children('td,th').length !== headerCount)
+        return;
+
+      if($row.attr('data-dupgroup'))
+        return;
+
+      var group = collectRowGroup($row);
+
+      for(var i = 0; i < group.length; i++)
+        used.push(group[i]);
+
+      rows.push({ index: index, value: getCellSortValue($row, col), group: group });
+    });
+
+    rows.sort(function(a, b) { return compareValues(a, b, desc); });
+    $tbody.empty();
+
+    for(var r = 0; r < rows.length; r++) {
+      for(var g = 0; g < rows[r].group.length; g++)
+        $tbody.append(rows[r].group[g]);
+    }
+  }
+
+  $(document).ready(function() {
+    var $table = $('#showListTable');
+
+    if($table.length === 0)
+      return;
+
+    $table.find('thead th').each(function(index) {
+      if(index === 6)
+        return;
+
+      $(this).css('cursor', 'pointer');
+    });
+
+    $table.find('thead th').off('click.dupManualSort').on('click.dupManualSort', function(e) {
+      var col = $(this).index();
+
+      if(col === 6)
+        return;
+
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      var desc = $(this).data('dupSortDir') === 'asc';
+      $table.find('thead th').removeData('dupSortDir');
+      $(this).data('dupSortDir', desc ? 'desc' : 'asc');
+      sortDupTable($table, col, desc);
+      return false;
+    });
+  });
+})(jQuery);
