@@ -190,28 +190,27 @@ if(strlen($search)>0)
                         $sfid = $row2['id'];
                         $linkValue = isset($row2['link']) ? $row2['link'] : "";
                         $icon = (strlen($linkValue) > 0) ? "<I class=icon-magnet></I>" : "<I class=icon-file></I>";                                    
-$sfid = DupInt($sfid);
-$profileActionId = DupInt($val['id']);
+						$sfid = DupInt($sfid);
+						$profileActionId = DupInt($val['id']);
 
-if($dup->Settings['download']==1)
-    echo " <TD class=nowrap><span title='".(($icon=="<I class=icon-file></I>")?"File":"Symlink")."' >$icon</span> &nbsp; <input type=checkbox id=\"sec\" name=\"files[]\" value=\"" . $sfid . "\" CHECKED> <a id=\"Download\" href=\"javascript:Download('" . $profileActionId . "', '" . $sfid . "');\" alt=\"Download\" title=\"Download\">" . $sfid . "</a></TD>\n";
-else
-    echo " <TD class=nowrap><span title='".(($icon=="<I class=icon-file></I>")?"File":"Symlink")."' >$icon</span> &nbsp; <input type=checkbox id=\"sec\" name=\"files[]\" value=\"" . $sfid . "\" CHECKED> " . $sfid . "</TD>\n";
+						if($dup->Settings['download']==1)
+							echo " <TD class=nowrap><span title='".(($icon=="<I class=icon-file></I>")?"File":"Symlink")."' >$icon</span> &nbsp; <input type=checkbox id=\"sec\" name=\"files[]\" value=\"" . $sfid . "\" CHECKED> <a id=\"Download\" href=\"javascript:Download('" . $profileActionId . "', '" . $sfid . "');\" alt=\"Download\" title=\"Download\">" . $sfid . "</a></TD>\n";
+						else
+							echo " <TD class=nowrap><span title='".(($icon=="<I class=icon-file></I>")?"File":"Symlink")."' >$icon</span> &nbsp; <input type=checkbox id=\"sec\" name=\"files[]\" value=\"" . $sfid . "\" CHECKED> " . $sfid . "</TD>\n";
 
                         echo " <TD class=nowrap><span title=\"".$row2['file']."\">".ChopName(highlightkeyword($row2['file'], $search2))."</span></TD>\n";
                         echo " <TD class=nowrap><center><span title=\"".number_format($row2['size'])." bytes\">".$dup->format_bytes($row2['size'])."</span></center></TD>\n";
                         $date = new DateTime("@".$row2['fdate']."");
                         echo " <TD class=nowrap><span title=\"".$row2['fdate']."\">&nbsp;".$date->format('Y-m-d H:i:s')."</span></TD>\n";    
                         echo " <TD class=nowrap>".$row2['crc32']."</TD>\n";
-$fileJs = JavaScriptSafeString($row2['file']);
-$fileTitle = DupHtml($row2['file']);
-$dropTitle = DupHtml(DropProfile($row2['file'], $val['path']));
-
-echo "<TD align=middle><center><a href=\"view-file.php?profile=" . $profileActionId . "&file=" . $sfid . "\"><I class=icon-eye-open title=\"View '" . $fileTitle . "'\"></I></a> <b>/";
-echo " <a href=\"download-files.php?profile=" . $profileActionId . "&file=" . $sfid . "\"><I class=icon-download-alt title=\"Download '" . $fileTitle . "'\"></I></a> /";
-echo " <a href=\"javascript:DeleteFile('" . $profileActionId . "', '" . $fileJs . "', '" . $sfid . "');\"><I class=icon-trash title=\"Delete '" . $fileTitle . "'\"></I></a> /";
-echo " <a href=\"javascript:SingleFileAction('" . $profileActionId . "', 'Rename', '" . $sfid . "');\"> <I class=icon-edit title=\"Rename '" . $dropTitle . "'\"></I></a> /";
-echo " <a href=\"javascript:SingleFileAction('" . $profileActionId . "', 'Move', '" . $sfid . "');\"> <I class=icon-share title=\"Move '" . $dropTitle . "'\"></I></a></b>";
+						$fileJs = JavaScriptSafeString($row2['file']);
+						$fileTitle = DupHtml($row2['file']);
+						$dropTitle = DupHtml(DropProfile($row2['file'], $val['path']));
+						echo "<TD align=middle><center><a href=\"view-file.php?profile=" . $profileActionId . "&file=" . $sfid . "\"><I class=icon-eye-open title=\"View '" . $fileTitle . "'\"></I></a> <b>/";
+						echo " <a href=\"download-files.php?profile=" . $profileActionId . "&file=" . $sfid . "\"><I class=icon-download-alt title=\"Download '" . $fileTitle . "'\"></I></a> /";
+						echo " <a href=\"javascript:DeleteFile('" . $profileActionId . "', '" . $fileJs . "', '" . $sfid . "');\"><I class=icon-trash title=\"Delete '" . $fileTitle . "'\"></I></a> /";
+						echo " <a href=\"javascript:SingleFileAction('" . $profileActionId . "', 'Rename', '" . $sfid . "');\"> <I class=icon-edit title=\"Rename '" . $dropTitle . "'\"></I></a> /";
+						echo " <a href=\"javascript:SingleFileAction('" . $profileActionId . "', 'Move', '" . $sfid . "');\"> <I class=icon-share title=\"Move '" . $dropTitle . "'\"></I></a></b>";
                         echo "</TR>\n";
                         
                         $num++;

@@ -204,13 +204,13 @@ try
             echo " <td colspan=7><b><a href=\"profile-view.php?profile=" . $fid . "\">" . DupHtml($ppath) . "</a></b></td>\n";
             echo "</TR>\n";
             unset($ps[$fid]);
-        }
+        }			
 
-        $size = isset($row['size']) ? intval($row['size']) : 0;
-        $fdate = isset($row['fdate']) ? intval($row['fdate']) : 0;
-        $crc32 = isset($row['crc32']) ? $row['crc32'] : "";
-        $date = new DateTime("@" . $fdate);
-        $fileJs = JavaScriptSafeString($rowFile);
+        $size      = isset($row['size']) ? intval($row['size']) : 0;
+        $fdate     = isset($row['fdate']) ? intval($row['fdate']) : 0;
+        $crc32     = isset($row['crc32']) ? $row['crc32'] : "";
+        $date      = new DateTime("@" . $fdate);
+        $fileJs    = JavaScriptSafeString($rowFile);
         $fileTitle = DupHtml($rowFile);
         $dropTitle = DupHtml(DropProfile($rowFile, $ppath));
         $shortFile = ChopName($rowFile);
@@ -223,7 +223,7 @@ try
         echo " <TD class=nowrap><span title=\"" . $fdate . "\">&nbsp;" . $date->format('Y-m-d H:i:s') . "</span></TD>\n";
         echo " <TD class=nowrap>" . DupHtml($crc32) . "</TD>\n";
         echo "<TD align=middle><center>";
-        echo "<a href=\"view-file.php?profile=" . $fid . "&file=" . $rowId . "\"><I class=icon-eye-open title=\"View '" . $fileTitle . "'\"></I></a> <b>/";
+        echo " <a href=\"view-file.php?profile=" . $fid . "&file=" . $rowId . "\"><I class=icon-eye-open title=\"View '" . $fileTitle . "'\"></I></a> <b>/";
         echo " <a href=\"download-files.php?profile=" . $fid . "&file=" . $rowId . "\"><I class=icon-download-alt title=\"Download '" . $fileTitle . "'\"></I></a> /";
         echo " <a href=\"javascript:DeleteFile('" . $fid . "', '" . $fileJs . "', '" . $rowId . "');\"><I class=icon-trash title=\"Delete '" . $fileTitle . "'\"></I></a> /";
         echo " <a href=\"javascript:SingleFileAction('" . $fid . "', 'Rename', '" . $rowId . "');\"> <I class=icon-edit title=\"Rename '" . $dropTitle . "'\"></I></a> /";

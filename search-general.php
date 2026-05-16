@@ -170,11 +170,11 @@ if(strlen($search) > 0)
                 unset($ps[$fid]);
             }
 
-            $size = isset($row['size']) ? intval($row['size']) : 0;
-            $fdate = isset($row['fdate']) ? intval($row['fdate']) : 0;
-            $crc32 = isset($row['crc32']) ? $row['crc32'] : "";
-            $date = new DateTime("@" . $fdate);
-            $fileJs = JavaScriptSafeString($rowFile);
+            $size      = isset($row['size']) ? intval($row['size']) : 0;
+            $fdate     = isset($row['fdate']) ? intval($row['fdate']) : 0;
+            $crc32     = isset($row['crc32']) ? $row['crc32'] : "";
+            $date      = new DateTime("@" . $fdate);
+            $fileJs    = JavaScriptSafeString($rowFile);
             $fileTitle = DupHtml($rowFile);
             $dropTitle = DupHtml(DropProfile($rowFile, $ppath));
             $shortFile = ChopName($rowFile);
@@ -187,12 +187,12 @@ if(strlen($search) > 0)
             echo " <TD class=nowrap><span title=\"" . $fdate . "\">&nbsp;" . $date->format('Y-m-d H:i:s') . "</span></TD>\n";
             echo " <TD class=nowrap>" . DupHtml($crc32) . "</TD>\n";
             echo "<TD align=middle><center>";
-            echo "<a href=\"view-file.php?profile=" . $fid . "&file=" . $rowId . "\"><I class=icon-eye-open title=\"View '" . $fileTitle . "'\"></I></a> <b>/";
+            echo " <a href=\"view-file.php?profile=" . $fid . "&file=" . $rowId . "\"><I class=icon-eye-open title=\"View '" . $fileTitle . "'\"></I></a> <b>/";
             echo " <a href=\"download-files.php?profile=" . $fid . "&file=" . $rowId . "\"><I class=icon-download-alt title=\"Download '" . $fileTitle . "'\"></I></a> /";
             echo " <a href=\"javascript:DeleteFile('" . $fid . "', '" . $fileJs . "', '" . $rowId . "');\"><I class=icon-trash title=\"Delete '" . $fileTitle . "'\"></I></a> /";
             echo " <a href=\"javascript:SingleFileAction('" . $fid . "', 'Rename', '" . $rowId . "');\"> <I class=icon-edit title=\"Rename '" . $dropTitle . "'\"></I></a> /";
             echo " <a href=\"javascript:SingleFileAction('" . $fid . "', 'Move', '" . $rowId . "');\"> <I class=icon-share title=\"Move '" . $dropTitle . "'\"></I></a></b>";
-            echo "</center></TD>\n";
+            echo " </center></TD>\n";
             echo "</TR>\n";
             $num++;
             $tsize += $size;
