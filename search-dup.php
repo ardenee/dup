@@ -29,7 +29,6 @@ $start   = isset($_REQUEST["start"]) ? intval($_REQUEST["start"]) : 0;
 if($start < 0)
     $start = 0;
 ?>
-
 <!DOCTYPE HTML>
 <HTML>
  <HEAD>
@@ -49,10 +48,7 @@ if($start < 0)
   <SCRIPT TYPE="text/javascript" SRC="files/jquery-ui-1.8.24.custom.min.js"></SCRIPT>
   <SCRIPT TYPE="text/javascript" SRC="files/jquery.tablesorter-2.1.19.min.js"></SCRIPT>
   <SCRIPT SRC="files/script.js"></SCRIPT>  
-  <SCRIPT TYPE="text/javascript" CHARSET="utf-8">
-        sbRoot = '/'; 
-        top_image_html = '<img src="images/top.gif" style="width:31px; height:11px" alt="Jump to top" />'; 
-  </SCRIPT>
+  <SCRIPT TYPE="text/javascript" CHARSET="utf-8">sbRoot = '/'; top_image_html = '<img src="images/top.gif" style="width:31px; height:11px" alt="Jump to top" />';</SCRIPT>
   <SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>  
   <SCRIPT type="text/javascript">
     <!--
@@ -82,37 +78,33 @@ if($start < 0)
  <DIV id=content>
  <form id=searchform name=searchform method=post action=search-dup.php>
  <H1 class=title>dup Search</H1>
-<H1 class=title>Search : <input type="text" name="search" size="30" value="<?php echo DupHtml($search); ?>"> &nbsp;
-  Global Search :
+ <H1 class=title>Search : <input type="text" name="search" size="30" value="<?php echo DupHtml($search); ?>"> &nbsp;
+  Scope :
   <?php
-    $Profiles = $dup->GetProfiles("path"); 
-        
-echo "<select name=\"profile\" id=\"profile\" class=\"input-medium\" style=\"width: 270px\">\n";
+    $Profiles = $dup->GetProfiles("path");         
+	echo "<select name=\"profile\" id=\"profile\" class=\"input-medium\" style=\"width: 270px\">\n";
+	echo " <option value=\"0\"" . (($profile == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
+	foreach($Profiles as $key => $val)
+	{
+		$id = DupInt($val['id']);
+		$pathHtml = DupHtml($val['path']);
+		$selected = ($id == $profile) ? " SELECTED" : "";
 
-echo " <option value=\"0\"" . (($profile == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
-
-foreach($Profiles as $key => $val)
-{
-    $id = DupInt($val['id']);
-    $pathHtml = DupHtml($val['path']);
-    $selected = ($id == $profile) ? " SELECTED" : "";
-
-    echo " <option value=\"" . $id . "\"" . $selected . "> (" . $id . ") " . $pathHtml . " </option>\n";
-}
-
-echo "</select>\n";
-    
-    echo "&nbsp;Case Sensitive : <input type=checkbox name=case".(($case==true)?" CHECKED":"").">";
-    
+		echo " <option value=\"" . $id . "\"" . $selected . "> (" . $id . ") " . $pathHtml . " </option>\n";
+	}
+	echo "</select>\n";    
+    echo "&nbsp;Case Sensitive : <input type=checkbox name=case".(($case==true)?" CHECKED":"").">";    
  ?> 
   &nbsp;
   <input type=Submit value=Search></B></H1>
  </form> 
+ 
 <SCRIPT type="text/javascript" charset="utf-8">
 <!--
 $(document).ready();
 //-->
 </SCRIPT>
+
   <form id=search name=search method=post action=action-files.php>
 <TABLE id=showListTable class=tablesorter border=0 cellSpacing=1 cellPadding=0>
 <THEAD>
@@ -126,8 +118,8 @@ $(document).ready();
     <TH>Options</TH>
    </TR>
   </THEAD>
-<input type="hidden" name="profile" value="<?php echo DupInt($profile); ?>">
-   <input type="hidden" id="act" name="act" value="none">
+  <input type="hidden" name="profile" value="<?php echo DupInt($profile); ?>">
+  <input type="hidden" id="act" name="act" value="none">
   <TBODY>
   
 <?php  

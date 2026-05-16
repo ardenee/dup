@@ -69,35 +69,55 @@ $(document).ready(function(){
 <BODY>
 <?php echo PageHeader(); ?>
 </HEADER>
+
 <DIV id=contentWrapper>
-<DIV id=content>
-<form id=searchform name=searchform method=post action=search-general.php>
-<H1 class=title>General Search</H1>
-<div class="search-options">
-Search: <input type="text" name="search" size="30" value="<?php echo DupHtml($search); ?>"> &nbsp;
-Scope:
-<?php
-$Profiles = $dup->GetProfiles("path");
-echo "<select name=\"profile\" id=\"profile\" class=\"input-medium\" style=\"width: 270px\">\n";
-echo " <option value=\"0\"" . (($profile == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
-foreach($Profiles as $key => $val)
-{
-    $id = DupInt($val['id']);
-    $selected = ($id == $profile) ? " SELECTED" : "";
-    echo " <option value=\"" . $id . "\"" . $selected . "> (" . $id . ") " . DupHtml($val['path']) . " </option>\n";
-}
-echo "</select>\n";
-?>
-&nbsp;Case Sensitive: <input type="checkbox" name="case" value="1"<?php echo (($case == true) ? " CHECKED" : ""); ?>>
-&nbsp;<input type="Submit" value="Search">
-</div>
-</form>
+ <DIV id=content>
+ <form id=searchform name=searchform method=post action=search-general.php>
+ <H1 class=title>General Search</H1>
+ <H1 class=title>Search : <input type="text" name="search" size="30" value="<?php echo DupHtml($search); ?>"> &nbsp;
+  Scope :
+  <?php
+    $Profiles = $dup->GetProfiles("path");         
+	echo "<select name=\"profile\" id=\"profile\" class=\"input-medium\" style=\"width: 270px\">\n";
+	echo " <option value=\"0\"" . (($profile == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
+	foreach($Profiles as $key => $val)
+	{
+		$id = DupInt($val['id']);
+		$pathHtml = DupHtml($val['path']);
+		$selected = ($id == $profile) ? " SELECTED" : "";
+
+		echo " <option value=\"" . $id . "\"" . $selected . "> (" . $id . ") " . $pathHtml . " </option>\n";
+	}
+	echo "</select>\n";    
+    echo "&nbsp;Case Sensitive : <input type=checkbox name=case".(($case==true)?" CHECKED":"").">";  
+ ?> 
+  &nbsp;
+  <input type=Submit value=Search></B></H1>
+ </form> 
+ 
+<SCRIPT type="text/javascript" charset="utf-8">
+<!--
+$(document).ready();
+//-->
+</SCRIPT>
+ 
 <form id=search name=search method=post action=action-files.php>
 <TABLE id=showListTable class=tablesorter border=0 cellSpacing=1 cellPadding=0>
-<THEAD><TR><TH class=nowrap>Num</TH><TH>id</TH><TH>File</TH><TH>Size</TH><TH>Modified Date</TH><TH>CRC32</TH><TH>Options</TH></TR></THEAD>
-<input type="hidden" name="profile" value="<?php echo $profile; ?>">
-<input type="hidden" id="act" name="act" value="none">
-<TBODY>
+<THEAD>
+  <TR>
+    <TH class=nowrap>Num</TH>
+    <TH>id</TH>
+    <TH>File</TH>
+    <TH>Size</TH>
+    <TH>Modified Date</TH>
+    <TH>CRC32</TH>
+    <TH>Options</TH>
+   </TR>
+  </THEAD>
+  <input type="hidden" name="profile" value="<?php echo DupInt($profile); ?>">
+  <input type="hidden" id="act" name="act" value="none">
+  <TBODY>
+  
 <?php
 $num = 1;
 $tsize = 0;
@@ -187,15 +207,17 @@ if(strlen($search) > 0)
 ?>
 </TBODY>
 </form>
-<TFOOT><TR>
+<TFOOT>
+<TR>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><input type=Button Value=Inverse OnClick="displayAll('search')"></TH>
 <TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><input type=Button Value=Inverse OnClick="checkedAll('search')"></TH>
-<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"></TH>
 <TH style="color: black; background-color:#dfdacf; border: 1pt solid black;">Listed Data size :</TH>
 <TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><?php echo $dup->format_bytes($tsize) ?></TH>
 <TH style="color: black; background-color:#dfdacf; border: 1pt solid black;">Total Found:</TH>
 <TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><?php echo ($num-1) ?></TH>
 <TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><center><?php echo "<a href=\"javascript:handleClick('search', 'Delete')\"><I class=icon-trash title=\"Delete Selected\"></I></a> / <a href=\"javascript:handleClick('search', 'Rename')\"><I class=icon-edit title=\"Rename Selected\"></I></a> / <a href=\"javascript:handleClick('search', 'Move')\"><I class=icon-share title=\"Move Selected\"></I></a>"; ?></center></TH>
-</TR></TFOOT>
+</TR>
+</TFOOT>
 </TABLE>
 </DIV>
 </DIV>
