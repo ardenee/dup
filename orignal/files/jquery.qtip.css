@@ -1,0 +1,315 @@
+.ui-tooltip {
+	POSITION: absolute; MIN-WIDTH: 50px; LINE-HEIGHT: 12px; DISPLAY: none; MAX-WIDTH: 280px; FONT-SIZE: 10.5px; TOP: -28000px; LEFT: -28000px
+}
+.qtip {
+	POSITION: absolute; MIN-WIDTH: 50px; LINE-HEIGHT: 12px; DISPLAY: none; MAX-WIDTH: 280px; FONT-SIZE: 10.5px; TOP: -28000px; LEFT: -28000px
+}
+.ui-tooltip-fluid {
+	POSITION: static !important; DISPLAY: block; FLOAT: left !important; VISIBILITY: hidden
+}
+.ui-tooltip-content {
+	BORDER-BOTTOM: #000001 1px solid; POSITION: relative; TEXT-ALIGN: left; BORDER-LEFT: #000001 1px solid; PADDING-BOTTOM: 5px; PADDING-LEFT: 9px; PADDING-RIGHT: 9px; WORD-WRAP: break-word; OVERFLOW: hidden; BORDER-TOP: #000001 1px solid; BORDER-RIGHT: #000001 1px solid; PADDING-TOP: 5px
+}
+.ui-tooltip-titlebar {
+	BORDER-BOTTOM: #000001 0px solid; POSITION: relative; BORDER-LEFT: #000001 1px solid; PADDING-BOTTOM: 5px; MIN-HEIGHT: 14px; PADDING-LEFT: 10px; PADDING-RIGHT: 35px; OVERFLOW: hidden; BORDER-TOP: #000001 1px solid; FONT-WEIGHT: bold; BORDER-RIGHT: #000001 1px solid; PADDING-TOP: 5px
+}
+.ui-tooltip-titlebar + .ui-tooltip-content {
+	BORDER-TOP-WIDTH: 0px !important
+}
+.ui-tooltip-titlebar .ui-state-default {
+	BORDER-BOTTOM: 1px solid; POSITION: absolute; BORDER-LEFT: 1px solid; MARGIN-TOP: -9px; OUTLINE-STYLE: none; OUTLINE-COLOR: invert; OUTLINE-WIDTH: medium; BORDER-TOP: 1px solid; TOP: 50%; CURSOR: pointer; RIGHT: 4px; BORDER-RIGHT: 1px solid
+}
+* HTML .ui-tooltip-titlebar .ui-state-default {
+	TOP: 16px
+}
+.ui-tooltip-titlebar .ui-icon {
+	TEXT-INDENT: -1000em; DISPLAY: block
+}
+.ui-tooltip-icon .ui-icon {
+	TEXT-INDENT: -1000em; DISPLAY: block
+}
+.ui-tooltip-icon {
+	-webkit-border-radius: 3px; -moz-border-radius: 3px; border-radius: 3px
+}
+.ui-tooltip-icon .ui-icon {
+	-webkit-border-radius: 3px; -moz-border-radius: 3px; border-radius: 3px
+}
+.ui-tooltip-icon .ui-icon {
+	TEXT-ALIGN: center; TEXT-INDENT: 0px; WIDTH: 18px; FONT: bold 10px/13px Tahoma, sans-serif; BACKGROUND: no-repeat -100em -100em; HEIGHT: 14px; COLOR: inherit
+}
+.ui-tooltip-focus {
+	
+}
+.ui-tooltip-hover {
+	
+}
+.ui-tooltip-default .ui-tooltip-titlebar {
+	BORDER-BOTTOM-COLOR: #f1d031; BACKGROUND-COLOR: #ffffa3; BORDER-TOP-COLOR: #f1d031; COLOR: #555; BORDER-RIGHT-COLOR: #f1d031; BORDER-LEFT-COLOR: #f1d031
+}
+.ui-tooltip-default .ui-tooltip-content {
+	BORDER-BOTTOM-COLOR: #f1d031; BACKGROUND-COLOR: #ffffa3; BORDER-TOP-COLOR: #f1d031; COLOR: #555; BORDER-RIGHT-COLOR: #f1d031; BORDER-LEFT-COLOR: #f1d031
+}
+.ui-tooltip-default .ui-tooltip-titlebar {
+	BACKGROUND-COLOR: #ffef93
+}
+.ui-tooltip-default .ui-tooltip-icon {
+	BORDER-BOTTOM-COLOR: #ccc; BORDER-TOP-COLOR: #ccc; BACKGROUND: #f1f1f1; COLOR: #777; BORDER-RIGHT-COLOR: #ccc; BORDER-LEFT-COLOR: #ccc
+}
+.ui-tooltip-default .ui-tooltip-titlebar .ui-state-hover {
+	BORDER-BOTTOM-COLOR: #aaa; BORDER-TOP-COLOR: #aaa; COLOR: #111; BORDER-RIGHT-COLOR: #aaa; BORDER-LEFT-COLOR: #aaa
+}
+.ui-tooltip .ui-tooltip-tip {
+	Z-INDEX: 10; MARGIN: 0px auto; OVERFLOW: hidden
+}
+.ui-tooltip .ui-tooltip-tip {
+	BORDER-BOTTOM: transparent 0px dashed; POSITION: absolute; BORDER-LEFT: transparent 0px dashed; LINE-HEIGHT: 0.1px !important; BACKGROUND: none transparent scroll repeat 0% 0%; COLOR: #123456; FONT-SIZE: 0.1px !important; BORDER-TOP: transparent 0px dashed; BORDER-RIGHT: transparent 0px dashed
+}
+.ui-tooltip .ui-tooltip-tip * {
+	BORDER-BOTTOM: transparent 0px dashed; POSITION: absolute; BORDER-LEFT: transparent 0px dashed; LINE-HEIGHT: 0.1px !important; BACKGROUND: none transparent scroll repeat 0% 0%; COLOR: #123456; FONT-SIZE: 0.1px !important; BORDER-TOP: transparent 0px dashed; BORDER-RIGHT: transparent 0px dashed
+}
+.ui-tooltip .ui-tooltip-tip canvas {
+	TOP: 0px; LEFT: 0px
+}
+#qtip-overlay {
+	POSITION: fixed; TOP: -10000em; LEFT: -10000em
+}
+.blurs#qtip-overlay {
+	CURSOR: pointer
+}
+#qtip-overlay DIV {
+	POSITION: absolute; FILTER: progid:DXImageTransform.Microsoft.Alpha(Opacity=70); BACKGROUND-COLOR: black; WIDTH: 100%; HEIGHT: 100%; TOP: 0px; LEFT: 0px; opacity: 0.7
+}
+.ui-tooltip-light .ui-tooltip-titlebar {
+	BORDER-BOTTOM-COLOR: #e2e2e2; BORDER-TOP-COLOR: #e2e2e2; COLOR: #454545; BORDER-RIGHT-COLOR: #e2e2e2; BORDER-LEFT-COLOR: #e2e2e2
+}
+.ui-tooltip-light .ui-tooltip-content {
+	BORDER-BOTTOM-COLOR: #e2e2e2; BORDER-TOP-COLOR: #e2e2e2; COLOR: #454545; BORDER-RIGHT-COLOR: #e2e2e2; BORDER-LEFT-COLOR: #e2e2e2
+}
+.ui-tooltip-light .ui-tooltip-content {
+	BACKGROUND-COLOR: white
+}
+.ui-tooltip-light .ui-tooltip-titlebar {
+	BACKGROUND-COLOR: #f1f1f1
+}
+.ui-tooltip-dark .ui-tooltip-titlebar {
+	BORDER-BOTTOM-COLOR: #303030; BORDER-TOP-COLOR: #303030; COLOR: #f3f3f3; BORDER-RIGHT-COLOR: #303030; BORDER-LEFT-COLOR: #303030
+}
+.ui-tooltip-dark .ui-tooltip-content {
+	BORDER-BOTTOM-COLOR: #303030; BORDER-TOP-COLOR: #303030; COLOR: #f3f3f3; BORDER-RIGHT-COLOR: #303030; BORDER-LEFT-COLOR: #303030
+}
+.ui-tooltip-dark .ui-tooltip-content {
+	BACKGROUND-COLOR: #505050
+}
+.ui-tooltip-dark .ui-tooltip-titlebar {
+	BACKGROUND-COLOR: #404040
+}
+.ui-tooltip-dark .ui-tooltip-icon {
+	BORDER-BOTTOM-COLOR: #444; BORDER-TOP-COLOR: #444; BORDER-RIGHT-COLOR: #444; BORDER-LEFT-COLOR: #444
+}
+.ui-tooltip-dark .ui-tooltip-titlebar .ui-state-hover {
+	BORDER-BOTTOM-COLOR: #303030; BORDER-TOP-COLOR: #303030; BORDER-RIGHT-COLOR: #303030; BORDER-LEFT-COLOR: #303030
+}
+.ui-tooltip-cream .ui-tooltip-titlebar {
+	BORDER-BOTTOM-COLOR: #f9e98e; BORDER-TOP-COLOR: #f9e98e; COLOR: #a27d35; BORDER-RIGHT-COLOR: #f9e98e; BORDER-LEFT-COLOR: #f9e98e
+}
+.ui-tooltip-cream .ui-tooltip-content {
+	BORDER-BOTTOM-COLOR: #f9e98e; BORDER-TOP-COLOR: #f9e98e; COLOR: #a27d35; BORDER-RIGHT-COLOR: #f9e98e; BORDER-LEFT-COLOR: #f9e98e
+}
+.ui-tooltip-cream .ui-tooltip-content {
+	BACKGROUND-COLOR: #fbf7aa
+}
+.ui-tooltip-cream .ui-tooltip-titlebar {
+	BACKGROUND-COLOR: #f0de7d
+}
+.ui-tooltip-cream .ui-state-default .ui-tooltip-icon {
+	BACKGROUND-POSITION: -82px 0px
+}
+.ui-tooltip-red .ui-tooltip-titlebar {
+	BORDER-BOTTOM-COLOR: #d95252; BORDER-TOP-COLOR: #d95252; COLOR: #912323; BORDER-RIGHT-COLOR: #d95252; BORDER-LEFT-COLOR: #d95252
+}
+.ui-tooltip-red .ui-tooltip-content {
+	BORDER-BOTTOM-COLOR: #d95252; BORDER-TOP-COLOR: #d95252; COLOR: #912323; BORDER-RIGHT-COLOR: #d95252; BORDER-LEFT-COLOR: #d95252
+}
+.ui-tooltip-red .ui-tooltip-content {
+	BACKGROUND-COLOR: #f78b83
+}
+.ui-tooltip-red .ui-tooltip-titlebar {
+	BACKGROUND-COLOR: #f06d65
+}
+.ui-tooltip-red .ui-state-default .ui-tooltip-icon {
+	BACKGROUND-POSITION: -102px 0px
+}
+.ui-tooltip-red .ui-tooltip-icon {
+	BORDER-BOTTOM-COLOR: #d95252; BORDER-TOP-COLOR: #d95252; BORDER-RIGHT-COLOR: #d95252; BORDER-LEFT-COLOR: #d95252
+}
+.ui-tooltip-red .ui-tooltip-titlebar .ui-state-hover {
+	BORDER-BOTTOM-COLOR: #d95252; BORDER-TOP-COLOR: #d95252; BORDER-RIGHT-COLOR: #d95252; BORDER-LEFT-COLOR: #d95252
+}
+.ui-tooltip-green .ui-tooltip-titlebar {
+	BORDER-BOTTOM-COLOR: #90d93f; BORDER-TOP-COLOR: #90d93f; COLOR: #3f6219; BORDER-RIGHT-COLOR: #90d93f; BORDER-LEFT-COLOR: #90d93f
+}
+.ui-tooltip-green .ui-tooltip-content {
+	BORDER-BOTTOM-COLOR: #90d93f; BORDER-TOP-COLOR: #90d93f; COLOR: #3f6219; BORDER-RIGHT-COLOR: #90d93f; BORDER-LEFT-COLOR: #90d93f
+}
+.ui-tooltip-green .ui-tooltip-content {
+	BACKGROUND-COLOR: #caed9e
+}
+.ui-tooltip-green .ui-tooltip-titlebar {
+	BACKGROUND-COLOR: #b0de78
+}
+.ui-tooltip-green .ui-state-default .ui-tooltip-icon {
+	BACKGROUND-POSITION: -42px 0px
+}
+.ui-tooltip-blue .ui-tooltip-titlebar {
+	BORDER-BOTTOM-COLOR: #add9ed; BORDER-TOP-COLOR: #add9ed; COLOR: #5e99bd; BORDER-RIGHT-COLOR: #add9ed; BORDER-LEFT-COLOR: #add9ed
+}
+.ui-tooltip-blue .ui-tooltip-content {
+	BORDER-BOTTOM-COLOR: #add9ed; BORDER-TOP-COLOR: #add9ed; COLOR: #5e99bd; BORDER-RIGHT-COLOR: #add9ed; BORDER-LEFT-COLOR: #add9ed
+}
+.ui-tooltip-blue .ui-tooltip-content {
+	BACKGROUND-COLOR: #e5f6fe
+}
+.ui-tooltip-blue .ui-tooltip-titlebar {
+	BACKGROUND-COLOR: #d0e9f5
+}
+.ui-tooltip-blue .ui-state-default .ui-tooltip-icon {
+	BACKGROUND-POSITION: -2px 0px
+}
+.ui-tooltip-shadow {
+	-webkit-box-shadow: 1px 1px 3px 1px rgba(0, 0, 0, 0.15); -moz-box-shadow: 1px 1px 3px 1px rgba(0, 0, 0, 0.15); box-shadow: 1px 1px 3px 1px rgba(0, 0, 0, 0.15)
+}
+.ui-tooltip-shadow .ui-tooltip-titlebar {
+	FILTER: progid:DXImageTransform.Microsoft.Shadow(Color='gray', Direction=135, Strength=3); _margin-bottom: -3px
+}
+.ui-tooltip-shadow .ui-tooltip-content {
+	FILTER: progid:DXImageTransform.Microsoft.Shadow(Color='gray', Direction=135, Strength=3); _margin-bottom: -3px
+}
+.ui-tooltip-rounded {
+	-webkit-border-radius: 4px; -moz-border-radius: 4px; border-radius: 4px
+}
+.ui-tooltip-rounded .ui-tooltip-content {
+	-webkit-border-radius: 4px; -moz-border-radius: 4px; border-radius: 4px
+}
+.ui-tooltip-tipsy {
+	-webkit-border-radius: 4px; -moz-border-radius: 4px; border-radius: 4px
+}
+.ui-tooltip-tipsy .ui-tooltip-content {
+	-webkit-border-radius: 4px; -moz-border-radius: 4px; border-radius: 4px
+}
+.ui-tooltip-youtube {
+	-webkit-border-radius: 4px; -moz-border-radius: 4px; border-radius: 4px
+}
+.ui-tooltip-youtube .ui-tooltip-content {
+	-webkit-border-radius: 4px; -moz-border-radius: 4px; border-radius: 4px
+}
+.ui-tooltip-rounded .ui-tooltip-titlebar {
+	-webkit-border-radius: 5px 5px 0 0; -moz-border-radius: 5px 5px 0 0; border-radius: 5px 5px 0 0
+}
+.ui-tooltip-tipsy .ui-tooltip-titlebar {
+	-webkit-border-radius: 5px 5px 0 0; -moz-border-radius: 5px 5px 0 0; border-radius: 5px 5px 0 0
+}
+.ui-tooltip-youtube .ui-tooltip-titlebar {
+	-webkit-border-radius: 5px 5px 0 0; -moz-border-radius: 5px 5px 0 0; border-radius: 5px 5px 0 0
+}
+.ui-tooltip-rounded .ui-tooltip-titlebar + .ui-tooltip-content {
+	-webkit-border-radius: 0 0 5px 5px; -moz-border-radius: 0 0 5px 5px; border-radius: 0 0 5px 5px
+}
+.ui-tooltip-tipsy .ui-tooltip-titlebar + .ui-tooltip-content {
+	-webkit-border-radius: 0 0 5px 5px; -moz-border-radius: 0 0 5px 5px; border-radius: 0 0 5px 5px
+}
+.ui-tooltip-youtube .ui-tooltip-titlebar + .ui-tooltip-content {
+	-webkit-border-radius: 0 0 5px 5px; -moz-border-radius: 0 0 5px 5px; border-radius: 0 0 5px 5px
+}
+.ui-tooltip-youtube {
+	-webkit-box-shadow: 0 0 3px #333; -moz-box-shadow: 0 0 3px #333; box-shadow: 0 0 3px #333
+}
+.ui-tooltip-youtube .ui-tooltip-titlebar {
+	BORDER-BOTTOM-COLOR: #cccccc; FILTER: progid:DXImageTransform.Microsoft.gradient(startColorstr=#D9000000,endColorstr=#D9000000); BORDER-TOP-COLOR: #cccccc; BACKGROUND: none transparent scroll repeat 0% 0%; COLOR: white; BORDER-RIGHT-COLOR: #cccccc; BORDER-LEFT-COLOR: #cccccc; _margin-bottom: 0
+}
+.ui-tooltip-youtube .ui-tooltip-content {
+	BORDER-BOTTOM-COLOR: #cccccc; FILTER: progid:DXImageTransform.Microsoft.gradient(startColorstr=#D9000000,endColorstr=#D9000000); BORDER-TOP-COLOR: #cccccc; BACKGROUND: none transparent scroll repeat 0% 0%; COLOR: white; BORDER-RIGHT-COLOR: #cccccc; BORDER-LEFT-COLOR: #cccccc; _margin-bottom: 0
+}
+.ui-tooltip-youtube .ui-tooltip-icon {
+	BORDER-BOTTOM-COLOR: #222; BORDER-TOP-COLOR: #222; BORDER-RIGHT-COLOR: #222; BORDER-LEFT-COLOR: #222
+}
+.ui-tooltip-youtube .ui-tooltip-titlebar .ui-state-hover {
+	BORDER-BOTTOM-COLOR: #303030; BORDER-TOP-COLOR: #303030; BORDER-RIGHT-COLOR: #303030; BORDER-LEFT-COLOR: #303030
+}
+.ui-tooltip-jtools {
+	BORDER-BOTTOM: #ddd 2px solid; BORDER-LEFT: #ddd 2px solid; BACKGROUND: #232323; BORDER-TOP: #ddd 2px solid; BORDER-RIGHT: #ddd 2px solid; -webkit-border-radius: 2px; -moz-border-radius: 2px; border-radius: 2px; -webkit-box-shadow: 0 0 12px #333; -moz-box-shadow: 0 0 12px #333; box-shadow: 0 0 12px #333
+}
+.ui-tooltip-jtools .ui-tooltip-titlebar {
+	FILTER: progid:DXImageTransform.Microsoft.gradient(startColorstr=#717171,endColorstr=#4A4A4A)
+}
+.ui-tooltip-jtools .ui-tooltip-content {
+	FILTER: progid:DXImageTransform.Microsoft.gradient(startColorstr=#4A4A4A,endColorstr=#232323)
+}
+.ui-tooltip-jtools .ui-tooltip-titlebar {
+	BORDER-BOTTOM: transparent 0px dashed; BORDER-LEFT: transparent 0px dashed; BACKGROUND: none transparent scroll repeat 0% 0%; COLOR: white; BORDER-TOP: transparent 0px dashed; BORDER-RIGHT: transparent 0px dashed
+}
+.ui-tooltip-jtools .ui-tooltip-content {
+	BORDER-BOTTOM: transparent 0px dashed; BORDER-LEFT: transparent 0px dashed; BACKGROUND: none transparent scroll repeat 0% 0%; COLOR: white; BORDER-TOP: transparent 0px dashed; BORDER-RIGHT: transparent 0px dashed
+}
+.ui-tooltip-jtools .ui-tooltip-icon {
+	BORDER-BOTTOM-COLOR: #555; BORDER-TOP-COLOR: #555; BORDER-RIGHT-COLOR: #555; BORDER-LEFT-COLOR: #555
+}
+.ui-tooltip-jtools .ui-tooltip-titlebar .ui-state-hover {
+	BORDER-BOTTOM-COLOR: #333; BORDER-TOP-COLOR: #333; BORDER-RIGHT-COLOR: #333; BORDER-LEFT-COLOR: #333
+}
+.ui-tooltip-cluetip {
+	-webkit-box-shadow: 4px 4px 5px rgba(0, 0, 0, 0.4); -moz-box-shadow: 4px 4px 5px rgba(0, 0, 0, 0.4); box-shadow: 4px 4px 5px rgba(0, 0, 0, 0.4)
+}
+.ui-tooltip-cluetip .ui-tooltip-titlebar {
+	BORDER-BOTTOM: transparent 0px dashed; BORDER-LEFT: transparent 0px dashed; BACKGROUND-COLOR: #87876a; COLOR: white; BORDER-TOP: transparent 0px dashed; BORDER-RIGHT: transparent 0px dashed
+}
+.ui-tooltip-cluetip .ui-tooltip-content {
+	BORDER-BOTTOM: transparent 0px dashed; BORDER-LEFT: transparent 0px dashed; BACKGROUND-COLOR: #d9d9c2; COLOR: #111; BORDER-TOP: transparent 0px dashed; BORDER-RIGHT: transparent 0px dashed
+}
+.ui-tooltip-cluetip .ui-tooltip-icon {
+	BORDER-BOTTOM-COLOR: #808064; BORDER-TOP-COLOR: #808064; BORDER-RIGHT-COLOR: #808064; BORDER-LEFT-COLOR: #808064
+}
+.ui-tooltip-cluetip .ui-tooltip-titlebar .ui-state-hover {
+	BORDER-BOTTOM-COLOR: #696952; BORDER-TOP-COLOR: #696952; COLOR: #696952; BORDER-RIGHT-COLOR: #696952; BORDER-LEFT-COLOR: #696952
+}
+.ui-tooltip-tipsy {
+	BORDER-BOTTOM: 0px; BORDER-LEFT: 0px; BORDER-TOP: 0px; BORDER-RIGHT: 0px
+}
+.ui-tooltip-tipsy .ui-tooltip-titlebar {
+	BORDER-BOTTOM: transparent 0px; FILTER: progid:DXImageTransform.Microsoft.gradient(startColorstr=#D9000000,endColorstr=#D9000000); BORDER-LEFT: transparent 0px; LINE-HEIGHT: 16px; FONT-FAMILY: "Lucida Grande", sans-serif; BACKGROUND: none transparent scroll repeat 0% 0%; COLOR: white; FONT-SIZE: 11px; BORDER-TOP: transparent 0px; FONT-WEIGHT: bold; BORDER-RIGHT: transparent 0px; text-shadow: 0 1px black; _margin-bottom: 0
+}
+.ui-tooltip-tipsy .ui-tooltip-content {
+	BORDER-BOTTOM: transparent 0px; FILTER: progid:DXImageTransform.Microsoft.gradient(startColorstr=#D9000000,endColorstr=#D9000000); BORDER-LEFT: transparent 0px; LINE-HEIGHT: 16px; FONT-FAMILY: "Lucida Grande", sans-serif; BACKGROUND: none transparent scroll repeat 0% 0%; COLOR: white; FONT-SIZE: 11px; BORDER-TOP: transparent 0px; FONT-WEIGHT: bold; BORDER-RIGHT: transparent 0px; text-shadow: 0 1px black; _margin-bottom: 0
+}
+.ui-tooltip-tipsy .ui-tooltip-titlebar {
+	
+}
+.ui-tooltip-tipsy .ui-tooltip-content {
+	
+}
+.ui-tooltip-tipsy .ui-tooltip-icon {
+	BORDER-BOTTOM-COLOR: #222; BORDER-TOP-COLOR: #222; BORDER-RIGHT-COLOR: #222; BORDER-LEFT-COLOR: #222; text-shadow: none
+}
+.ui-tooltip-tipsy .ui-tooltip-titlebar .ui-state-hover {
+	BORDER-BOTTOM-COLOR: #303030; BORDER-TOP-COLOR: #303030; BORDER-RIGHT-COLOR: #303030; BORDER-LEFT-COLOR: #303030
+}
+.ui-tooltip-tipped {
+	
+}
+.ui-tooltip-tipped .ui-tooltip-titlebar {
+	BORDER-BOTTOM: #959fa9 3px solid; FILTER: none; BORDER-LEFT: #959fa9 3px solid; BORDER-TOP: #959fa9 3px solid; BORDER-RIGHT: #959fa9 3px solid
+}
+.ui-tooltip-tipped .ui-tooltip-content {
+	BORDER-BOTTOM: #959fa9 3px solid; FILTER: none; BORDER-LEFT: #959fa9 3px solid; BORDER-TOP: #959fa9 3px solid; BORDER-RIGHT: #959fa9 3px solid
+}
+.ui-tooltip-tipped .ui-tooltip-titlebar {
+	FILTER: progid:DXImageTransform.Microsoft.gradient(startColorstr=#3A79B8,endColorstr=#2E629D); FONT-FAMILY: serif; BACKGROUND: #3a79b8; BORDER-BOTTOM-WIDTH: 0px; COLOR: white; FONT-WEIGHT: normal; -webkit-border-radius: 3px 3px 0 0; -moz-border-radius: 3px 3px 0 0; border-radius: 3px 3px 0 0
+}
+.ui-tooltip-tipped .ui-tooltip-content {
+	BACKGROUND-COLOR: #f9f9f9; COLOR: #454545; -webkit-border-radius: 0 0 3px 3px; -moz-border-radius: 0 0 3px 3px; border-radius: 0 0 3px 3px
+}
+.ui-tooltip-tipped .ui-tooltip-icon {
+	BORDER-BOTTOM: #285589 2px solid; BORDER-LEFT: #285589 2px solid; BACKGROUND: #285589; BORDER-TOP: #285589 2px solid; BORDER-RIGHT: #285589 2px solid
+}
+.ui-tooltip-tipped .ui-tooltip-icon .ui-icon {
+	BACKGROUND-COLOR: #fbfbfb; COLOR: #555
+}
