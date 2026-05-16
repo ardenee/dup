@@ -143,7 +143,6 @@ $search = str_replace(array("\r", "\n", "\0"), "", $search);
 $profile = isset($_REQUEST["profile"]) ? intval($_REQUEST["profile"]) : 0;
 $case = isset($_REQUEST["case"]) && intval($_REQUEST["case"]) == 1;
 $start = isset($_REQUEST["start"]) ? intval($_REQUEST["start"]) : 0;
-$hasSearch = strlen($search) > 0;
 
 if($start < 0)
     $start = 0;
@@ -222,11 +221,7 @@ $totalRows = 0;
 $totalGroups = 0;
 $tbodyNum = 1;
 
-if(!$hasSearch)
-{
-    echo "<TR class=nowrap><TD colspan=7>Enter a search string to search duplicate files.</TD></TR>\n";
-}
-else
+if(strlen($search) > 0)
 {
     try
     {
@@ -325,7 +320,7 @@ else
 </form>
 <TFOOT>
 <TR>
-<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><input type=Button Value=Expand OnClick="displayAll()"></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><input id="expandButton" type=Button Value=Expand OnClick="displayAll()"></TH>
 <TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><input type=Button Value=Inverse OnClick="checkedAll('search')"></TH>
 <TH style="color: black; background-color:#dfdacf; border: 1pt solid black;">Possible listed amount of data to clean up :</TH>
 <TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><?php echo $dup->format_bytes($dupsize); ?></TH>
@@ -349,6 +344,16 @@ else
 <?php echo PageFooter(); ?>
 </BODY>
 <script type="text/javascript">
+var allExpanded = true;
+
+function setExpandButtonText()
+{
+    var button = document.getElementById('expandButton');
+
+    if(button != null)
+        button.value = allExpanded ? 'Collapse' : 'Expand';
+}
+
 function displayRow(num)
 {
     var row = document.getElementById(num);
@@ -356,27 +361,30 @@ function displayRow(num)
     if(row != null)
         row.style.display = (row.style.display == '') ? 'none' : '';
 }
+
 function displayAll()
 {
+    allExpanded = !allExpanded;
+
     for(var i = 1; i <= <?php echo intval($tbodyNum); ?>; i++)
     {
         var row = document.getElementById('dupgroup' + i);
 
         if(row != null)
-            row.style.display = (row.style.display == '') ? 'none' : '';
+            row.style.display = allExpanded ? '' : 'none';
     }
+
+    setExpandButtonText();
 }
-var checked = true;
+
 function checkedAll(val)
 {
-    checked = !checked;
+    var inputs = document.querySelectorAll('#showListTable input[type="checkbox"][name="files[]"]');
 
-    for(var i = 0; i < document.getElementById(val).elements.length; i++)
-    {
-        if(document.getElementById(val).elements[i].id == 'sec')
-            document.getElementById(val).elements[i].checked = checked;
-    }
+    for(var i = 0; i < inputs.length; i++)
+        inputs[i].checked = !inputs[i].checked;
 }
+
 function SingleFileAction(profile, act, fileid)
 {
     var form = document.createElement("form");
