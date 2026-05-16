@@ -37,6 +37,21 @@ function DupExtAllowed($ext, $list)
     return in_array(strtolower((string)$ext), $list);
 }
 
+function DupImageContentType($ext)
+{
+    switch(strtolower((string)$ext))
+    {
+        case "jpg":
+        case "jpeg": return "image/jpeg";
+        case "png": return "image/png";
+        case "gif": return "image/gif";
+        case "webp": return "image/webp";
+        case "bmp": return "image/bmp";
+    }
+
+    return "application/octet-stream";
+}
+
 if($profileId <= 0 || $fileId <= 0)
 {
     LogError("Invalid view request. profile=" . $profileId . " file=" . $fileId);
@@ -87,6 +102,35 @@ $isImage = DupExtAllowed($ext, $imageExts);
 $isText = DupExtAllowed($ext, $textExts);
 $isPdf = DupExtAllowed($ext, $pdfExts);
 $canPreview = ($viewerEnabled == 1 && ($isImage || $isText || $isPdf));
+
+if($canPreview && $fileExists && $fileReadable && isset($_GET["raw"]) && intval($_GET["raw"]) == 1 && ($isImage || $isPdf))
+{
+    while(ob_get_level() > 0)
+        ob_end_clean();
+
+    header("Content-Type: " . ($isImage ? DupImageContentType($ext) : "application/pdf"));
+    header("Content-Length: " . intval(filesize($fullPath)));
+    header("X-Content-Type-Options: nosniff");
+    readfile($fullPath);
+    exit;
+}
+
+$textPreview = "";
+$textTooLarge = false;
+
+if($canPreview && $fileExists && $fileReadable && $isText)
+{
+    $maxBytes = 1048576;
+    $size = filesize($fullPath);
+
+    if($size !== false && $size > $maxBytes)
+        $textTooLarge = true;
+
+    $textPreview = file_get_contents($fullPath, false, null, 0, $maxBytes);
+
+    if($textPreview === false)
+        $textPreview = "";
+}
 ?>
 <!DOCTYPE HTML>
 <HTML>
@@ -101,6 +145,9 @@ $canPreview = ($viewerEnabled == 1 && ($isImage || $isText || $isPdf));
 .preview-wrap { padding: 12px; }
 .preview-meta td { padding: 4px 8px; }
 .preview-note { margin-top: 12px; padding: 8px; border: 1px solid #ccc; background: #fff; }
+.preview-image { max-width: 100%; height: auto; border: 1px solid #ccc; background: #fff; }
+.preview-text { white-space: pre-wrap; font-family: Consolas, monospace; background: #fff; border: 1px solid #ccc; padding: 10px; overflow: auto; }
+.preview-frame { width: 100%; height: 80vh; border: 1px solid #ccc; }
 </style>
 </HEAD>
 <BODY>
@@ -125,17 +172,22 @@ $canPreview = ($viewerEnabled == 1 && ($isImage || $isText || $isPdf));
     <a class="btn" href="download-files.php?profile=<?php echo $profileId; ?>&file=<?php echo $fileId; ?>">Download</a>
     <a class="btn" href="javascript:history.back();">Back</a>
 </p>
-<div class="preview-note">
 <?php if($viewerEnabled != 1) { ?>
-    File viewer previews are disabled in General Configuration.
+    <div class="preview-note">File viewer previews are disabled in General Configuration.</div>
 <?php } else if(!$canPreview) { ?>
-    No preview is enabled for this file extension. Use Download to open it locally.
+    <div class="preview-note">No preview is enabled for this file extension. Use Download to open it locally.</div>
 <?php } else if(!$fileExists || !$fileReadable) { ?>
-    The file is missing or not readable.
+    <div class="preview-note">The file is missing or not readable.</div>
+<?php } else if($isImage) { ?>
+    <img class="preview-image" src="view-file.php?profile=<?php echo $profileId; ?>&file=<?php echo $fileId; ?>&raw=1" alt="<?php echo DupHtml($basename); ?>">
+<?php } else if($isPdf) { ?>
+    <iframe class="preview-frame" src="view-file.php?profile=<?php echo $profileId; ?>&file=<?php echo $fileId; ?>&raw=1"></iframe>
+<?php } else if($isText) { ?>
+    <?php if($textTooLarge) { ?><p><b>Showing the first 1 MiB only.</b></p><?php } ?>
+    <div class="preview-text"><?php echo DupHtml($textPreview); ?></div>
 <?php } else { ?>
-    Preview is allowed for this extension. Inline preview rendering will be added in the next viewer update.
+    <div class="preview-note">No inline preview is available for this file type.</div>
 <?php } ?>
-</div>
 </DIV>
 </DIV>
 <?php echo PageFooter(); ?>
