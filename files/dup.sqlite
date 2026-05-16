@@ -1,7 +1,7 @@
 BEGIN TRANSACTION;
 CREATE TABLE `profiletypes` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`exts` TEXT ,`name` VARCHAR(50));
 CREATE TABLE `files` (`id` INTEGER PRIMARY KEY AUTOINCREMENT,`file` VARCHAR(255) ,`size` FLOAT(0,0) DEFAULT 0 ,`fdate` DATETIME DEFAULT CURRENT_TIMESTAMP ,`crc32` VARCHAR(15),`profile` INT NOT NULL,`link` VARCHAR(255) );
-CREATE TABLE `logs` (`id` INTEGER PRIMARY KEY AUTOINCREMENT,`stamp` DATETIME DEFAULT CURRENT_TIMESTAMP ,`str` TEXT ,`type` INT DEFAULT 1 ,`page` VARCHAR(255) ,`line` INT DEFAULT 0 ,`function` VARCHAR(255) );
+CREATE TABLE `logs` (`id` INTEGER PRIMARY KEY AUTOINCREMENT,`stamp` DATETIME DEFAULT CURRENT_TIMESTAMP ,`str` TEXT ,`type` INT DEFAULT 1 ,`page` VARCHAR(255) ,`line` INT DEFAULT 0 ,`function` VARCHAR(255),`user_id` INT DEFAULT 0 );
 CREATE TABLE `profiles` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`msize` INT DEFAULT 0 ,`path` VARCHAR(255) ,`mpath` VARCHAR(255) ,`crc32` VARCHAR(15),`filetypes` TEXT ,`scan` SMALLINT DEFAULT 0 ,`lastrun` DATETIME DEFAULT CURRENT_TIMESTAMP ,`type` INT DEFAULT 1,`files` INT DEFAULT 0,`dups` INT DEFAULT 0,`runs` INT DEFAULT 0);
 CREATE TABLE `settings` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`renametype` INT DEFAULT 0,`namecleanup` INT DEFAULT 0,`cleanupfilter` TEXT ,`dot` INT  DEFAULT 0,`under` INT DEFAULT 0,`doubleb` INT DEFAULT 0,`flatfolders` INT DEFAULT 0,`logs` INT DEFAULT 0,`displaymoved` INT DEFAULT 0,`cpfolder` INT DEFAULT 0,`shortfilenames` INT DEFAULT 0,`runtime` INT DEFAULT 3600,`version` VARCHAR(15) ,`ifolders` TEXT,`download` INT DEFAULT 0);
 CREATE TABLE `status` (`id` INTEGER PRIMARY KEY AUTOINCREMENT ,`value` TEXT ,`data` TEXT ,`profile` INT NOT NULL );
@@ -30,6 +30,7 @@ INSERT INTO profiletypes VALUES(11,'','All File Types');
 CREATE INDEX 'crc32' ON 'files' (`crc32` DESC);
 CREATE INDEX 'file' ON 'files' (`file` DESC);
 CREATE INDEX 'size' ON 'files' (`size` DESC);
+CREATE INDEX 'logs_user_id' ON 'logs' (`user_id` DESC);
 CREATE UNIQUE INDEX 'file_2' ON 'files' (`file` DESC,`profile` DESC);
 CREATE UNIQUE INDEX 'name' ON 'profiletypes' (`name` DESC);
 CREATE UNIQUE INDEX 'profile' ON 'viewpages' (`profile` DESC);
