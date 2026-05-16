@@ -143,6 +143,7 @@ $search = str_replace(array("\r", "\n", "\0"), "", $search);
 $profile = isset($_REQUEST["profile"]) ? intval($_REQUEST["profile"]) : 0;
 $case = isset($_REQUEST["case"]) && intval($_REQUEST["case"]) == 1;
 $start = isset($_REQUEST["start"]) ? intval($_REQUEST["start"]) : 0;
+$hasSearch = strlen($search) > 0;
 
 if($start < 0)
     $start = 0;
@@ -167,9 +168,7 @@ if($start < 0)
   <SCRIPT TYPE="text/javascript" CHARSET="utf-8">sbRoot = '/'; top_image_html = '<img src="images/top.gif" style="width:31px; height:11px" alt="Jump to top" />';</SCRIPT>
   <SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>
   <SCRIPT type="text/javascript">
-    $(document).ready(function(){
-        $("#NAVsearch").addClass("active");
-    });
+    $(document).ready(function(){ $("#NAVsearch").addClass("active"); });
   </SCRIPT>
  </HEAD>
  <BODY onload="displayAll()">
@@ -223,96 +222,103 @@ $totalRows = 0;
 $totalGroups = 0;
 $tbodyNum = 1;
 
-try
+if(!$hasSearch)
 {
-    $ProfileSettings = $dup->GetProfiles('path');
-
-    foreach($ProfileSettings as $profileKey => $profileInfo)
+    echo "<TR class=nowrap><TD colspan=7>Enter a search string to search duplicate files.</TD></TR>\n";
+}
+else
+{
+    try
     {
-        $profileId = intval($profileInfo['id']);
+        $ProfileSettings = $dup->GetProfiles('path');
 
-        if($profile != 0 && $profileId != $profile)
-            continue;
-
-        $groups = FetchDupGroups($profileId, $profileInfo, $search, $case, $start);
-
-        if(count($groups) == 0)
-            continue;
-
-        echo "<TR class=nowrap>\n";
-        echo " <td colspan=7><b><a href=\"profile-view.php?profile=" . $profileId . "\">" . DupHtml($profileInfo['path']) . "</a></b></td>\n";
-        echo "</TR>\n";
-
-        foreach($groups as $group)
+        foreach($ProfileSettings as $profileKey => $profileInfo)
         {
-            $rows = $group['rows'];
-            $class = (($groupNum % 2 == 0) ? "subparent" : "mainparent");
-            $childNum = 0;
+            $profileId = intval($profileInfo['id']);
 
-            foreach($rows as $k => $row)
+            if($profile != 0 && $profileId != $profile)
+                continue;
+
+            $groups = FetchDupGroups($profileId, $profileInfo, $search, $case, $start);
+
+            if(count($groups) == 0)
+                continue;
+
+            echo "<TR class=nowrap>\n";
+            echo " <td colspan=7><b><a href=\"profile-view.php?profile=" . $profileId . "\">" . DupHtml($profileInfo['path']) . "</a></b></td>\n";
+            echo "</TR>\n";
+
+            foreach($groups as $group)
             {
-                $date = new DateTime("@" . intval($row['fdate']));
-                $icon = (isset($row['link']) && strlen($row['link']) > 0) ? "<I class=icon-magnet></I>" : "<I class=icon-file></I>";
-                $rowClass = $class;
+                $rows = $group['rows'];
+                $class = (($groupNum % 2 == 0) ? "subparent" : "mainparent");
+                $childNum = 0;
 
-                if($k > 0)
-                    $rowClass = ($childNum % 2 == 0) ? "subchild" : "child";
+                foreach($rows as $k => $row)
+                {
+                    $date = new DateTime("@" . intval($row['fdate']));
+                    $icon = (isset($row['link']) && strlen($row['link']) > 0) ? "<I class=icon-magnet></I>" : "<I class=icon-file></I>";
+                    $rowClass = $class;
 
-                if($k == 1)
-                    echo "<TBODY id=\"dupgroup" . $tbodyNum . "\" class=\"" . $rowClass . "\">\n";
+                    if($k > 0)
+                        $rowClass = ($childNum % 2 == 0) ? "subchild" : "child";
 
-                $file = DropProfile($row['file'], isset($profileInfo['path']) ? $profileInfo['path'] : "");
-                $displayNum = ($k == 0) ? $groupNum : $childNum;
-                $countText = ($k == 0) ? " &nbsp;&nbsp (" . (count($rows) - 1) . ")" : "";
-                $b1 = ($k == 0) ? "<b>" : "";
-                $b2 = ($k == 0) ? "</b>" : "";
-                $rowId = intval($row['id']);
-                $rowProfile = intval($row['profile']);
-                $fileHtml = DupHtml($row['file']);
-                $shortFile = ChopName($file);
-                $fileJs = JavaScriptSafeString($row['file']);
-                $dropTitle = DupHtml($file);
+                    if($k == 1)
+                        echo "<TBODY id=\"dupgroup" . $tbodyNum . "\" class=\"" . $rowClass . "\">\n";
 
-                echo "<TR class=\"" . $rowClass . "\">\n";
-                echo " <TD class=\"" . $rowClass . "\" align=\"right\" nowrap>" . $b1 . $displayNum . $b2 . $countText . "</TD>\n";
-                echo " <TD class=\"" . $rowClass . "\" nowrap><span title=\"" . (($icon == "<I class=icon-file></I>") ? "File" : "Symlink") . "\">" . $icon . "</span> &nbsp; <input type=checkbox id=\"" . (($k == 0) ? "pri" : "sec") . "\" name=\"files[]\" value=\"" . $rowId . "\"" . (($k == 0) ? "" : " CHECKED") . "> " . $rowId . "</TD>\n";
+                    $file = DropProfile($row['file'], isset($profileInfo['path']) ? $profileInfo['path'] : "");
+                    $displayNum = ($k == 0) ? $groupNum : $childNum;
+                    $countText = ($k == 0) ? " &nbsp;&nbsp (" . (count($rows) - 1) . ")" : "";
+                    $b1 = ($k == 0) ? "<b>" : "";
+                    $b2 = ($k == 0) ? "</b>" : "";
+                    $rowId = intval($row['id']);
+                    $rowProfile = intval($row['profile']);
+                    $fileHtml = DupHtml($row['file']);
+                    $shortFile = ChopName($file);
+                    $fileJs = JavaScriptSafeString($row['file']);
+                    $dropTitle = DupHtml($file);
 
-                if($k == 0)
-                    echo " <TD class=\"tvShow\"><a title=\"" . $fileHtml . "\" id=\"Expand\" onclick=\"displayRow('dupgroup" . $tbodyNum . "');\" style=\"cursor:hand; cursor:pointer\"><B>" . HighlightSearch($shortFile, $search) . "</B></a></TD>\n";
-                else
-                    echo " <TD class=\"tvShowchild\"><span title=\"" . $fileHtml . "\">" . HighlightSearch($shortFile, $search) . "</span></TD>\n";
+                    echo "<TR class=\"" . $rowClass . "\">\n";
+                    echo " <TD class=\"" . $rowClass . "\" align=\"right\" nowrap>" . $b1 . $displayNum . $b2 . $countText . "</TD>\n";
+                    echo " <TD class=\"" . $rowClass . "\" nowrap><span title=\"" . (($icon == "<I class=icon-file></I>") ? "File" : "Symlink") . "\">" . $icon . "</span> &nbsp; <input type=checkbox id=\"" . (($k == 0) ? "pri" : "sec") . "\" name=\"files[]\" value=\"" . $rowId . "\"" . (($k == 0) ? "" : " CHECKED") . "> " . $rowId . "</TD>\n";
 
-                echo " <TD class=\"" . $rowClass . "\" align=right nowrap><span title=\"" . number_format(intval($row['size'])) . " bytes\">" . $dup->format_bytes(intval($row['size'])) . "</span></TD>\n";
-                echo " <TD class=\"" . $rowClass . "\" align=center nowrap><span title=\"" . intval($row['fdate']) . "\">" . $date->format('Y-m-d H:i:s') . "</span></TD>\n";
-                echo " <TD class=\"" . $rowClass . "\" align=center nowrap>" . DupHtml($row['crc32']) . "</TD>\n";
-                echo " <TD class=\"" . $rowClass . "\" nowrap><center>";
-                echo "<a href=\"view-file.php?profile=" . $rowProfile . "&file=" . $rowId . "\"><I class=icon-eye-open title=\"View '" . $dropTitle . "'\"></I></a> <b>/";
-                echo " <a href=\"download-files.php?profile=" . $rowProfile . "&file=" . $rowId . "\"><I class=icon-download-alt title=\"Download '" . $dropTitle . "'\"></I></a> /";
-                echo " <a href=\"javascript:DeleteFile('" . $rowProfile . "', '" . $rowId . "', '" . $fileJs . "');\"><I class=icon-trash title=\"Delete '" . $dropTitle . "'\"></I></a> /";
-                echo " <a href=\"javascript:SingleFileAction('" . $rowProfile . "', 'Rename', '" . $rowId . "');\"><I class=icon-edit title=\"Rename '" . $dropTitle . "'\"></I></a> /";
-                echo " <a href=\"javascript:SingleFileAction('" . $rowProfile . "', 'Move', '" . $rowId . "');\"><I class=icon-share title=\"Move '" . $dropTitle . "'\"></I></a></b>";
-                echo "</center></TD>\n";
-                echo "</TR>\n";
+                    if($k == 0)
+                        echo " <TD class=\"tvShow\"><a title=\"" . $fileHtml . "\" id=\"Expand\" onclick=\"displayRow('dupgroup" . $tbodyNum . "');\" style=\"cursor:hand; cursor:pointer\"><B>" . HighlightSearch($shortFile, $search) . "</B></a></TD>\n";
+                    else
+                        echo " <TD class=\"tvShowchild\"><span title=\"" . $fileHtml . "\">" . HighlightSearch($shortFile, $search) . "</span></TD>\n";
 
-                if($k > 0)
-                    $dupsize += intval($row['size']);
+                    echo " <TD class=\"" . $rowClass . "\" align=right nowrap><span title=\"" . number_format(intval($row['size'])) . " bytes\">" . $dup->format_bytes(intval($row['size'])) . "</span></TD>\n";
+                    echo " <TD class=\"" . $rowClass . "\" align=center nowrap><span title=\"" . intval($row['fdate']) . "\">" . $date->format('Y-m-d H:i:s') . "</span></TD>\n";
+                    echo " <TD class=\"" . $rowClass . "\" align=center nowrap>" . DupHtml($row['crc32']) . "</TD>\n";
+                    echo " <TD class=\"" . $rowClass . "\" nowrap><center>";
+                    echo "<a href=\"view-file.php?profile=" . $rowProfile . "&file=" . $rowId . "\"><I class=icon-eye-open title=\"View '" . $dropTitle . "'\"></I></a> <b>/";
+                    echo " <a href=\"download-files.php?profile=" . $rowProfile . "&file=" . $rowId . "\"><I class=icon-download-alt title=\"Download '" . $dropTitle . "'\"></I></a> /";
+                    echo " <a href=\"javascript:DeleteFile('" . $rowProfile . "', '" . $rowId . "', '" . $fileJs . "');\"><I class=icon-trash title=\"Delete '" . $dropTitle . "'\"></I></a> /";
+                    echo " <a href=\"javascript:SingleFileAction('" . $rowProfile . "', 'Rename', '" . $rowId . "');\"><I class=icon-edit title=\"Rename '" . $dropTitle . "'\"></I></a> /";
+                    echo " <a href=\"javascript:SingleFileAction('" . $rowProfile . "', 'Move', '" . $rowId . "');\"><I class=icon-share title=\"Move '" . $dropTitle . "'\"></I></a></b>";
+                    echo "</center></TD>\n";
+                    echo "</TR>\n";
 
-                $tsize += intval($row['size']);
-                $totalRows++;
-                $childNum++;
+                    if($k > 0)
+                        $dupsize += intval($row['size']);
+
+                    $tsize += intval($row['size']);
+                    $totalRows++;
+                    $childNum++;
+                }
+
+                echo "</TBODY>\n";
+                $groupNum++;
+                $totalGroups++;
+                $tbodyNum++;
             }
-
-            echo "</TBODY>\n";
-            $groupNum++;
-            $totalGroups++;
-            $tbodyNum++;
         }
     }
-}
-catch(PDOException $ex) {
-    LogError(print_r($ex, true));
-    header("Location: error.php");
-    exit;
+    catch(PDOException $ex) {
+        LogError(print_r($ex, true));
+        header("Location: error.php");
+        exit;
+    }
 }
 ?>
 </TBODY>
