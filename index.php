@@ -36,7 +36,7 @@ function DupInt($value)
   <SCRIPT TYPE="text/javascript" SRC="files/jquery.tablesorter-2.1.19.min.js"></SCRIPT>
   <SCRIPT SRC="files/script.js"></SCRIPT>  
   <SCRIPT TYPE="text/javascript" CHARSET="utf-8">
-		sbRoot = '/'; 
+        sbRoot = '/'; 
         top_image_html = '<img src="images/top.gif" style="width:31px; height:11px" alt="Jump to top" />'; 
   </SCRIPT>
   <SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>  
@@ -46,8 +46,8 @@ function DupInt($value)
             $("#NAVhome").addClass("active");
         });
     //-->
-    </SCRIPT>	
-    <script TYPE="text/javascript">  
+  </SCRIPT>
+  <script TYPE="text/javascript">  
 function PostProfileAction(url, id)
 {
     var form = document.createElement("form");
@@ -85,54 +85,54 @@ function handleClick(id, act, title)
             PostProfileAction("scan-files.php", id);
     }
 }
-    </SCRIPT>   
-    <SCRIPT TYPE="text/javascript" charset="utf-8">
+  </SCRIPT>   
+  <SCRIPT TYPE="text/javascript" charset="utf-8">
     <!--
-	$.tablesorter.addParser({ 
-		id: 'eps',
-		is: function(s) {
-			return false; 
-		},
-		format: function(s) {
-			match = s.match(/^(.*)/);
+    $.tablesorter.addParser({ 
+        id: 'eps',
+        is: function(s) {
+            return false; 
+        },
+        format: function(s) {
+            match = s.match(/^(.*)/);
 
-			if (match == null || match[1] == "?")
-				return -10;
+            if (match == null || match[1] == "?")
+                return -10;
 
-			var nums = match[1].split(" / ");			
-			nums[0]=parseInt(nums[0].replace(/\,/g,''),10);
-			nums[1]=parseInt(nums[1].replace(/\,/g,''),10);
+            var nums = match[1].split(" / ");
+            nums[0]=parseInt(nums[0].replace(/\,/g,''),10);
+            nums[1]=parseInt(nums[1].replace(/\,/g,''),10);
 
-			if (parseInt(nums[0]) === 0)
-				return parseInt(nums[1]);
+            if (parseInt(nums[0]) === 0)
+                return parseInt(nums[1]);
 
-			var finalNum = parseInt((nums[0]/nums[1])*1000)*100;
-			if (finalNum > 0)
-				finalNum += parseInt(nums[0]);
+            var finalNum = parseInt((nums[0]/nums[1])*1000)*100;
+            if (finalNum > 0)
+                finalNum += parseInt(nums[0]);
 
-			return finalNum;
-		},
-		type: 'numeric'
-	});
+            return finalNum;
+        },
+        type: 'numeric'
+    });
 
-	$(document).ready(function(){ 
+    $(document).ready(function(){ 
 
-		$("#showListTable:has(tbody tr)").tablesorter({
-			sortList: [[1,1]],
-			textExtraction: {
-				4: function(node) { return $(node).find("div").text(); },
-			},
-			widgets: ['saveSort', 'zebra', 'stickyHeaders'],
-			headers: {
-				0: { sorter: 'isoDate' },
-				4: { sorter: 'eps' }
-			}
-		});
+        $("#showListTable:has(tbody tr)").tablesorter({
+            sortList: [[1,1]],
+            textExtraction: {
+                4: function(node) { return $(node).find("div").text(); },
+            },
+            widgets: ['saveSort', 'zebra', 'stickyHeaders'],
+            headers: {
+                0: { sorter: 'isoDate' },
+                4: { sorter: 'eps' }
+            }
+        });
 
-	});
-	//-->
-    </SCRIPT>
-	<META NAME=GENERATOR CONTENT="MSHTML 8.00.7601.17940">
+    });
+    //-->
+  </SCRIPT>
+  <META NAME=GENERATOR CONTENT="MSHTML 8.00.7601.17940">
  </HEAD>
  <BODY ONLOAD="autoupdate();">
  
@@ -155,19 +155,17 @@ function handleClick(id, act, title)
        <TH>Status</TH>
       </TR>
      </THEAD>
-	 
      <TFOOT>
       <TR>
        <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Last Run</TH>
        <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Profile</TH>
-	   <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Type</TH>
-	   <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Hash</TH>
-	   <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Dups/Files</TH>
-	   <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Options</TH>
-	   <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Status</TH>
+       <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Type</TH>
+       <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Hash</TH>
+       <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Dups/Files</TH>
+       <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Options</TH>
+       <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Status</TH>
       </TR>
      </TFOOT>
-	 
      <TBODY>
  
 <?php
@@ -212,14 +210,12 @@ foreach($Profiles as $key => $value)
     echo " <TD align=\"middle\">" . DupHtml($hash) . "</TD>\n";
     echo " <TD align=\"middle\"> <div style=\"DISPLAY: none\">" . $filesCount . " / " . $dupsCount . "</div>\n";
     echo " <DIV style=\"POSITION: relative\" id=\"progressbar" . $profileRowId . "\"></DIV>\n";
-
     echo " <SCRIPT type=\"text/javascript\">\n";
     echo " $(function() {\n";
     echo "     $(\"#progressbar" . $profileRowId . "\").progressbar({ value: " . $progressValue . " });\n";
     echo "     $(\"#progressbar" . $profileRowId . "\").append(\"<div class='progressbarText'>" . number_format($dupsCount) . " / " . number_format($filesCount) . "</div>\");\n";
     echo " });\n";
     echo " </SCRIPT>\n";
-
     echo " </TD>\n";
     echo " <TD align=\"middle\">" . $runsCount . " / <a href=\"javascript:handleClick('" . $profileRowId . "', 'Delete', '" . $profilePathJs . "')\"><I class=\"icon-trash\" title=\"Delete\"></I></a> / <a href=\"javascript:handleClick('" . $profileRowId . "', 'Edit', '')\"><I class=\"icon-edit\" title=\"Edit\"></I></a> / <a href=\"javascript:handleClick('" . $profileRowId . "', 'Scan', '" . $profilePathJs . "')\"><I class=\"icon-eye-close\" title=\"Scan\"></I></a></TD>\n";
 
@@ -234,16 +230,12 @@ foreach($Profiles as $key => $value)
 
      </TBODY> 
     </TABLE> 
-	
-
-	
    </DIV><!-- /content -->
   </DIV><!-- /contentWrapper -->
   
 <?php echo PageFooter(); ?>
   
 <SCRIPT type="text/javascript">
-
 function update()
 {
     $.ajax({
@@ -315,30 +307,6 @@ function autoupdate()
 $(document).ready(function() {
     autoupdate();
 });
-
-</SCRIPT>
-  <SCRIPT type="text/javascript">
-function autoupdate()
-{
-	var myDiv = document.getElementById("showListTable");
-	var nodes = myDiv.getElementsByTagName("span");
-	
-	for (var index = 0; index < nodes.length; index++) 
-	{
-		var node = nodes[index];
-		
-		if (node.id.length>0) 
-		{
-			if(document.getElementById(node.id).innerHTML!="Idle" && document.getElementById(node.id).innerHTML!="")
-			{
-				//alert('updating');
-				update();
-				setTimeout(autoupdate, 3000);
-				break;
-			}
-		}
-	}
-}
 </SCRIPT>
 <?php
 function GetProfileType($type)
@@ -377,4 +345,4 @@ function GetProfileType($type)
 }
 ?> 
  </BODY>
-</HTML> 
+</HTML>
