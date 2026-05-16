@@ -219,7 +219,7 @@ echo "<TD align=middle><center><a href=\"view-file.php?profile=" . $profileActio
 echo " <a href=\"download-files.php?profile=" . $profileActionId . "&file=" . $sfid . "\"><I class=icon-download-alt title=\"Download '" . $fileTitle . "'\"></I></a> /";
 echo " <a href=\"javascript:DeleteFile('" . $profileActionId . "', '" . $fileJs . "', '" . $sfid . "');\"><I class=icon-trash title=\"Delete '" . $fileTitle . "'\"></I></a> /";
 echo " <a href=\"javascript:SingleFileAction('" . $profileActionId . "', 'Rename', '" . $sfid . "');\"> <I class=icon-edit title=\"Rename '" . $dropTitle . "'\"></I></a> /";
-echo " <a href=\"javascript:SingleFileAction('" . $profileActionId . "', 'Move', '" . $sfid . "');\"> <I class=icon-share title=\"Move '" . $dropTitle . "'"></I></a></b>";
+echo " <a href=\"javascript:SingleFileAction('" . $profileActionId . "', 'Move', '" . $sfid . "');\"> <I class=icon-share title=\"Move '" . $dropTitle . "'\"></I></a></b>";
                         echo "</TR>\n";
                         
                         $num++;
