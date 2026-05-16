@@ -170,7 +170,7 @@ if($start < 0)
     $(document).ready(function(){ $("#NAVsearch").addClass("active"); });
   </SCRIPT>
  </HEAD>
- <BODY onload="displayAll()">
+ <BODY>
   <?php echo PageHeader(); ?>
   </HEADER>
 <DIV id=contentWrapper>
@@ -197,6 +197,8 @@ if($start < 0)
  </form>
 
 <form id=search name=search method=post action=action-files.php>
+<input type="hidden" name="profile" value="<?php echo DupInt($profile); ?>">
+<input type="hidden" id="act" name="act" value="none">
 <TABLE id=showListTable class=tablesorter border=0 cellSpacing=1 cellPadding=0>
 <THEAD>
   <TR>
@@ -209,8 +211,6 @@ if($start < 0)
     <TH>Options</TH>
    </TR>
 </THEAD>
-<input type="hidden" name="profile" value="<?php echo DupInt($profile); ?>">
-<input type="hidden" id="act" name="act" value="none">
 <TBODY>
 <?php
 $num = 1;
@@ -247,19 +247,21 @@ if(strlen($search) > 0)
             {
                 $rows = $group['rows'];
                 $class = (($groupNum % 2 == 0) ? "subparent" : "mainparent");
-                $childNum = 0;
+                $childNum = 1;
+                $dupGroupId = "dupgroup" . $tbodyNum;
 
                 foreach($rows as $k => $row)
                 {
                     $date = new DateTime("@" . intval($row['fdate']));
                     $icon = (isset($row['link']) && strlen($row['link']) > 0) ? "<I class=icon-magnet></I>" : "<I class=icon-file></I>";
                     $rowClass = $class;
+                    $rowAttr = "";
 
                     if($k > 0)
+                    {
                         $rowClass = ($childNum % 2 == 0) ? "subchild" : "child";
-
-                    if($k == 1)
-                        echo "<TBODY id=\"dupgroup" . $tbodyNum . "\" class=\"" . $rowClass . "\">\n";
+                        $rowAttr = " data-dupgroup=\"" . $dupGroupId . "\" style=\"display:none\"";
+                    }
 
                     $file = DropProfile($row['file'], isset($profileInfo['path']) ? $profileInfo['path'] : "");
                     $displayNum = ($k == 0) ? $groupNum : $childNum;
@@ -273,12 +275,12 @@ if(strlen($search) > 0)
                     $fileJs = JavaScriptSafeString($row['file']);
                     $dropTitle = DupHtml($file);
 
-                    echo "<TR class=\"" . $rowClass . "\">\n";
+                    echo "<TR class=\"" . $rowClass . "\"" . $rowAttr . ">\n";
                     echo " <TD class=\"" . $rowClass . "\" align=\"right\" nowrap>" . $b1 . $displayNum . $b2 . $countText . "</TD>\n";
                     echo " <TD class=\"" . $rowClass . "\" nowrap><span title=\"" . (($icon == "<I class=icon-file></I>") ? "File" : "Symlink") . "\">" . $icon . "</span> &nbsp; <input type=checkbox id=\"" . (($k == 0) ? "pri" : "sec") . "\" name=\"files[]\" value=\"" . $rowId . "\"" . (($k == 0) ? "" : " CHECKED") . "> " . $rowId . "</TD>\n";
 
                     if($k == 0)
-                        echo " <TD class=\"tvShow\"><a title=\"" . $fileHtml . "\" id=\"Expand\" onclick=\"displayRow('dupgroup" . $tbodyNum . "');\" style=\"cursor:hand; cursor:pointer\"><B>" . HighlightSearch($shortFile, $search) . "</B></a></TD>\n";
+                        echo " <TD class=\"tvShow\"><a title=\"" . $fileHtml . "\" id=\"Expand\" onclick=\"displayRow('" . $dupGroupId . "');\" style=\"cursor:hand; cursor:pointer\"><B>" . HighlightSearch($shortFile, $search) . "</B></a></TD>\n";
                     else
                         echo " <TD class=\"tvShowchild\"><span title=\"" . $fileHtml . "\">" . HighlightSearch($shortFile, $search) . "</span></TD>\n";
 
@@ -295,14 +297,15 @@ if(strlen($search) > 0)
                     echo "</TR>\n";
 
                     if($k > 0)
+                    {
                         $dupsize += intval($row['size']);
+                        $childNum++;
+                    }
 
                     $tsize += intval($row['size']);
                     $totalRows++;
-                    $childNum++;
                 }
 
-                echo "</TBODY>\n";
                 $groupNum++;
                 $totalGroups++;
                 $tbodyNum++;
@@ -317,7 +320,6 @@ if(strlen($search) > 0)
 }
 ?>
 </TBODY>
-</form>
 <TFOOT>
 <TR>
 <TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><input id="expandButton" type=Button Value=Expand OnClick="displayAll()"></TH>
@@ -339,12 +341,13 @@ if(strlen($search) > 0)
 </TR>
 </TFOOT>
 </TABLE>
+</form>
 </DIV>
 </DIV>
 <?php echo PageFooter(); ?>
 </BODY>
 <script type="text/javascript">
-var allExpanded = true;
+var allExpanded = false;
 
 function setExpandButtonText()
 {
@@ -356,30 +359,26 @@ function setExpandButtonText()
 
 function displayRow(num)
 {
-    var row = document.getElementById(num);
+    var rows = document.querySelectorAll('#showListTable tr[data-dupgroup="' + num + '"]');
 
-    if(row != null)
-        row.style.display = (row.style.display == '') ? 'none' : '';
+    for(var i = 0; i < rows.length; i++)
+        rows[i].style.display = (rows[i].style.display == '') ? 'none' : '';
 }
 
 function displayAll()
 {
     allExpanded = !allExpanded;
+    var rows = document.querySelectorAll('#showListTable tr[data-dupgroup]');
 
-    for(var i = 1; i <= <?php echo intval($tbodyNum); ?>; i++)
-    {
-        var row = document.getElementById('dupgroup' + i);
-
-        if(row != null)
-            row.style.display = allExpanded ? '' : 'none';
-    }
+    for(var i = 0; i < rows.length; i++)
+        rows[i].style.display = allExpanded ? '' : 'none';
 
     setExpandButtonText();
 }
 
 function checkedAll(val)
 {
-    var inputs = document.querySelectorAll('#showListTable input[type="checkbox"][name="files[]"]');
+    var inputs = document.querySelectorAll('#' + val + ' input[type="checkbox"][name="files[]"]');
 
     for(var i = 0; i < inputs.length; i++)
         inputs[i].checked = !inputs[i].checked;
