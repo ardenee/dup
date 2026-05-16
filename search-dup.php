@@ -12,8 +12,126 @@ function DupInt($value)
 {
     return intval($value);
 }
-$global  = "";
-$case    = false;
+
+function HighlightSearch($value, $search)
+{
+    $escaped = DupHtml($value);
+
+    if(trim((string)$search) == "")
+        return $escaped;
+
+    return preg_replace("/(" . preg_quote(DupHtml($search), "/") . ")/i", "<b>$1</b>", $escaped);
+}
+
+function JavaScriptSafeString($value)
+{
+    return str_replace(array("\\", "'", "\r", "\n"), array("\\\\", "\\'", "", ""), (string)$value);
+}
+
+function DropProfile($full, $part)
+{
+    if($part != "" && strpos($full, $part) === 0)
+        return trim(substr($full, strlen($part), strlen($full)), "//");
+
+    return $full;
+}
+
+function ChopName($name)
+{
+    global $dup;
+
+    if($dup->Settings['shortfilenames'] != 0 && strlen($name) > $dup->Settings['shortfilenames'])
+        return "..." . substr($name, (strlen($name) - $dup->Settings['shortfilenames']), strlen($name));
+
+    return $name;
+}
+
+function FetchDupGroups($profileId, $profileInfo, $search, $case, $start)
+{
+    global $dblink;
+    global $dup;
+
+    $groups = array();
+    $type = intval($profileInfo['crc32']) == 0 ? "size" : "crc32";
+    $whereParts = array("profile=:profile");
+    $searchValue = $case ? $search : strtolower($search);
+
+    if(strlen($search) > 0)
+        $whereParts[] = ($case ? "file LIKE :search" : "LOWER(file) LIKE :search");
+
+    if(intval($dup->Settings['displaymoved']) == 0 && isset($profileInfo['mpath']) && trim($profileInfo['mpath']) != "")
+        $whereParts[] = "file NOT LIKE :mpath";
+
+    if($type == "size")
+        $query = "SELECT size AS dupkey, COUNT(size) AS cnt FROM files WHERE " . implode(" AND ", $whereParts) . " GROUP BY size HAVING COUNT(size)>1 ORDER BY size ASC LIMIT :start, 500;";
+    else
+        $query = "SELECT crc32 AS dupkey, COUNT(crc32) AS cnt FROM files WHERE crc32!='unknown' AND crc32!='0 Filled' AND crc32!='' AND " . implode(" AND ", $whereParts) . " GROUP BY crc32 HAVING COUNT(crc32)>1 ORDER BY crc32 ASC LIMIT :start, 500;";
+
+    LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
+
+    $sdt = $dblink->prepare($query);
+    $sdt->bindValue(":profile", intval($profileId), PDO::PARAM_INT);
+    $sdt->bindValue(":start", intval($start), PDO::PARAM_INT);
+
+    if(strlen($search) > 0)
+        $sdt->bindValue(":search", "%" . $searchValue . "%", PDO::PARAM_STR);
+
+    if(intval($dup->Settings['displaymoved']) == 0 && isset($profileInfo['mpath']) && trim($profileInfo['mpath']) != "")
+        $sdt->bindValue(":mpath", rtrim($profileInfo['mpath'], "/") . "/%", PDO::PARAM_STR);
+
+    $sdt->execute();
+    $dupKeys = $sdt->fetchAll(PDO::FETCH_ASSOC);
+    $sdt->closeCursor();
+
+    foreach($dupKeys as $dupKeyRow)
+    {
+        $dupKey = isset($dupKeyRow['dupkey']) ? $dupKeyRow['dupkey'] : "";
+
+        if($type == "size")
+            $query = "SELECT id, file, size, fdate, crc32, profile, link FROM files WHERE profile=:profile AND size=:dupkey ORDER BY link ASC, file ASC;";
+        else
+            $query = "SELECT id, file, size, fdate, crc32, profile, link FROM files WHERE profile=:profile AND crc32=:dupkey ORDER BY link ASC, file ASC;";
+
+        LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
+
+        $sdt2 = $dblink->prepare($query);
+        $sdt2->bindValue(":profile", intval($profileId), PDO::PARAM_INT);
+
+        if($type == "size")
+            $sdt2->bindValue(":dupkey", intval($dupKey), PDO::PARAM_INT);
+        else
+            $sdt2->bindValue(":dupkey", $dupKey, PDO::PARAM_STR);
+
+        $sdt2->execute();
+        $rows = $sdt2->fetchAll(PDO::FETCH_ASSOC);
+        $sdt2->closeCursor();
+
+        $filteredRows = array();
+
+        foreach($rows as $row)
+        {
+            if(intval($dup->Settings['displaymoved']) == 0 && isset($profileInfo['mpath']) && trim($profileInfo['mpath']) != "" && strpos($row['file'], rtrim($profileInfo['mpath'], "/") . "/") === 0)
+                continue;
+
+            if(strlen($search) > 0)
+            {
+                $haystack = $case ? $row['file'] : strtolower($row['file']);
+
+                if(strpos($haystack, $searchValue) === false)
+                    continue;
+            }
+
+            $filteredRows[] = $row;
+        }
+
+        if(count($filteredRows) > 1)
+            $groups[] = array("type" => $type, "key" => $dupKey, "rows" => $filteredRows);
+    }
+
+    return $groups;
+}
+
+$case = false;
 $search = "";
 
 if(isset($_POST["search"]))
@@ -21,10 +139,10 @@ if(isset($_POST["search"]))
 else if(isset($_GET["search"]))
     $search = trim($_GET["search"]);
 
-$search  = str_replace(array("\r", "\n"), "", $search);
+$search = str_replace(array("\r", "\n", "\0"), "", $search);
 $profile = isset($_REQUEST["profile"]) ? intval($_REQUEST["profile"]) : 0;
-$case    = isset($_REQUEST["case"]) && intval($_REQUEST["case"]) == 1;
-$start   = isset($_REQUEST["start"]) ? intval($_REQUEST["start"]) : 0;
+$case = isset($_REQUEST["case"]) && intval($_REQUEST["case"]) == 1;
+$start = isset($_REQUEST["start"]) ? intval($_REQUEST["start"]) : 0;
 
 if($start < 0)
     $start = 0;
@@ -32,80 +150,55 @@ if($start < 0)
 <!DOCTYPE HTML>
 <HTML>
  <HEAD>
-  <TITLE>dup - dup Search</TITLE>
+  <TITLE>dup - Dup Search</TITLE>
   <META CHARSET="utf-8">
   <META content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
   <META name="robots" content="noindex">
-  <!--[if lt IE 9]>
-  <SCRIPT SRC="files/html5.js"></SCRIPT>
-  <![endif]-->
+  <!--[if lt IE 9]><SCRIPT SRC="files/html5.js"></SCRIPT><![endif]-->
   <LINK REL="shortcut icon" HREF="images/dup.png">
-  <LINK REL="stylesheet" TYPE="text/css" HREF="files/bootstrap.css">  
+  <LINK REL="stylesheet" TYPE="text/css" HREF="files/bootstrap.css">
   <LINK REL="stylesheet" TYPE="text/css" HREF="files/jquery-ui-1.8.24.custom.css">
-  <LINK REL="stylesheet" TYPE="text/css" HREF="files/style.css"> 
-  <LINK REL="stylesheet" TYPE="text/css" HREF="files/imgs.css">  
+  <LINK REL="stylesheet" TYPE="text/css" HREF="files/style.css">
+  <LINK REL="stylesheet" TYPE="text/css" HREF="files/imgs.css">
   <SCRIPT TYPE="text/javascript" SRC="files/jquery-1.7.2.min.js"></SCRIPT>
   <SCRIPT TYPE="text/javascript" SRC="files/jquery-ui-1.8.24.custom.min.js"></SCRIPT>
   <SCRIPT TYPE="text/javascript" SRC="files/jquery.tablesorter-2.1.19.min.js"></SCRIPT>
-  <SCRIPT SRC="files/script.js"></SCRIPT>  
+  <SCRIPT SRC="files/script.js"></SCRIPT>
   <SCRIPT TYPE="text/javascript" CHARSET="utf-8">sbRoot = '/'; top_image_html = '<img src="images/top.gif" style="width:31px; height:11px" alt="Jump to top" />';</SCRIPT>
-  <SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>  
+  <SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>
   <SCRIPT type="text/javascript">
-    <!--
-        $(document).ready(function(){ 
-            $("#NAVsearch").addClass("active");
-        });
-    //-->
-    </SCRIPT>	   
- <SCRIPT type="text/javascript" charset="utf-8">
-    <!--
-    $(document).ready(function(){ 
-
-        $("#showListTable:has(tbody tr)").tablesorter({
-            widgets: ['saveSort', 'zebra', 'stickyHeaders']
-        });
+    $(document).ready(function(){
+        $("#NAVsearch").addClass("active");
     });
-    //-->
-    </SCRIPT>
-  <META name="GENERATOR" content="MSHTML 8.00.7601.17940">
+  </SCRIPT>
  </HEAD>
-
- <BODY onload="displayAll()"> 
+ <BODY onload="displayAll()">
   <?php echo PageHeader(); ?>
   </HEADER>
-
 <DIV id=contentWrapper>
  <DIV id=content>
  <form id=searchform name=searchform method=post action=search-dup.php>
- <H1 class=title>dup Search</H1>
- <H1 class=title>Search : <input type="text" name="search" size="30" value="<?php echo DupHtml($search); ?>"> &nbsp;
-  Scope :
+ <H1 class=title>Dup Search</H1>
+ <H1 class=title>Search : <input type="text" name="search" size="30" value="<?php echo DupHtml($search); ?>"> &nbsp; Scope :
   <?php
-    $Profiles = $dup->GetProfiles("path");         
-	echo "<select name=\"profile\" id=\"profile\" class=\"input-medium\" style=\"width: 270px\">\n";
-	echo " <option value=\"0\"" . (($profile == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
-	foreach($Profiles as $key => $val)
-	{
-		$id = DupInt($val['id']);
-		$pathHtml = DupHtml($val['path']);
-		$selected = ($id == $profile) ? " SELECTED" : "";
+    $Profiles = $dup->GetProfiles("path");
+    echo "<select name=\"profile\" id=\"profile\" class=\"input-medium\" style=\"width: 270px\">\n";
+    echo " <option value=\"0\"" . (($profile == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
 
-		echo " <option value=\"" . $id . "\"" . $selected . "> (" . $id . ") " . $pathHtml . " </option>\n";
-	}
-	echo "</select>\n";    
-    echo "&nbsp;Case Sensitive : <input type=checkbox name=case".(($case==true)?" CHECKED":"").">";    
- ?> 
-  &nbsp;
-  <input type=Submit value=Search></B></H1>
- </form> 
- 
-<SCRIPT type="text/javascript" charset="utf-8">
-<!--
-$(document).ready();
-//-->
-</SCRIPT>
+    foreach($Profiles as $key => $val)
+    {
+        $id = DupInt($val['id']);
+        $selected = ($id == $profile) ? " SELECTED" : "";
+        echo " <option value=\"" . $id . "\"" . $selected . "> (" . $id . ") " . DupHtml($val['path']) . " </option>\n";
+    }
 
-  <form id=search name=search method=post action=action-files.php>
+    echo "</select>\n";
+    echo "&nbsp;Case Sensitive : <input type=checkbox name=case value=1" . (($case == true) ? " CHECKED" : "") . ">";
+ ?>
+  &nbsp;<input type=Submit value=Search></H1>
+ </form>
+
+<form id=search name=search method=post action=action-files.php>
 <TABLE id=showListTable class=tablesorter border=0 cellSpacing=1 cellPadding=0>
 <THEAD>
   <TR>
@@ -117,195 +210,173 @@ $(document).ready();
     <TH>CRC32</TH>
     <TH>Options</TH>
    </TR>
-  </THEAD>
-  <input type="hidden" name="profile" value="<?php echo DupInt($profile); ?>">
-  <input type="hidden" id="act" name="act" value="none">
-  <TBODY>
-  
-<?php  
- 
-if(strlen($search)>0)
+</THEAD>
+<input type="hidden" name="profile" value="<?php echo DupInt($profile); ?>">
+<input type="hidden" id="act" name="act" value="none">
+<TBODY>
+<?php
+$num = 1;
+$groupNum = 1;
+$tsize = 0;
+$dupsize = 0;
+$totalRows = 0;
+$totalGroups = 0;
+$tbodyNum = 1;
+
+try
 {
-    $ProfileSearcheSettings = array();    
-    $ProfileSettings        = $dup->GetProfiles('path');
-    
-    foreach($ProfileSettings as $key => $val)
-    {
-        $id = $val['id'];
-            
-        if($profile == $id or $profile == 0)    
-        {        
-            $ProfileSearcheSettings[$id]['id'] = $val['id'];
-            $ProfileSearcheSettings[$id]['crc32'] = $val['crc32'];
-            $ProfileSearcheSettings[$id]['mpath'] = isset($val['mpath']) ? $val['mpath'] : "";
-            $ProfileSearcheSettings[$id]['path'] = isset($val['path']) ? $val['path'] : "";
-        }
-    }    
+    $ProfileSettings = $dup->GetProfiles('path');
 
-    $num   = 1;
-    $tsize = 0;
-    $total = 0;
-
-    foreach($ProfileSearcheSettings as $key => $val)
+    foreach($ProfileSettings as $profileKey => $profileInfo)
     {
-        $type       = ($val['crc32']==0)?"size":"crc32";
-        $additional = "";
-        
-        $search2 = ($case==false)?strtolower($search):$search;        
-        $sercol  = ($case==false)?" LOWER(file) ":" file ";
-        
-        if($dup->Settings['displaymoved']==0)
-            $additional = " AND file NOT LIKE '%".SafeSQLValue($val['mpath'])."%'";
-        
-        if($val['crc32']==0)
-            $query = "SELECT size, COUNT(size) FROM files WHERE profile=$key $additional AND $sercol LIKE '%".SafeSQLValue($search2)."%' GROUP BY size HAVING COUNT(size)>1 ORDER BY file ASC LIMIT $start, 500;";
-        else
-            $query = "SELECT crc32, COUNT(crc32) AS cnt FROM files WHERE crc32!='unknown' AND profile=$key $additional AND $sercol LIKE '%".SafeSQLValue($search2)."%' GROUP BY crc32 HAVING COUNT(crc32)>1 ORDER BY files.file ASC LIMIT $start, 500;";            
-            
+        $profileId = intval($profileInfo['id']);
+
+        if($profile != 0 && $profileId != $profile)
+            continue;
+
+        $groups = FetchDupGroups($profileId, $profileInfo, $search, $case, $start);
+
+        if(count($groups) == 0)
+            continue;
+
         echo "<TR class=nowrap>\n";
-        echo " <td colspan=7><b><a href=\"profile-view.php?profile=$key\">".$ProfileSettings[$key]['path']."</a></td>\n";
-        echo "</TR>\n";    
-        
-        try
+        echo " <td colspan=7><b><a href=\"profile-view.php?profile=" . $profileId . "\">" . DupHtml($profileInfo['path']) . "</a></b></td>\n";
+        echo "</TR>\n";
+
+        foreach($groups as $group)
         {
-            LogStr("MySQL: $query", 3, __FILE__, __LINE__, __FUNCTION__);
-            $sdt   = $dblink->query($query);
-            $files = $sdt->fetchAll();                
-            $total = count($files);
-                    
-            foreach($files as $key2 => $row)
-            {    
-                $query = "SELECT * FROM files WHERE $type=".$row[$type]." AND profile=$key;";
-                
-                if($type == "crc32") // string instead of number
-                    $query = str_replace($row[$type], "'".$row[$type]."'", $query);
-            
-                try
-                {
-                    LogStr("MySQL: $query", 3, __FILE__, __LINE__, __FUNCTION__);
-                    $sdt2 = $dblink->query($query);                    
-                    
-                    while($row2 = $sdt2->fetch(PDO::FETCH_ASSOC))
-                    {
-                        $sfid = $row2['id'];
-                        $linkValue = isset($row2['link']) ? $row2['link'] : "";
-                        $icon = (strlen($linkValue) > 0) ? "<I class=icon-magnet></I>" : "<I class=icon-file></I>";                                    
-						$sfid = DupInt($sfid);
-						$profileActionId = DupInt($val['id']);
+            $rows = $group['rows'];
+            $class = (($groupNum % 2 == 0) ? "subparent" : "mainparent");
+            $childNum = 0;
 
-						if($dup->Settings['download']==1)
-							echo " <TD class=nowrap><span title='".(($icon=="<I class=icon-file></I>")?"File":"Symlink")."' >$icon</span> &nbsp; <input type=checkbox id=\"sec\" name=\"files[]\" value=\"" . $sfid . "\" CHECKED> <a id=\"Download\" href=\"javascript:Download('" . $profileActionId . "', '" . $sfid . "');\" alt=\"Download\" title=\"Download\">" . $sfid . "</a></TD>\n";
-						else
-							echo " <TD class=nowrap><span title='".(($icon=="<I class=icon-file></I>")?"File":"Symlink")."' >$icon</span> &nbsp; <input type=checkbox id=\"sec\" name=\"files[]\" value=\"" . $sfid . "\" CHECKED> " . $sfid . "</TD>\n";
+            foreach($rows as $k => $row)
+            {
+                $date = new DateTime("@" . intval($row['fdate']));
+                $icon = (isset($row['link']) && strlen($row['link']) > 0) ? "<I class=icon-magnet></I>" : "<I class=icon-file></I>";
+                $rowClass = $class;
 
-                        echo " <TD class=nowrap><span title=\"".$row2['file']."\">".ChopName(highlightkeyword($row2['file'], $search2))."</span></TD>\n";
-                        echo " <TD class=nowrap><center><span title=\"".number_format($row2['size'])." bytes\">".$dup->format_bytes($row2['size'])."</span></center></TD>\n";
-                        $date = new DateTime("@".$row2['fdate']."");
-                        echo " <TD class=nowrap><span title=\"".$row2['fdate']."\">&nbsp;".$date->format('Y-m-d H:i:s')."</span></TD>\n";    
-                        echo " <TD class=nowrap>".$row2['crc32']."</TD>\n";
-						$fileJs = JavaScriptSafeString($row2['file']);
-						$fileTitle = DupHtml($row2['file']);
-						$dropTitle = DupHtml(DropProfile($row2['file'], $val['path']));
-						echo "<TD align=middle><center><a href=\"view-file.php?profile=" . $profileActionId . "&file=" . $sfid . "\"><I class=icon-eye-open title=\"View '" . $fileTitle . "'\"></I></a> <b>/";
-						echo " <a href=\"download-files.php?profile=" . $profileActionId . "&file=" . $sfid . "\"><I class=icon-download-alt title=\"Download '" . $fileTitle . "'\"></I></a> /";
-						echo " <a href=\"javascript:DeleteFile('" . $profileActionId . "', '" . $fileJs . "', '" . $sfid . "');\"><I class=icon-trash title=\"Delete '" . $fileTitle . "'\"></I></a> /";
-						echo " <a href=\"javascript:SingleFileAction('" . $profileActionId . "', 'Rename', '" . $sfid . "');\"> <I class=icon-edit title=\"Rename '" . $dropTitle . "'\"></I></a> /";
-						echo " <a href=\"javascript:SingleFileAction('" . $profileActionId . "', 'Move', '" . $sfid . "');\"> <I class=icon-share title=\"Move '" . $dropTitle . "'\"></I></a></b>";
-                        echo "</TR>\n";
-                        
-                        $num++;
-                        $tsize+=$row2['size'];
-                        
-                        if($num>995)
-                            break;
-                    }                
-                }
-                catch(PDOException $ex) {
-                    LogError(print_r($ex, true));
-                    header("Location: error.php");    
-                    Exit;
-                }
-            }        
+                if($k > 0)
+                    $rowClass = ($childNum % 2 == 0) ? "subchild" : "child";
+
+                if($k == 1)
+                    echo "<TBODY id=\"dupgroup" . $tbodyNum . "\" class=\"" . $rowClass . "\">\n";
+
+                $file = DropProfile($row['file'], isset($profileInfo['path']) ? $profileInfo['path'] : "");
+                $displayNum = ($k == 0) ? $groupNum : $childNum;
+                $countText = ($k == 0) ? " &nbsp;&nbsp (" . (count($rows) - 1) . ")" : "";
+                $b1 = ($k == 0) ? "<b>" : "";
+                $b2 = ($k == 0) ? "</b>" : "";
+                $rowId = intval($row['id']);
+                $rowProfile = intval($row['profile']);
+                $fileHtml = DupHtml($row['file']);
+                $shortFile = ChopName($file);
+                $fileJs = JavaScriptSafeString($row['file']);
+                $dropTitle = DupHtml($file);
+
+                echo "<TR class=\"" . $rowClass . "\">\n";
+                echo " <TD class=\"" . $rowClass . "\" align=\"right\" nowrap>" . $b1 . $displayNum . $b2 . $countText . "</TD>\n";
+                echo " <TD class=\"" . $rowClass . "\" nowrap><span title=\"" . (($icon == "<I class=icon-file></I>") ? "File" : "Symlink") . "\">" . $icon . "</span> &nbsp; <input type=checkbox id=\"" . (($k == 0) ? "pri" : "sec") . "\" name=\"files[]\" value=\"" . $rowId . "\"" . (($k == 0) ? "" : " CHECKED") . "> " . $rowId . "</TD>\n";
+
+                if($k == 0)
+                    echo " <TD class=\"tvShow\"><a title=\"" . $fileHtml . "\" id=\"Expand\" onclick=\"displayRow('dupgroup" . $tbodyNum . "');\" style=\"cursor:hand; cursor:pointer\"><B>" . HighlightSearch($shortFile, $search) . "</B></a></TD>\n";
+                else
+                    echo " <TD class=\"tvShowchild\"><span title=\"" . $fileHtml . "\">" . HighlightSearch($shortFile, $search) . "</span></TD>\n";
+
+                echo " <TD class=\"" . $rowClass . "\" align=right nowrap><span title=\"" . number_format(intval($row['size'])) . " bytes\">" . $dup->format_bytes(intval($row['size'])) . "</span></TD>\n";
+                echo " <TD class=\"" . $rowClass . "\" align=center nowrap><span title=\"" . intval($row['fdate']) . "\">" . $date->format('Y-m-d H:i:s') . "</span></TD>\n";
+                echo " <TD class=\"" . $rowClass . "\" align=center nowrap>" . DupHtml($row['crc32']) . "</TD>\n";
+                echo " <TD class=\"" . $rowClass . "\" nowrap><center>";
+                echo "<a href=\"view-file.php?profile=" . $rowProfile . "&file=" . $rowId . "\"><I class=icon-eye-open title=\"View '" . $dropTitle . "'\"></I></a> <b>/";
+                echo " <a href=\"download-files.php?profile=" . $rowProfile . "&file=" . $rowId . "\"><I class=icon-download-alt title=\"Download '" . $dropTitle . "'\"></I></a> /";
+                echo " <a href=\"javascript:DeleteFile('" . $rowProfile . "', '" . $rowId . "', '" . $fileJs . "');\"><I class=icon-trash title=\"Delete '" . $dropTitle . "'\"></I></a> /";
+                echo " <a href=\"javascript:SingleFileAction('" . $rowProfile . "', 'Rename', '" . $rowId . "');\"><I class=icon-edit title=\"Rename '" . $dropTitle . "'\"></I></a> /";
+                echo " <a href=\"javascript:SingleFileAction('" . $rowProfile . "', 'Move', '" . $rowId . "');\"><I class=icon-share title=\"Move '" . $dropTitle . "'\"></I></a></b>";
+                echo "</center></TD>\n";
+                echo "</TR>\n";
+
+                if($k > 0)
+                    $dupsize += intval($row['size']);
+
+                $tsize += intval($row['size']);
+                $totalRows++;
+                $childNum++;
+            }
+
+            echo "</TBODY>\n";
+            $groupNum++;
+            $totalGroups++;
+            $tbodyNum++;
         }
-        catch(PDOException $ex) {
-            LogError(print_r($ex, true));
-            header("Location: error.php");    
-            Exit;
-        }    
     }
 }
-function highlightkeyword($str, $search) {
-    $occurrences = substr_count(strtolower($str), strtolower($search));
-    $newstring = $str;
-    $match = array();
- 
-    for ($i=0;$i<$occurrences;$i++) {
-        $match[$i] = stripos($str, $search, $i);
-        $match[$i] = substr($str, $match[$i], strlen($search));
-        $newstring = str_replace($match[$i], '<b>'.$match[$i].'</b>', strip_tags($newstring));
-    }
-
-    return $newstring; 
+catch(PDOException $ex) {
+    LogError(print_r($ex, true));
+    header("Location: error.php");
+    exit;
 }
 ?>
-
-  </TBODY>
-  </form> 
-  <TFOOT>
-   <TR>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;"><input type=Button Value=Expand OnClick="displayAll()"></TH>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;"><input type=Button Value=Inverse OnClick="checkedAll('search')"></TH>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Listed Data size :</TH>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;"><?php echo $dup->format_bytes($tsize) ?></TH>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;">Total Found:</TH>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;"><?php echo $total ?></TH>
-    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;"><center>
-   <?php 
-    echo "<a href=\"javascript:handleClick('search', 'Delete')\"><I class=icon-trash title=\"Delete Selected\"></I></a> /";
-    echo "<a href=\"javascript:handleClick('search', 'Rename')\"><I class=icon-edit title=\"Rename Selected\"></I></a> / ";
-    echo "<a href=\"javascript:handleClick('search', 'Move')\"><I class=icon-share title=\"Move Selected\"></I></a></b>\n";
-    ?></center></TH>
-  </TR>
- </TFOOT>
-  
- </TABLE> 
-   </DIV><!-- /content -->
-  </DIV><!-- /contentWrapper -->
+</TBODY>
+</form>
+<TFOOT>
+<TR>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><input type=Button Value=Expand OnClick="displayAll()"></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><input type=Button Value=Inverse OnClick="checkedAll('search')"></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;">Possible listed amount of data to clean up :</TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><?php echo $dup->format_bytes($dupsize); ?></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;">Displayed Dup Groups:</TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><?php echo $totalGroups; ?></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><center><?php echo "<a href=\"javascript:handleClick('search', 'Delete')\"><I class=icon-trash title=\"Delete Selected\"></I></a> / <a href=\"javascript:handleClick('search', 'Rename')\"><I class=icon-edit title=\"Rename Selected\"></I></a> / <a href=\"javascript:handleClick('search', 'Move')\"><I class=icon-share title=\"Move Selected\"></I></a>"; ?></center></TH>
+</TR>
+<TR>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;">Total listed data size:</TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><?php echo $dup->format_bytes($tsize); ?></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;">Displayed Items:</TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"><?php echo $totalRows; ?></TH>
+<TH style="color: black; background-color:#dfdacf; border: 1pt solid black;"></TH>
+</TR>
+</TFOOT>
+</TABLE>
+</DIV>
+</DIV>
 <?php echo PageFooter(); ?>
- </BODY>
-
-<script type="text/javascript">  
-var checked = true;  
-function checkedAll(val) 
-{  
-    if (checked == false)  
-      {checked = true}  
-    else  
-      {checked = false}  
-    for (var i = 0; i < document.getElementById(val).elements.length; i++)  
-  {
-    if(document.getElementById(val).elements[i].id == 'sec')
-       document.getElementById(val).elements[i].checked = checked;  
-   } 
-} 
-</script>
-<script type="text/javascript">  
-function Download(profile, file)
+</BODY>
+<script type="text/javascript">
+function displayRow(num)
 {
-    newwindow = window.open("download-files.php?profile=" + encodeURIComponent(profile) + "&file=" + encodeURIComponent(file), "Download File", "height=50,width=100,menubar=no,resizable=no,scrollbars=no,titlebar=no,toolbar=no");
+    var row = document.getElementById(num);
+
+    if(row != null)
+        row.style.display = (row.style.display == '') ? 'none' : '';
 }
-</script>
-<script type="text/javascript">  
+function displayAll()
+{
+    for(var i = 1; i <= <?php echo intval($tbodyNum); ?>; i++)
+    {
+        var row = document.getElementById('dupgroup' + i);
+
+        if(row != null)
+            row.style.display = (row.style.display == '') ? 'none' : '';
+    }
+}
+var checked = true;
+function checkedAll(val)
+{
+    checked = !checked;
+
+    for(var i = 0; i < document.getElementById(val).elements.length; i++)
+    {
+        if(document.getElementById(val).elements[i].id == 'sec')
+            document.getElementById(val).elements[i].checked = checked;
+    }
+}
 function SingleFileAction(profile, act, fileid)
 {
     var form = document.createElement("form");
     form.method = "POST";
     form.action = "action-files.php";
-
-    var fields = {
-        profile: profile,
-        act: act
-    };
+    var fields = { profile: profile, act: act };
 
     for(var key in fields)
     {
@@ -324,56 +395,21 @@ function SingleFileAction(profile, act, fileid)
     fileInput.name = "files[]";
     fileInput.value = fileid;
     form.appendChild(fileInput);
-
     document.body.appendChild(form);
     form.submit();
 }
-
-function DeleteFile(profile, file, fid)
+function DeleteFile(profile, fid, file)
 {
-    var answer = confirm("Are you sure you want to Delete\n\n" + file + " ?");
-
-    if(answer == true)
+    if(confirm("Are you sure you want to Delete\n\n" + file + " ?"))
         SingleFileAction(profile, "Delete", fid);
 }
-</script>
-<script type="text/javascript">  
-function handleClick(form, act){
-  var answer=confirm('Are you sure you want to \''+act+'\' all the selected files?');
-  if (answer==true)
-  {
-    document.getElementById('act').value = act;
-    document.getElementById(form).submit();
-  }
-}
-</script>
-
-
-</HTML> 
-<?php
-function DropProfile($full, $part)
+function handleClick(form, act)
 {
-    return trim(substr($full, strlen($part), strlen($full)), "//");
-}
-//--------------------------------------------------------------------------
-function ChopName($name)
-{
-    global $dup;
-
-    if($dup->Settings['shortfilenames']!=0)
-    {    
-        if(strlen($name)>$dup->Settings['shortfilenames'])
-        
-            return "...".substr($name, (strlen($name)-$dup->Settings['shortfilenames']), strlen($name));
-        else
-            return $name;
+    if(confirm("Are you sure you want to '" + act + "' all the selected files?"))
+    {
+        document.getElementById('act').value = act;
+        document.getElementById(form).submit();
     }
-    else
-        return $name;
 }
-//--------------------------------------------------------------------------
-function JavaScriptSafeString($value)
-{
-    return str_replace(array("\\", "'", "\r", "\n"), array("\\\\", "\\'", "", ""), (string)$value);
-}
-?>
+</script>
+</HTML>
