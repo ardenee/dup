@@ -13,6 +13,19 @@ function DupInt($value)
     return intval($value);
 }
 
+function HighlightSearch($value, $search)
+{
+    $value = (string)$value;
+    $search = (string)$search;
+    $escapedValue = DupHtml($value);
+
+    if($search == "")
+        return $escapedValue;
+
+    $escapedSearch = preg_quote(DupHtml($search), "/");
+    return preg_replace("/(" . $escapedSearch . ")/i", "<mark>$1</mark>", $escapedValue);
+}
+
 $global  = "";
 $case = false;
 $search = "";
@@ -22,7 +35,7 @@ if(isset($_POST["search"]))
 else if(isset($_GET["search"]))
     $search = trim($_GET["search"]);
 
-$search  = str_replace(array("\r", "\n"), "", $search);
+$search  = str_replace(array("\r", "\n", "\0"), "", $search);
 $profile = isset($_REQUEST["profile"]) ? intval($_REQUEST["profile"]) : 0;
 $case    = isset($_REQUEST["case"]) && intval($_REQUEST["case"]) == 1;
 $start   = isset($_REQUEST["start"]) ? intval($_REQUEST["start"]) : 0;
@@ -51,7 +64,7 @@ if($start < 0)
   <SCRIPT TYPE="text/javascript" SRC="files/jquery.tablesorter-2.1.19.min.js"></SCRIPT>
   <SCRIPT SRC="files/script.js"></SCRIPT>  
   <SCRIPT TYPE="text/javascript" CHARSET="utf-8">
-		sbRoot = '/'; 
+        sbRoot = '/'; 
         top_image_html = '<img src="images/top.gif" style="width:31px; height:11px" alt="Jump to top" />'; 
   </SCRIPT>
   <SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>  
@@ -61,25 +74,25 @@ if($start < 0)
             $("#NAVsearch").addClass("active");
         });
     //-->
-    </SCRIPT>	  
-  
- <SCRIPT type="text/javascript" charset="utf-8">
+  </SCRIPT>
+  <SCRIPT type="text/javascript" charset="utf-8">
     <!--
-	$(document).ready(function(){ 
-		$("#showListTable:has(tbody tr)").tablesorter({
-			widgets: ['saveSort', 'zebra', 'stickyHeaders']
-		});
-	});
-	//-->
-    </SCRIPT>
+    $(document).ready(function(){ 
+        $("#showListTable:has(tbody tr)").tablesorter({
+            widgets: ['saveSort', 'zebra', 'stickyHeaders']
+        });
+    });
+    //-->
+  </SCRIPT>
+  <style>
+    mark { background: #fff3a3; color: inherit; padding: 0 2px; border-radius: 2px; }
+  </style>
   <META name="GENERATOR" content="MSHTML 8.00.7601.17940">
  </HEAD>
 
-
-  <BODY> 
+ <BODY> 
   <?php echo PageHeader(); ?>
   </HEADER>
-
 
 <DIV id=contentWrapper>
  <DIV id=content>
@@ -88,25 +101,21 @@ if($start < 0)
   <H1 class=title>Search : <input type="text" name="search" size="30" value="<?php echo DupHtml($search); ?>"> &nbsp;
   Global Search :
   <?php
-	$Profiles = $dup->GetProfiles("path"); 
-	
-	echo "<select name=\"profile\" id=\"profile\" class=\"input-medium\" style=\"width: 270px\">\n";
+    $Profiles = $dup->GetProfiles("path"); 
 
-	echo " <option value=\"0\"" . (($profile == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
+    echo "<select name=\"profile\" id=\"profile\" class=\"input-medium\" style=\"width: 270px\">\n";
+    echo " <option value=\"0\"" . (($profile == 0) ? " SELECTED" : "") . "> Global - All Profiles</option>\n";
 
-	foreach($Profiles as $key => $val)
-	{
-		$id = DupInt($val['id']);
-		$pathHtml = DupHtml($val['path']);
-		$selected = ($id == $profile) ? " SELECTED" : "";
+    foreach($Profiles as $key => $val)
+    {
+        $id = DupInt($val['id']);
+        $pathHtml = DupHtml($val['path']);
+        $selected = ($id == $profile) ? " SELECTED" : "";
+        echo " <option value=\"" . $id . "\"" . $selected . "> (" . $id . ") " . $pathHtml . " </option>\n";
+    }
 
-		echo " <option value=\"" . $id . "\"" . $selected . "> (" . $id . ") " . $pathHtml . " </option>\n";
-	}
-
-	echo "</select>\n";
-	
-	echo "&nbsp;Case Sensitive : <input type=checkbox name=case".(($case==true)?" CHECKED":"").">";
-	
+    echo "</select>\n";
+    echo "&nbsp;Case Sensitive : <input type=checkbox name=case".(($case==true)?" CHECKED":"").">";
  ?> 
   &nbsp;
   <input type=Submit value=Search></B></H1>
@@ -134,115 +143,97 @@ $(document).ready();
   <TBODY>
   
 <?php  
- // php stuff here
- 
-if(strlen($search)>0)
+$num = 1;
+$tsize = 0;
+
+if(strlen($search) > 0)
 {
-	$ps = $dup->GetProfiles("id");
+    $ps = $dup->GetProfiles("id");
+    $searchValue = $case ? $search : strtolower($search);
+    $likeValue = "%" . $searchValue . "%";
 
-	$additional = "";
-	
-	//if($dup->Settings['displaymoved']==0)
-	//	$additional = " AND file NOT LIKE '%".$val['mpath']."%'";
-		
-	$search2 = ($case==false)?strtolower($search):$search;		
-	$sercol  = ($case==false)?" LOWER(file) ":" file ";
-	
-	$query = "SELECT * FROM files WHERE $sercol LIKE '%".SafeSQLValue($search2)."%'$additional ORDER BY profile ASC, file ASC LIMIT $start, 995;";
-	
-	if($profile!=0)
-		$query = "SELECT * FROM files WHERE $sercol LIKE '%".SafeSQLValue($search2)."%'$additional AND profile=$profile ORDER BY file ASC LIMIT $start, 995;";
-		
-	$num   = 1;
-	$tsize = 0;
-	
-	try
-	{
-		LogStr("MySQL: $query", 3, __FILE__, __LINE__, __FUNCTION__);
-		$sdt   = $dblink->query($query);
-		$files = $sdt->fetchAll();
-		$ppath = "";
-		
-		foreach($files as $key => $row)
-		//while($row = $sdt->fetch(PDO::FETCH_ASSOC))
-		{	
-			//if(IsMovedFile($row['file'], $MovedFolders) and $dup->Settings['displaymoved']==0)
-			//	continue;
-			$fid = $row['profile'];
-			$icon  = (strlen($row['link'])>0)?"<I class=icon-magnet></I>":"<I class=icon-file></I>";
-			
-			if(isset($ps[$fid]))
-			{			
-				$ppath=$ps[$fid]['path'];
-				echo "<TR class=nowrap>\n";
-				echo " <td colspan=7><b><a href=\"profile-view.php?profile=$key\">$ppath</a></td>\n";
-				echo "</TR>\n";	
-				unset($ps[$fid]); // only required for one			
-			}
-			
-			echo "<TR class=nowrap>\n";
-			echo " <TD class=nowrap>".$num."</TD>\n";
-			//echo " <TD class=nowrap><span title='".(($icon=="<img src='images/sfile16.png'>")?"Symlink":"File")."' >$icon</span> &nbsp; <input type=checkbox id=\"sec\" name=\"files[]\" value=\"".$row['id']."\"> ".$row['id']."</TD>\n";
-			
-			$rowId = DupInt($row['id']);
-			$fidInt = DupInt($fid);
+    try
+    {
+        if($case)
+            $where = "file LIKE :search";
+        else
+            $where = "LOWER(file) LIKE :search";
 
-			if($dup->Settings['download']==1)
-				echo " <TD class=nowrap><span title='".(($icon=="<I class=icon-file></I>")?"File":"Symlink")."' >$icon</span> &nbsp; <input type=checkbox id=\"sec\" name=\"files[]\" value=\"" . $rowId . "\" CHECKED> <a id=\"Download\" href=\"javascript:Download('" . $fidInt . "', '" . $rowId . "');\" alt=\"Download\" title=\"Download\">" . $rowId . "</a></TD>\n";
-			else
-				echo " <TD class=nowrap><span title='".(($icon=="<I class=icon-file></I>")?"File":"Symlink")."' >$icon</span> &nbsp; <input type=checkbox id=\"sec\" name=\"files[]\" value=\"" . $rowId . "\" CHECKED> " . $rowId . "</TD>\n";
+        if($profile != 0)
+            $query = "SELECT id, file, size, fdate, crc32, profile, link FROM files WHERE " . $where . " AND profile=:profile ORDER BY file ASC LIMIT :start, 995;";
+        else
+            $query = "SELECT id, file, size, fdate, crc32, profile, link FROM files WHERE " . $where . " ORDER BY profile ASC, file ASC LIMIT :start, 995;";
 
-			echo " <TD class=nowrap><span title=\"".$row['file']."\">".ChopName(highlightkeyword($row['file'], $search))."</span></TD>\n";
-			echo " <TD class=nowrap><center><span title=\"".number_format($row['size'])." bytes\">".$dup->format_bytes($row['size'])."</span></center></TD>\n";
-			$date = new DateTime("@".$row['fdate']."");			
-			echo " <TD class=nowrap><span title=\"".$row['fdate']."\">&nbsp;".$date->format('Y-m-d H:i:s')."</span></TD>\n";	
-			echo " <TD class=nowrap>".$row['crc32']."</TD>\n";
-			
-			$fileJs = JavaScriptSafeString($row['file']);
-			$fileTitle = DupHtml($row['file']);
-			$dropTitle = DupHtml(DropProfile($row['file'], $ppath));
+        LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
 
-			echo "<TD align=middle><center><a href=\"javascript:DeleteFile('" . $fidInt . "', '" . $fileJs . "', '" . $rowId . "');\"><I class=icon-trash title=\"Delete '" . $fileTitle . "'\"></I></a> <b>/";
-			echo " <a href=\"javascript:SingleFileAction('" . $fidInt . "', 'Rename', '" . $rowId . "');\"> <I class=icon-edit title=\"Rename '" . $dropTitle . "'\"></I></a> /";
-			echo " <a href=\"javascript:SingleFileAction('" . $fidInt . "', 'Move', '" . $rowId . "');\"> <I class=icon-share title=\"Move '" . $dropTitle . "'\"></I></a></b>";
-						echo "</TR>\n";
-			$num++;
-			$tsize+=$row['size'];
-			
-			if($num>995)
-				break;
-		}
-	
-	}
-	catch(PDOException $ex) {
-		LogError(print_r($ex, true));
-		header("Location: error.php");	
-		Exit;
-	}	
-		
-/*
-    [0] => 16628
-    [1] => /volume1/Films/DVD-Rip/T/the.tempest.cd2.avi
-    [2] => 732076032
-    [3] => 2011-08-12 22:45:15
-    [4] => 231B12B0
-    [5] => 1	
-[6] => link?	string to linked file
-*/		
-}
+        $sdt = $dblink->prepare($query);
+        $sdt->bindValue(":search", $likeValue, PDO::PARAM_STR);
+        $sdt->bindValue(":start", $start, PDO::PARAM_INT);
 
-function highlightkeyword($str, $search) {
-    $occurrences = substr_count(strtolower($str), strtolower($search));
-    $newstring = $str;
-    $match = array();
- 
-    for ($i=0;$i<$occurrences;$i++) {
-        $match[$i] = stripos($str, $search, $i);
-        $match[$i] = substr($str, $match[$i], strlen($search));
-        $newstring = str_replace($match[$i], '<b>'.$match[$i].'</b>', strip_tags($newstring));
+        if($profile != 0)
+            $sdt->bindValue(":profile", $profile, PDO::PARAM_INT);
+
+        $sdt->execute();
+        $files = $sdt->fetchAll(PDO::FETCH_ASSOC);
+        $sdt->closeCursor();
+
+        $ppath = "";
+
+        foreach($files as $key => $row)
+        {
+            $fid = DupInt($row['profile']);
+            $rowId = DupInt($row['id']);
+            $rowFile = isset($row['file']) ? $row['file'] : "";
+            $rowLink = isset($row['link']) ? $row['link'] : "";
+            $icon = (strlen($rowLink) > 0) ? "<I class=icon-magnet></I>" : "<I class=icon-file></I>";
+
+            if(isset($ps[$fid]))
+            {
+                $ppath = isset($ps[$fid]['path']) ? $ps[$fid]['path'] : "";
+                echo "<TR class=nowrap>\n";
+                echo " <td colspan=7><b><a href=\"profile-view.php?profile=" . $fid . "\">" . DupHtml($ppath) . "</a></b></td>\n";
+                echo "</TR>\n";
+                unset($ps[$fid]);
+            }
+
+            $size = isset($row['size']) ? intval($row['size']) : 0;
+            $fdate = isset($row['fdate']) ? intval($row['fdate']) : 0;
+            $crc32 = isset($row['crc32']) ? $row['crc32'] : "";
+            $date = new DateTime("@" . $fdate);
+            $fileJs = JavaScriptSafeString($rowFile);
+            $fileTitle = DupHtml($rowFile);
+            $dropTitle = DupHtml(DropProfile($rowFile, $ppath));
+            $shortFile = ChopName($rowFile);
+
+            echo "<TR class=nowrap>\n";
+            echo " <TD class=nowrap>" . $num . "</TD>\n";
+
+            if($dup->Settings['download'] == 1)
+                echo " <TD class=nowrap><span title='" . (($icon == "<I class=icon-file></I>") ? "File" : "Symlink") . "' >" . $icon . "</span> &nbsp; <input type=checkbox id=\"sec\" name=\"files[]\" value=\"" . $rowId . "\" CHECKED> <a id=\"Download\" href=\"javascript:Download('" . $fid . "', '" . $rowId . "');\" alt=\"Download\" title=\"Download\">" . $rowId . "</a></TD>\n";
+            else
+                echo " <TD class=nowrap><span title='" . (($icon == "<I class=icon-file></I>") ? "File" : "Symlink") . "' >" . $icon . "</span> &nbsp; <input type=checkbox id=\"sec\" name=\"files[]\" value=\"" . $rowId . "\" CHECKED> " . $rowId . "</TD>\n";
+
+            echo " <TD class=nowrap><span title=\"" . $fileTitle . "\">" . HighlightSearch($shortFile, $search) . "</span></TD>\n";
+            echo " <TD class=nowrap><center><span title=\"" . number_format($size) . " bytes\">" . $dup->format_bytes($size) . "</span></center></TD>\n";
+            echo " <TD class=nowrap><span title=\"" . $fdate . "\">&nbsp;" . $date->format('Y-m-d H:i:s') . "</span></TD>\n";
+            echo " <TD class=nowrap>" . DupHtml($crc32) . "</TD>\n";
+            echo "<TD align=middle><center>";
+            echo "<a href=\"view-file.php?profile=" . $fid . "&file=" . $rowId . "\"><I class=icon-eye-open title=\"View '" . $fileTitle . "'\"></I></a> <b>/";
+            echo " <a href=\"javascript:DeleteFile('" . $fid . "', '" . $fileJs . "', '" . $rowId . "');\"><I class=icon-trash title=\"Delete '" . $fileTitle . "'\"></I></a> /";
+            echo " <a href=\"javascript:SingleFileAction('" . $fid . "', 'Rename', '" . $rowId . "');\"> <I class=icon-edit title=\"Rename '" . $dropTitle . "'\"></I></a> /";
+            echo " <a href=\"javascript:SingleFileAction('" . $fid . "', 'Move', '" . $rowId . "');\"> <I class=icon-share title=\"Move '" . $dropTitle . "'\"></I></a></b>";
+            echo "</center></TD>\n";
+            echo "</TR>\n";
+
+            $num++;
+            $tsize += $size;
+        }
     }
-
-    return $newstring; 
+    catch(PDOException $ex) {
+        LogError(print_r($ex, true));
+        header("Location: error.php");
+        exit;
+    }
 }
 ?>
 
@@ -258,13 +249,12 @@ function highlightkeyword($str, $search) {
     <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;"><?php echo ($num-1) ?></TH>
     <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;"><center>
    <?php 
-	echo "<a href=\"javascript:handleClick('search', 'Delete')\"><I class=icon-trash title=\"Delete Selected\"></I></a> /";
-	echo "<a href=\"javascript:handleClick('search', 'Rename')\"><I class=icon-edit title=\"Rename Selected\"></I></a> / ";
-	echo "<a href=\"javascript:handleClick('search', 'Move')\"><I class=icon-share title=\"Move Selected\"></I></a></b>\n";
+    echo "<a href=\"javascript:handleClick('search', 'Delete')\"><I class=icon-trash title=\"Delete Selected\"></I></a> /";
+    echo "<a href=\"javascript:handleClick('search', 'Rename')\"><I class=icon-edit title=\"Rename Selected\"></I></a> / ";
+    echo "<a href=\"javascript:handleClick('search', 'Move')\"><I class=icon-share title=\"Move Selected\"></I></a></b>\n";
     ?></center></TH>
   </TR>
  </TFOOT>
-  
  </TABLE> 
    </DIV><!-- /content -->
   </DIV><!-- /contentWrapper -->
@@ -275,14 +265,14 @@ function highlightkeyword($str, $search) {
 var checked = true;  
 function checkedAll(val) 
 {  
-	if (checked == false)  
-	  {checked = true}  
-	else  
-	  {checked = false}  
-	for (var i = 0; i < document.getElementById(val).elements.length; i++)  
+    if (checked == false)  
+      {checked = true}  
+    else  
+      {checked = false}  
+    for (var i = 0; i < document.getElementById(val).elements.length; i++)  
   {
     if(document.getElementById(val).elements[i].id == 'sec')
-	   document.getElementById(val).elements[i].checked = checked;  
+       document.getElementById(val).elements[i].checked = checked;  
    } 
 } 
 </script>
@@ -337,7 +327,7 @@ function DeleteFile(profile, file, fid)
 </script>
 <script type="text/javascript">  
 function handleClick(form, act){
-  var answer=confirm('Are you sure you want to \''+act+'\' all the selected files?');
+  var answer=confirm('Are you sure you want to \' '+act+' \' all the selected files?');
   if (answer==true)
   {
     document.getElementById('act').value = act;
@@ -350,23 +340,25 @@ function handleClick(form, act){
 <?php
 function DropProfile($full, $part)
 {
-	return trim(substr($full, strlen($part), strlen($full)), "//");
+    if($part != "" && strpos($full, $part) === 0)
+        return trim(substr($full, strlen($part), strlen($full)), "//");
+
+    return $full;
 }
 //--------------------------------------------------------------------------
 function ChopName($name)
 {
-	global $dup;
+    global $dup;
 
-	if($dup->Settings['shortfilenames']!=0)
-	{	
-		if(strlen($name)>$dup->Settings['shortfilenames'])
-		
-			return "...".substr($name, (strlen($name)-$dup->Settings['shortfilenames']), strlen($name));
-		else
-			return $name;
-	}
-	else
-		return $name;
+    if($dup->Settings['shortfilenames'] != 0)
+    {   
+        if(strlen($name) > $dup->Settings['shortfilenames'])
+            return "..." . substr($name, (strlen($name) - $dup->Settings['shortfilenames']), strlen($name));
+        else
+            return $name;
+    }
+    else
+        return $name;
 }
 //--------------------------------------------------------------------------
 function JavaScriptSafeString($value)
