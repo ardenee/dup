@@ -131,7 +131,7 @@
 
 	   <label class="nocheck clearfix">
 		<span class="component-title">Message</span>
-		<textarea name="message" rows="15" cols="115" maxlength="5000" required></textarea>
+		<textarea name="message" rows="15" cols="110" maxlength="5000" required></textarea>
 	   </label>
 	   
         <div class="component-group-save">

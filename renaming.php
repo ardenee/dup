@@ -102,7 +102,7 @@ $submitted = true;
 
     echo "</select>\n";
     echo " &nbsp;&nbsp; Filters: <input type=\"text\" name=\"filters\" id=\"filters\" value=\"" . DupHtml($filters) . "\" size=\"50\">";
-    echo " &nbsp;&nbsp; Dups Only: <input type=\"checkbox\" name=\"dups\" value=\"1\"" . (($dupsOnly) ? " CHECKED" : "") . ">";
+    echo " &nbsp;&nbsp; dups Only: <input type=\"checkbox\" name=\"dups\" value=\"1\"" . (($dupsOnly) ? " CHECKED" : "") . ">";
   ?>
   &nbsp;
   <input type="Submit" value="Search"></H1>
