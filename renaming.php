@@ -408,11 +408,11 @@ foreach($pageCandidateSets as $profileSet)
 </TBODY>
 <TFOOT>
 <TR>
-<TH align="middle"><input type="Button" Value="Rename" OnClick="handleClick('rename','Rename')"></TH>
-<TH align="middle"><input type="Button" Value="Inverse" OnClick="checkedAll('rename')"></TH>
-<TH colSpan="2" align="left">Displayed / Total:</TH>
-<TH align="left"><?php echo number_format($displayed) . " / " . number_format($totalFound); ?></TH>
-<TH align="middle"><a href="javascript:handleClick('rename','Delete')"><I class=icon-trash title="Delete Selected"></I></a> <b>/</b> <a href="javascript:handleClick('rename','Move')"><I class=icon-share title="Move Selected"></I></a></TH>
+<TH style="color:black;background-color:#dfdacf;border:1pt solid black;" align="middle"><input type="Button" Value="Rename" OnClick="handleClick('rename','Rename')"></TH>
+<TH style="color:black;background-color:#dfdacf;border:1pt solid black;" align="middle"><input type="Button" Value="Inverse" OnClick="checkedAll('rename')"></TH>
+<TH style="color:black;background-color:#dfdacf;border:1pt solid black;" colSpan="2" align="left">Displayed / Total:</TH>
+<TH style="color:black;background-color:#dfdacf;border:1pt solid black;" align="left"><?php echo number_format($displayed) . " / " . number_format($totalFound); ?></TH>
+<TH style="color:black;background-color:#dfdacf;border:1pt solid black;" align="middle"><a href="javascript:handleClick('rename','Delete')"><I class=icon-trash title="Delete Selected"></I></a> <b>/</b> <a href="javascript:handleClick('rename','Move')"><I class=icon-share title="Move Selected"></I></a></TH>
 </TR>
 </TFOOT>
 </TABLE>
