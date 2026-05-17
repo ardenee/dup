@@ -179,23 +179,7 @@ function BuildFindCommand($scanRoot, $skipFolders)
     if(!is_file($findBin) || !is_executable($findBin))
         $findBin = "find";
 
-    $cmd = escapeshellcmd($findBin) . " " . escapeshellarg($scanRoot) . " ";
-    $prunes = array();
-
-    foreach($skipFolders as $skip)
-    {
-        $skip = trim((string)$skip);
-
-        if($skip != "")
-            $prunes[] = "-iname " . escapeshellarg($skip);
-    }
-
-    if(count($prunes) > 0)
-        $cmd .= "\\( " . implode(" -o ", $prunes) . " \\) -prune -o ";
-
-    $cmd .= "\\( -type f -o -type l \\) -print 2>/dev/null";
-
-    return $cmd;
+    return escapeshellcmd($findBin) . " " . escapeshellarg($scanRoot) . " \\( -type f -o -type l \\) -print 2>/dev/null";
 }
 
 //--------------------------------------------------------------------------------------
@@ -242,22 +226,16 @@ function ScanFolderToDatabase($scanRoot, $minFileSize, $fileTypes, $skipFolders)
 
         $result["scanned"]++;
 
-        if(ShouldSkipPath($path, $skipFolders))
-        {
-            $result["skipped"]++;
-            continue;
-        }
-
         if(is_link($path))
         {
-            if(ProcessFilePath($insert, $path, $minFileSize, $fileTypes, true, $skipFolders))
+            if(ProcessFilePath($insert, $path, $minFileSize, $fileTypes, true))
                 $result["inserted"]++;
             else
                 $result["skipped"]++;
         }
         else if(is_file($path))
         {
-            if(ProcessFilePath($insert, $path, $minFileSize, $fileTypes, false, $skipFolders))
+            if(ProcessFilePath($insert, $path, $minFileSize, $fileTypes, false))
                 $result["inserted"]++;
             else
                 $result["skipped"]++;
@@ -313,12 +291,9 @@ function ScanFolderToDatabase($scanRoot, $minFileSize, $fileTypes, $skipFolders)
 
 //--------------------------------------------------------------------------------------
 
-function ProcessFilePath($insert, $path, $minFileSize, $fileTypes, $isLink, $skipFolders)
+function ProcessFilePath($insert, $path, $minFileSize, $fileTypes, $isLink)
 {
     global $profileId;
-
-    if(ShouldSkipPath($path, $skipFolders))
-        return false;
 
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
@@ -462,39 +437,43 @@ function GetHashCandidateIds($minFileSize)
 {
     global $dblink;
     global $profileId;
+    global $skipFolders;
 
+    $rows = array();
+    $sizes = array();
     $ids = array();
 
-    $query = "
-        SELECT files.id
-        FROM files
-        INNER JOIN (
-            SELECT size
-            FROM files
-            WHERE profile=:profile1
-              AND size>=:mfs
-            GROUP BY size
-            HAVING COUNT(size)>1
-        ) AS files2 ON files.size=files2.size
-        WHERE files.profile=:profile2
-        ORDER BY files.id;
-    ";
-
+    $query = "SELECT id, file, size FROM files WHERE profile=:profile AND size>=:mfs ORDER BY id;";
     LogStr("MySQL/SQLite: get hash candidate ids", 3, __FILE__, __LINE__, __FUNCTION__);
 
     $sdt = $dblink->prepare($query);
-    $sdt->bindValue(":profile1", $profileId, PDO::PARAM_INT);
-    $sdt->bindValue(":profile2", $profileId, PDO::PARAM_INT);
+    $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
     $sdt->bindValue(":mfs", intval($minFileSize), PDO::PARAM_INT);
     $sdt->execute();
 
     while($row = $sdt->fetch(PDO::FETCH_ASSOC))
     {
-        if(isset($row["id"]))
-            $ids[] = intval($row["id"]);
+        if(!isset($row["file"]) || ShouldSkipPath($row["file"], $skipFolders))
+            continue;
+
+        $size = isset($row["size"]) ? intval($row["size"]) : 0;
+
+        if(!isset($sizes[$size]))
+            $sizes[$size] = 0;
+
+        $sizes[$size]++;
+        $rows[] = $row;
     }
 
     $sdt->closeCursor();
+
+    foreach($rows as $row)
+    {
+        $size = isset($row["size"]) ? intval($row["size"]) : 0;
+
+        if(isset($sizes[$size]) && $sizes[$size] > 1 && isset($row["id"]))
+            $ids[] = intval($row["id"]);
+    }
 
     return $ids;
 }
@@ -505,6 +484,7 @@ function UpdateSymlinkHashes()
 {
     global $dblink;
     global $profileId;
+    global $skipFolders;
 
     $query = "SELECT id, file, link FROM files WHERE link!='' AND profile=:profile ORDER BY id;";
     LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
@@ -521,10 +501,11 @@ function UpdateSymlinkHashes()
 
     foreach($links as $row)
     {
+        $file = isset($row["file"]) ? $row["file"] : "";
         $link = isset($row["link"]) ? $row["link"] : "";
         $id = isset($row["id"]) ? intval($row["id"]) : 0;
 
-        if($id <= 0 || $link == "")
+        if($id <= 0 || $link == "" || ShouldSkipPath($file, $skipFolders))
             continue;
 
         $hash = GetHashForPathOrLinkTarget($link);
@@ -617,37 +598,15 @@ function CountDuplicateGroups($type)
 {
     global $dblink;
     global $profileId;
+    global $skipFolders;
 
     $type = ($type == "crc32") ? "crc32" : "size";
+    $groups = array();
 
     if($type == "crc32")
-    {
-        $query = "
-            SELECT COUNT(*) AS total
-            FROM (
-                SELECT crc32
-                FROM files
-                WHERE profile=:profile
-                  AND crc32!='unknown'
-                  AND crc32!=''
-                GROUP BY crc32
-                HAVING COUNT(crc32)>1
-            ) AS dupgroups;
-        ";
-    }
+        $query = "SELECT file, crc32 FROM files WHERE profile=:profile AND crc32!='unknown' AND crc32!='' ORDER BY crc32;";
     else
-    {
-        $query = "
-            SELECT COUNT(*) AS total
-            FROM (
-                SELECT size
-                FROM files
-                WHERE profile=:profile
-                GROUP BY size
-                HAVING COUNT(size)>1
-            ) AS dupgroups;
-        ";
-    }
+        $query = "SELECT file, size FROM files WHERE profile=:profile ORDER BY size;";
 
     LogStr("MySQL/SQLite: count duplicate groups by " . $type, 3, __FILE__, __LINE__, __FUNCTION__);
 
@@ -655,13 +614,30 @@ function CountDuplicateGroups($type)
     $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
     $sdt->execute();
 
-    $row = $sdt->fetch(PDO::FETCH_ASSOC);
+    while($row = $sdt->fetch(PDO::FETCH_ASSOC))
+    {
+        if(!isset($row["file"]) || ShouldSkipPath($row["file"], $skipFolders))
+            continue;
+
+        $key = ($type == "crc32") ? $row["crc32"] : intval($row["size"]);
+
+        if(!isset($groups[$key]))
+            $groups[$key] = 0;
+
+        $groups[$key]++;
+    }
+
     $sdt->closeCursor();
 
-    if($row && isset($row["total"]))
-        return intval($row["total"]);
+    $total = 0;
 
-    return 0;
+    foreach($groups as $count)
+    {
+        if($count > 1)
+            $total++;
+    }
+
+    return $total;
 }
 
 //--------------------------------------------------------------------------------------
