@@ -69,36 +69,13 @@ $(document).ready(function(){
 });
 </SCRIPT>
 <STYLE>
-.logFilterBox {
-    margin: 8px 0 14px 0;
-    padding: 10px;
-    background: #dfdacf;
-    border: 1px solid #999;
-    border-radius: 4px;
-}
-.logFilterRow {
-    display: block;
-    clear: both;
-    margin: 6px 0;
-    line-height: 28px;
-}
-.logFilterRow label {
-    display: inline-block;
-    width: 245px;
-    text-align: right;
-    margin-right: 10px;
-    font-weight: bold;
-}
-.logFilterRow select {
-    width: 260px;
-}
-.logFilterRow select#show {
-    width: 90px;
-}
 #historyTable td:nth-child(5) {
     white-space: normal !important;
     overflow-wrap: anywhere;
     word-break: break-word;
+}
+.logsUserSelect {
+    width: 260px;
 }
 </STYLE>
 </HEAD>
@@ -110,40 +87,42 @@ $(document).ready(function(){
 <DIV id="content">
 <H1 class="title">Logs - Level <?php echo intval($level) . " / " . intval($show); ?></H1>
 <form name="logs" id="logs" action="logs.php" method="post">
-<DIV class="logFilterBox">
-    <DIV class="logFilterRow">
-        <label for="level">Minimum logging level to display:</label>
-        <select name="level" id="level" onchange="this.form.submit()">
-            <option value="1" <?php echo (($level == 1) ? " SELECTED" : ""); ?>>Level 1 - Default</option>
-            <option value="2" <?php echo (($level == 2) ? " SELECTED" : ""); ?>>Level 2 - More Information</option>
-            <option value="3" <?php echo (($level == 3) ? " SELECTED" : ""); ?>>Level 3 - Debug</option>
-            <option value="4" <?php echo (($level == 4) ? " SELECTED" : ""); ?>>Level 4 - All</option>
-        </select>
-    </DIV>
-    <DIV class="logFilterRow">
-        <label for="user_id">User:</label>
-        <select name="user_id" id="user_id" onchange="this.form.submit()">
-            <option value="-1" <?php echo (($userFilter == -1) ? " SELECTED" : ""); ?>>All Users</option>
-            <option value="0" <?php echo (($userFilter == 0) ? " SELECTED" : ""); ?>>System / Unknown</option>
+ <div class="h2footer align-right"><b>Minimum logging level to display:</b>
+  <select name="level" id="level" onchange="this.form.submit()">
+   <option value="1" <?php echo (($level == 1) ? " SELECTED" : ""); ?>>Level 1 - Default</option>
+   <option value="2" <?php echo (($level == 2) ? " SELECTED" : ""); ?>>Level 2 - More Information</option>
+   <option value="3" <?php echo (($level == 3) ? " SELECTED" : ""); ?>>Level 3 - Debug</option>
+   <option value="4" <?php echo (($level == 4) ? " SELECTED" : ""); ?>>Level 4 - All</option>
+  </select>
+ </div>
+ <BR>
+ <BR>
+ <BR>
+ <div class="h2footer align-right"><b>User:</b>
+  <select name="user_id" id="user_id" class="logsUserSelect" onchange="this.form.submit()">
+   <option value="-1" <?php echo (($userFilter == -1) ? " SELECTED" : ""); ?>>All Users</option>
+   <option value="0" <?php echo (($userFilter == 0) ? " SELECTED" : ""); ?>>System / Unknown</option>
 <?php
 foreach($users as $user)
 {
     $id = intval($user['id']);
-    echo "            <option value=\"" . $id . "\"" . (($userFilter == $id) ? " SELECTED" : "") . ">" . DupHtml($user['name']) . "</option>\n";
+    echo "   <option value=\"" . $id . "\"" . (($userFilter == $id) ? " SELECTED" : "") . ">" . DupHtml($user['name']) . "</option>\n";
 }
 ?>
-        </select>
-    </DIV>
-    <DIV class="logFilterRow">
-        <label for="show">Number of Logs to Show:</label>
-        <select name="show" id="show" onchange="this.form.submit()">
-            <option value="200" <?php echo (($show == 200) ? " SELECTED" : ""); ?>>200</option>
-            <option value="500" <?php echo (($show == 500) ? " SELECTED" : ""); ?>>500</option>
-            <option value="2000" <?php echo (($show == 2000) ? " SELECTED" : ""); ?>>2000</option>
-            <option value="5000" <?php echo (($show == 5000) ? " SELECTED" : ""); ?>>5000</option>
-        </select>
-    </DIV>
-</DIV>
+  </select>
+ </div>
+ <BR>
+ <BR>
+ <BR>
+ <div class="h2footer align-right"><b>Number of Logs to Show:</b>
+  <select name="show" id="show" onchange="this.form.submit()">
+   <option value="200" <?php echo (($show == 200) ? " SELECTED" : ""); ?>>200</option>
+   <option value="500" <?php echo (($show == 500) ? " SELECTED" : ""); ?>>500</option>
+   <option value="2000" <?php echo (($show == 2000) ? " SELECTED" : ""); ?>>2000</option>
+   <option value="5000" <?php echo (($show == 5000) ? " SELECTED" : ""); ?>>5000</option>
+  </select>
+ </div>
+ <BR>
 </form>
 <TABLE id="historyTable" class="tablesorter" border="0" cellSpacing="1" cellPadding="0">
 <THEAD>
