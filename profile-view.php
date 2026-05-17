@@ -40,7 +40,7 @@ if($page < 1)
   <SCRIPT TYPE="text/javascript" CHARSET="utf-8">
         top_image_html = '<img src="images/top.gif" style="width:31px; height:11px" alt="Jump to top" />'; 
   </SCRIPT>
-    <SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>
+  <SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>
 	
   <SCRIPT type="text/javascript">
     <!--
@@ -62,7 +62,7 @@ if($page < 1)
   <META name="GENERATOR" content="MSHTML 8.00.7601.17940">
  </HEAD>
 
- <BODY> 
+ <BODY onload="displayAll()"> 
   <?php echo PageHeader(); ?>
    <DIV id=SubMenu>
     <SPAN>
@@ -106,7 +106,6 @@ $(document).ready(function(){
  <TBODY>
   
 <?php  
- // php stuff here
 $tstart	= $dup->GetPage($page);
 
 if(strlen($tstart["start"])>0)
@@ -119,7 +118,7 @@ else
 		$start = $tstart["end"];	
 }
 	
-if(!isset($start) || intval($start) <= 0) // bad read reset to page 1
+if(!isset($start) || intval($start) <= 0)
     $start = 0;
 else
     $start = intval($start);
@@ -133,7 +132,6 @@ $pid        = 0;
 $stats      = $DUPS['stats'];
 $dupsize    = 0;
 $TotalItems = 0;
-//p($stats);
 
 foreach($DUPS as $key=>$value)
 {				
@@ -145,7 +143,7 @@ foreach($DUPS as $key=>$value)
 	$class     = (($parent%2==0)?"subparent":"mainparent");	
 	$value     = sortByValue($value, 'link', 'file');		
 
-	foreach($value as $k=>$v) // for each match in block of hash
+	foreach($value as $k=>$v)
 	{	
 		if((IsMovedFile($v['file'], array($dup->Profile['mpath'])) or count($value)==1) and $dup->Settings['displaymoved']==0)
 		{	
@@ -157,15 +155,14 @@ foreach($DUPS as $key=>$value)
 		}	
 	}
 	
-	foreach($value as $k=>$v) // for each match in block of hash
+	foreach($value as $k=>$v)
 	{					
-		// verify sqlite db has been updated and now uses this format!
 		$date = new DateTime("@".$v['fdate']."");	
 		$icon  = (strlen($v['link'])>0)?"<I class=icon-magnet></I>":"<I class=icon-file></I>";
-		(($k!=0)?$dupsize+=$v['size']:$dupsize+=0);// add up children only			
-		$tsize += $v['size'];	// total size			
+		(($k!=0)?$dupsize+=$v['size']:$dupsize+=0);
+		$tsize += $v['size'];	
 
-		if($k==0) // main parent
+		if($k==0)
 		{
 			$b1 = "<b>";
 			$b2 = "</b>";
@@ -179,15 +176,14 @@ foreach($DUPS as $key=>$value)
 			$count = "";
 		}
 		
-		if($ChildNum%2==0 and $ChildNum!=0 and $k!=0) // child
+		if($ChildNum%2==0 and $ChildNum!=0 and $k!=0)
 			$class = "child";	
 
-		if($k==1) // child
-			$data.=" <TBODY id='$TBODYNum' class='$class' style='display:none'>\n";	
+		if($k==1)
+			$data.=" <TBODY id='$TBODYNum' class='$class'>\n";	
 
 		$file = DropProfile($v['file'], $dup->Profile['path']);		
-
-		$pid = (($k==0)?($parent):$ChildNum); // parent number, change to $start+$num? // fix this needs total object from above function		
+		$pid = (($k==0)?($parent):$ChildNum);
 		$data.="  <TR class=$class>\n";
 		$data.="   <TD class=$class align=\"right\" nowrap>$b1$pid$b2$count</TD>\n";
 		
@@ -197,12 +193,7 @@ foreach($DUPS as $key=>$value)
 			$data.="   <TD class=$class nowrap><span title='".(($icon=="<I class=icon-file></I>")?"File":"Symlink")."' >$icon</span> &nbsp; <input type=checkbox id=".(($k==0)?"pri":"sec")." name=\"files[]\" value=".$v['id'].(($k==0)?"":" CHECKED")."> ".$v['id']."</TD>\n";
 		
 		if(($k==0))
-		{
-			if($dup->Settings['download']==1)
-				$data.="   <TD class=tvShow><a title=\"".$v['file']."\" alt=\"".$v['file']."\" id=\"Expand\" onclick=\"displayRow('$TBODYNum');\" style=\"cursor:hand; cursor:pointer\"><B>".ChopName($file)."</B></a></TD>\n";
-			else
-				$data.="   <TD class=tvShow><a title=\"".$v['file']."\" alt=\"".$v['file']."\" id=\"Expand\" onclick=\"displayRow('$TBODYNum');\" style=\"cursor:hand; cursor:pointer\"><B>".ChopName($file)."</B></a></TD>\n";
-		}
+			$data.="   <TD class=tvShow><a title=\"".$v['file']."\" alt=\"".$v['file']."\" id=\"Expand\" onclick=\"displayRow('$TBODYNum');\" style=\"cursor:hand; cursor:pointer\"><B>".ChopName($file)."</B></a></TD>\n";
 		else
 			$data.="   <TD class=tvShowchild><span title=\"".$v['file']."\">".ChopName($file)."</span></TD>\n";
 		
@@ -215,17 +206,17 @@ foreach($DUPS as $key=>$value)
 		$data.=" <a href=\"javascript:SingleFileAction('Link', " . intval($v['id']) . ");\"> <I class=icon-magnet title=\"Link '" . htmlspecialchars(DropProfile($file, $profilePath), ENT_QUOTES, "UTF-8") . "'\"></I></a></center></TD>\n";
 		$data.="  </TR>\n";
 	
-		$ChildNum++; // number of childer per parent	
+		$ChildNum++;	
 		$TotalItems++;
 	}
 	
 	$data.="  </TBODY>\n";
 	$TBODYNum++;
 	
-	if(count($value)==1) // only parent, drop
+	if(count($value)==1)
 		$data = "";
 	else  	
-		$parent++; // number of parents
+		$parent++;
 		
 	echo $data;
 }
@@ -252,9 +243,6 @@ function sortByValue($array, $sortOn, $sortOn2, $direction = SORT_ASC)
   </TBODY>
  <TFOOT>
  <TR>
- 
- <!--#contentWrapper { background: url("/dup/images/bg.png") repeat fixed 0 0 transparent; }-->
- 
    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;" rowSpan=1 colSpan=1 align=middle><a href="javascript:displayAll()"><font color=Black>Expand</font></TH>
    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;" rowSpan=1 colSpan=1 align=middle><a href="javascript:checkedAll('dups')"><font color=Black>Inverse</font></TH>
    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;" rowSpan=1 colSpan=1 align=left>Possible listed amount of data to clean up :</TH>
@@ -264,7 +252,6 @@ function sortByValue($array, $sortOn, $sortOn2, $direction = SORT_ASC)
    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;" rowSpan=1 colSpan=1 nowrap><center><a href="javascript:handleClick('dups', 'Delete')"><I class=icon-trash title="Delete Selected"></I></a> / <a href="javascript:handleClick('dups', 'Rename')"><I class=icon-edit title="Rename Selected"></I></a> / <a href="javascript:handleClick('dups', 'Move')"><I class=icon-share title="Move Selected"></I></a> / <a href="javascript:handleClick('dups', 'Link')"><I class=icon-magnet title="Link Selected"></I></a></center></TH>
  </TR>
  <TR>
- <TR>
    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;" rowSpan=1 nowrap><?php echo (($page>1)?" <a title=Preivous href=\"profile-view.php?profile=$profile&page=".($page-1)."\"><I class=icon-chevron-left title=\"Previous\"></I></a>":""); ?></TH>
    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;" rowSpan=1><span title="Displayed Dups"><?php echo count($DUPS)-1; ?></span></TH>
    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;" rowSpan=1>Total listed data size:</TH>
@@ -273,22 +260,23 @@ function sortByValue($array, $sortOn, $sortOn2, $direction = SORT_ASC)
    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;" rowSpan=1><span title="Displayed Vars"><?php echo $TotalItems; ?></span></TH>
    <TH style="color: black; background-color:#dfdacf; border-bottom: 1pt solid black; border-top: 1pt solid black; border-left: 1pt solid black; border-right: 1pt solid black;" rowSpan=1 nowrap><?php echo (($parent < $dup->Profile['dups'])?"<a title=Next href=\"profile-view.php?profile=".$profile."&page=".($page+1)."\"><I class=icon-chevron-right title=\"Next\"></I></a>":""); ?></TH>
  </TR>
- </TR>
  </TFOOT>
-  
  </TABLE> 
-   </DIV><!-- /content -->
-  </DIV><!-- /contentWrapper -->
+   </DIV>
+  </DIV>
   <?php echo PageFooter(); ?>
  </BODY>
 
 <script type="text/javascript">   
 function displayRow(num){ 
   var row = document.getElementById(num);  
-    if (row.style.display == '')
-      row.style.display = 'none';
-    else
-      row.style.display = '';
+    if(row != null)
+    {
+        if (row.style.display == '')
+          row.style.display = 'none';
+        else
+          row.style.display = '';
+    }
 }
 
 function displayAll()
@@ -301,11 +289,11 @@ function displayAll()
 	
 	if(row!=null)
 	{	
-    if (row.style.display == '')   
-      row.style.display = 'none'; 	
-    else  
-      row.style.display = '';   
-	  }
+        if (row.style.display == '')   
+          row.style.display = 'none'; 	
+        else  
+          row.style.display = '';   
+	}
   }
 } 
 
@@ -314,17 +302,16 @@ function checkedAll(val)
 {  
 	var type = document.getElementById('sel').value;	
 	
-	if(type==1)// dups off/on
+	if(type==1)
 	{
 		for (var i = 0; i < document.getElementById(val).elements.length; i++)  
 		{
 			if(document.getElementById(val).elements[i].id == 'pri')
 				document.getElementById(val).elements[i].checked = checked;
 		}	
-		
 		document.getElementById('sel').value = 2;	
 	}	
-	else if(type==2)// all off/on
+	else if(type==2)
 	{
 		if (checked == false)  
 		  {checked = true}  
@@ -336,20 +323,18 @@ function checkedAll(val)
 			if(document.getElementById(val).elements[i].id == 'sec')
 				document.getElementById(val).elements[i].checked = checked;
 		}	
-		
 		document.getElementById('sel').value = 3;
 	}	
-	else if(type==3)// pri off/on
+	else if(type==3)
 	{
 		for (var i = 0; i < document.getElementById(val).elements.length; i++)  
 		{
 			if(document.getElementById(val).elements[i].id == 'pri')
 				document.getElementById(val).elements[i].checked = checked;
 		}	
-		
 		document.getElementById('sel').value = 4;
 	}
-	else if(type==4)// all off/on
+	else if(type==4)
 	{
 		if (checked == false)  
 		  {checked = true}  
@@ -361,7 +346,6 @@ function checkedAll(val)
 			if(document.getElementById(val).elements[i].id == 'sec')
 				document.getElementById(val).elements[i].checked = checked;
 		}	
-		
 		document.getElementById('sel').value = 1; 	
 	}
 } 
@@ -418,7 +402,7 @@ function handleClick(form, act){
 }
 </script> 
 
-    <script type="text/javascript">  
+<script type="text/javascript">  
 function DeleteProfile(id, act, title)
 {
     if(act == "Delete")
@@ -444,25 +428,25 @@ function DeleteProfile(id, act, title)
     else
         window.location.href = "profile-settings.php?profile=" + encodeURIComponent(id);
 }
-    </SCRIPT>  
+</SCRIPT>  
 	
-    <script type="text/javascript">  
-	function ScanProfile(id, act, title){
-	  if(act=='Scan')
-	  {
-		var answer=confirm('Are you sure you want to \''+act+'\' profile \n\n\''+title+'\' ?\n\nThis may take some time but will run in the background.');
-		if (answer==true)
-		  window.open('scan-files.php?profile='+id, '_self');
-	  }
-	}
-    </SCRIPT> 
+<script type="text/javascript">  
+function ScanProfile(id, act, title){
+  if(act=='Scan')
+  {
+	var answer=confirm('Are you sure you want to \''+act+'\' profile \n\n\''+title+'\' ?\n\nThis may take some time but will run in the background.');
+	if (answer==true)
+	  window.open('scan-files.php?profile='+id, '_self');
+  }
+}
+</SCRIPT> 
 	
-    <script type="text/javascript">  
-	function Download(file) 
-	{
-       newwindow = window.open("download-files.php?profile=<?php echo $profileId; ?>&file=" + encodeURIComponent(file), "Download File", "height=50,width=100,menubar=no,resizable=no,scrollbars=no,titlebar=no,toolbar=no");
-    }
-    </SCRIPT> 	
+<script type="text/javascript">  
+function Download(file) 
+{
+   newwindow = window.open("download-files.php?profile=<?php echo $profileId; ?>&file=" + encodeURIComponent(file), "Download File", "height=50,width=100,menubar=no,resizable=no,scrollbars=no,titlebar=no,toolbar=no");
+}
+</SCRIPT> 	
 
 </HTML> 
 <?php
