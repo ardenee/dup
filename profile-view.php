@@ -26,10 +26,7 @@ function ChopName($name)
     global $dup;
 
     if($dup->Settings['shortfilenames'] != 0 && strlen($name) > $dup->Settings['shortfilenames'])
-    {
-        if(strlen($name) > $dup->Settings['shortfilenames'])
-            return "..." . substr($name, strlen($name) - $dup->Settings['shortfilenames']);
-    }
+        return "..." . substr($name, strlen($name) - $dup->Settings['shortfilenames']);
 
     return $name;
 }
@@ -86,6 +83,52 @@ function sortByValue($array, $sortOn, $sortOn2, $direction = SORT_ASC)
 
     array_multisort($sort, $direction, $sort2, $direction, $array);
     return $array;
+}
+
+function ProfileViewUpdatePages($page, $start, $end)
+{
+    global $dblink;
+    global $profileId;
+
+    $page = intval($page);
+    $start = intval($start);
+    $end = intval($end);
+    $data = array();
+
+    try
+    {
+        $query = "SELECT data FROM viewpages WHERE profile=:profile LIMIT 1;";
+        $sdt = $dblink->prepare($query);
+        $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
+        $sdt->execute();
+        $row = $sdt->fetch(PDO::FETCH_ASSOC);
+        $sdt->closeCursor();
+
+        if($row && isset($row['data']) && $row['data'] != "")
+        {
+            $decoded = json_decode($row['data'], true);
+
+            if(is_array($decoded))
+                $data = $decoded;
+        }
+
+        $data[$page] = array("start" => $start, "end" => $end);
+        $json = json_encode($data);
+
+        if($row)
+            $query = "UPDATE viewpages SET data=:data WHERE profile=:profile;";
+        else
+            $query = "INSERT INTO viewpages (data, profile) VALUES (:data, :profile);";
+
+        $sdt = $dblink->prepare($query);
+        $sdt->bindValue(":data", $json, PDO::PARAM_STR);
+        $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
+        $sdt->execute();
+        $sdt->closeCursor();
+    }
+    catch(PDOException $ex) {
+        LogError(print_r($ex, true));
+    }
 }
 
 $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
@@ -160,7 +203,7 @@ foreach($DUPS as $key => $value)
 
 $displayedDupGroups = count($displayGroups);
 $endPageMarker = max($start, $parent - 1);
-$dup->UpdatePages($page, $start, $endPageMarker);
+ProfileViewUpdatePages($page, $start, $endPageMarker);
 $matchedOn = (isset($dup->Profile['crc32']) && intval($dup->Profile['crc32']) == 0) ? "Size" : "CRC32";
 $profileDups = isset($dup->Profile['dups']) ? intval($dup->Profile['dups']) : 0;
 $hasNext = ($endPageMarker < $profileDups);
@@ -447,7 +490,7 @@ function DeleteFile(profile, fileid, file)
 
 function handleClick(form, act)
 {
-    if(confirm('Are you sure you want to \' + act + '\' all the selected files?'))
+    if(confirm("Are you sure you want to '" + act + "' all the selected files?"))
     {
         document.getElementById('act').value = act;
         document.getElementById(form).submit();
@@ -482,7 +525,7 @@ function ScanProfile(id, act, title)
 {
     if(act == 'Scan')
     {
-        if(confirm('Are you sure you want to \' + act + '\' profile \n\n\'' + title + '\' ?\n\nThis may take some time but will run in the background.'))
+        if(confirm("Are you sure you want to '" + act + "' profile \n\n'" + title + "' ?\n\nThis may take some time but will run in the background."))
             window.open('scan-files.php?profile=' + id, '_self');
     }
 }
