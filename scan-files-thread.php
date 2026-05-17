@@ -109,6 +109,8 @@ function BuildSkipFolderList($folders)
     foreach($parts as $part)
     {
         $part = trim($part);
+        $part = trim($part, "/\\");
+        $part = strtolower($part);
 
         if($part != "" && !in_array($part, $value))
             $value[] = $part;
@@ -169,6 +171,7 @@ function ClearProfileFiles()
 }
 
 //--------------------------------------------------------------------------------------
+
 function BuildFindCommand($scanRoot, $skipFolders)
 {
     $findBin = "/usr/bin/find";
@@ -177,7 +180,6 @@ function BuildFindCommand($scanRoot, $skipFolders)
         $findBin = "find";
 
     $cmd = escapeshellcmd($findBin) . " " . escapeshellarg($scanRoot) . " ";
-
     $prunes = array();
 
     foreach($skipFolders as $skip)
@@ -185,7 +187,7 @@ function BuildFindCommand($scanRoot, $skipFolders)
         $skip = trim((string)$skip);
 
         if($skip != "")
-            $prunes[] = "-name " . escapeshellarg($skip);
+            $prunes[] = "-iname " . escapeshellarg($skip);
     }
 
     if(count($prunes) > 0)
@@ -195,6 +197,8 @@ function BuildFindCommand($scanRoot, $skipFolders)
 
     return $cmd;
 }
+
+//--------------------------------------------------------------------------------------
 
 function ScanFolderToDatabase($scanRoot, $minFileSize, $fileTypes, $skipFolders)
 {
@@ -238,16 +242,22 @@ function ScanFolderToDatabase($scanRoot, $minFileSize, $fileTypes, $skipFolders)
 
         $result["scanned"]++;
 
+        if(ShouldSkipPath($path, $skipFolders))
+        {
+            $result["skipped"]++;
+            continue;
+        }
+
         if(is_link($path))
         {
-            if(ProcessFilePath($insert, $path, $minFileSize, $fileTypes, true))
+            if(ProcessFilePath($insert, $path, $minFileSize, $fileTypes, true, $skipFolders))
                 $result["inserted"]++;
             else
                 $result["skipped"]++;
         }
         else if(is_file($path))
         {
-            if(ProcessFilePath($insert, $path, $minFileSize, $fileTypes, false))
+            if(ProcessFilePath($insert, $path, $minFileSize, $fileTypes, false, $skipFolders))
                 $result["inserted"]++;
             else
                 $result["skipped"]++;
@@ -303,9 +313,12 @@ function ScanFolderToDatabase($scanRoot, $minFileSize, $fileTypes, $skipFolders)
 
 //--------------------------------------------------------------------------------------
 
-function ProcessFilePath($insert, $path, $minFileSize, $fileTypes, $isLink)
+function ProcessFilePath($insert, $path, $minFileSize, $fileTypes, $isLink, $skipFolders)
 {
     global $profileId;
+
+    if(ShouldSkipPath($path, $skipFolders))
+        return false;
 
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
@@ -360,20 +373,35 @@ function ResolveSymlinkTarget($path)
 
 //--------------------------------------------------------------------------------------
 
-function ShouldSkipFolder($folder, $skipFolders)
+function ShouldSkipPath($path, $skipFolders)
 {
     if(!is_array($skipFolders) || count($skipFolders) == 0)
         return false;
 
-    $parts = explode("/", trim($folder, "/"));
+    $path = str_replace("\\", "/", (string)$path);
+    $parts = explode("/", trim($path, "/"));
 
-    foreach($skipFolders as $skip)
+    foreach($parts as $part)
     {
-        if($skip != "" && in_array($skip, $parts))
-            return true;
+        $part = strtolower(trim($part));
+
+        foreach($skipFolders as $skip)
+        {
+            $skip = strtolower(trim((string)$skip));
+
+            if($skip != "" && $part == $skip)
+                return true;
+        }
     }
 
     return false;
+}
+
+//--------------------------------------------------------------------------------------
+
+function ShouldSkipFolder($folder, $skipFolders)
+{
+    return ShouldSkipPath($folder, $skipFolders);
 }
 
 //--------------------------------------------------------------------------------------
