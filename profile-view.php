@@ -62,7 +62,7 @@ if($page < 1)
   <META name="GENERATOR" content="MSHTML 8.00.7601.17940">
  </HEAD>
 
- <BODY onload="displayAll()"> 
+ <BODY> 
   <?php echo PageHeader(); ?>
    <DIV id=SubMenu>
     <SPAN>
@@ -183,7 +183,7 @@ foreach($DUPS as $key=>$value)
 			$class = "child";	
 
 		if($k==1) // child
-			$data.=" <TBODY id='$TBODYNum' class='$class'>\n";	
+			$data.=" <TBODY id='$TBODYNum' class='$class' style='display:none'>\n";	
 
 		$file = DropProfile($v['file'], $dup->Profile['path']);		
 
