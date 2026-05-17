@@ -131,6 +131,30 @@ function ProfileViewUpdatePages($page, $start, $end)
     }
 }
 
+function ProfilePagerHtml($profileId, $page, $start, $end, $totalGroups, $shownRows, $pageLimit, $hasNext)
+{
+    if($totalGroups <= 0)
+        return "<div class=\"searchPager\"><span>No duplicate groups found.</span></div>";
+
+    $rangeStart = $start + 1;
+    $rangeEnd = max($rangeStart, $end);
+    $html = "<div class=\"searchPager\">";
+
+    if($page > 1)
+        $html .= "<a class=\"btn\" href=\"profile-view.php?profile=" . intval($profileId) . "&page=" . intval($page - 1) . "\">Previous</a>";
+    else
+        $html .= "<span class=\"btn disabled\">Previous</span>";
+
+    $html .= " <span class=\"searchPagerText\">Showing duplicate groups " . number_format($rangeStart) . "-" . number_format($rangeEnd) . " of " . number_format($totalGroups) . " | " . number_format($shownRows) . " file rows on this page (max " . number_format($pageLimit) . ")</span> ";
+
+    if($hasNext)
+        $html .= "<a class=\"btn\" href=\"profile-view.php?profile=" . intval($profileId) . "&page=" . intval($page + 1) . "\">Next</a>";
+    else
+        $html .= "<span class=\"btn disabled\">Next</span>";
+
+    return $html . "</div>";
+}
+
 $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
 
 if($page < 1)
@@ -153,6 +177,7 @@ else
 if($start < 0)
     $start = 0;
 
+$pageLimit = 990;
 $DUPS = $dup->GetDups($profileId, $start);
 $ignoreFolders = BuildIgnoreFolderList(isset($dup->Settings['ifolders']) ? $dup->Settings['ifolders'] : "");
 $movedFolders = array(isset($dup->Profile['mpath']) ? $dup->Profile['mpath'] : "");
@@ -160,8 +185,10 @@ $displayGroups = array();
 $tsize = 0;
 $dupsize = 0;
 $TotalItems = 0;
+$shownRows = 0;
 $parent = $start + 1;
 $groupNum = 1;
+$nextPageAvailable = false;
 
 foreach($DUPS as $key => $value)
 {
@@ -191,14 +218,29 @@ foreach($DUPS as $key => $value)
     if(count($filtered) < 2)
         continue;
 
+    $groupSize = count($filtered);
+
+    if($shownRows > 0 && ($shownRows + $groupSize) > $pageLimit)
+    {
+        $nextPageAvailable = true;
+        break;
+    }
+
     $displayGroups[] = array(
         "group" => $groupNum,
         "parent" => $parent,
         "rows" => $filtered
     );
 
+    $shownRows += $groupSize;
     $parent++;
     $groupNum++;
+
+    if($shownRows >= $pageLimit)
+    {
+        $nextPageAvailable = true;
+        break;
+    }
 }
 
 $displayedDupGroups = count($displayGroups);
@@ -206,7 +248,7 @@ $endPageMarker = max($start, $parent - 1);
 ProfileViewUpdatePages($page, $start, $endPageMarker);
 $matchedOn = (isset($dup->Profile['crc32']) && intval($dup->Profile['crc32']) == 0) ? "Size" : "CRC32";
 $profileDups = isset($dup->Profile['dups']) ? intval($dup->Profile['dups']) : 0;
-$hasNext = ($endPageMarker < $profileDups);
+$hasNext = ($nextPageAvailable || $endPageMarker < $profileDups);
 ?>
 <!DOCTYPE HTML>
 <HTML>
@@ -244,6 +286,10 @@ $(document).ready(function(){
 #showListTable th:nth-child(7){width:165px;}
 #showListTable td:nth-child(3){white-space:normal!important;overflow-wrap:anywhere;word-break:break-word;}
 .profileFooterCell{color:black;background-color:#dfdacf;border:1pt solid black;}
+.searchPager{margin:10px 0;padding:8px;background:#dfdacf;border:1px solid #999;border-radius:4px;text-align:center;}
+.searchPager .btn{display:inline-block;margin:0 14px;}
+.searchPagerText{display:inline-block;min-width:520px;text-align:center;}
+.searchPager .disabled{opacity:.45;cursor:default;}
 </STYLE>
 </HEAD>
 <BODY>
@@ -260,6 +306,7 @@ $(document).ready(function(){
 <DIV id=contentWrapper>
 <DIV id=content>
 <H1 class=title>Files for <B><?php echo ProfileViewHtml($profilePath); ?></B></H1>
+<?php echo ProfilePagerHtml($profileId, $page, $start, $endPageMarker, $profileDups, $shownRows, $pageLimit, $hasNext); ?>
 <form id=dups name=dups method=post action="action-files.php">
 <input type="hidden" name="profile" value="<?php echo $profileId; ?>">
 <input type="hidden" name="from" value="profile-view.php?profile=<?php echo $profileId; ?>">
@@ -357,12 +404,13 @@ foreach($displayGroups as $displayGroup)
 <TH class="profileFooterCell">Total listed data size:</TH>
 <TH class="profileFooterCell" nowrap><?php echo $dup->format_bytes($tsize); ?></TH>
 <TH class="profileFooterCell">Matched on: <?php echo ProfileViewHtml($matchedOn); ?></TH>
-<TH class="profileFooterCell"><span title="Displayed Vars"><?php echo number_format($TotalItems); ?></span></TH>
+<TH class="profileFooterCell"><span title="Displayed Vars"><?php echo number_format($TotalItems); ?> / <?php echo number_format($shownRows); ?></span></TH>
 <TH class="profileFooterCell" nowrap><?php echo ($hasNext ? "<a title=\"Next\" href=\"profile-view.php?profile=" . $profileId . "&page=" . ($page + 1) . "\"><I class=icon-chevron-right title=\"Next\"></I></a>" : ""); ?></TH>
 </TR>
 </TFOOT>
 </TABLE>
 </form>
+<?php echo ProfilePagerHtml($profileId, $page, $start, $endPageMarker, $profileDups, $shownRows, $pageLimit, $hasNext); ?>
 </DIV>
 </DIV>
 <?php echo PageFooter(); ?>
