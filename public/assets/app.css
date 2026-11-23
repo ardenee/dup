@@ -137,5 +137,7 @@ textarea{font:inherit;color:var(--ink)}
 .stat>small{display:block;margin-top:7px;color:var(--muted);font-size:12px}
 @media(max-width:650px){.report-filter{display:grid}.report-downloads{justify-content:flex-start}}
 
-/* Preserve the original 16x16 DUP artwork at its native resolution. */
-.brand-logo-original{display:block;width:16px;height:16px;flex:0 0 16px;object-fit:contain;image-rendering:auto}
+/* Render the user's 120x120 source icon sharply at standard UI sizes. */
+.brand-logo-original{display:block;width:32px;height:32px;flex:0 0 32px;object-fit:contain;image-rendering:auto}
+.sidebar .brand-logo-original{background:#fff;border:3px solid #fff;border-radius:6px}
+.app-footer a{color:inherit;text-decoration:underline;text-underline-offset:2px}

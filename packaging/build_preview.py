@@ -42,6 +42,8 @@ def payload() -> dict[str,bytes]:
             if item.suffix.lower() in {".db",".sqlite",".sqlite3",".log",".pyc"}:
                 raise RuntimeError(f"Runtime file in deployment tree: {name}")
             result[name]=item.read_bytes()
+    if result.get("public/license.txt") != result["LICENSE"] or result.get("public/assets/license.txt") != result["LICENSE"]:
+        raise RuntimeError("Public licence differs from the MIT project licence")
     if not any(f.startswith("vendor/symfony/framework-bundle/") for f in result):
         raise RuntimeError("Symfony vendor dependencies are not installed")
     required=("public/index.php","bin/console","config/services.yaml",

@@ -79,6 +79,7 @@ def metadata(version:str,php_backend:int,files:dict[str,bytes])->dict[str,tuple[
     assert b'package="dupv2"' in info and b'adminurl="dup-v2/"' in info
     members={
         "INFO":(info,0o644),
+        "LICENSE":((ROOT/"LICENSE").read_bytes(),0o644),
         "package.tgz":(make_inner(files),0o644),
         "conf/resource":(resource.encode(),0o644),
         "conf/privilege":((DSM/"conf"/"privilege").read_bytes(),0o644),
@@ -88,8 +89,19 @@ def metadata(version:str,php_backend:int,files:dict[str,bytes])->dict[str,tuple[
         if not content.startswith(b"#!/bin/sh\n"):
             raise RuntimeError("Invalid DSM script: "+hook)
         members["scripts/"+hook]=(content,0o755)
-    for icon in ("PACKAGE_ICON.PNG","PACKAGE_ICON_256.PNG"):
+    for icon in ("PACKAGE_ICON.PNG","PACKAGE_ICON_120.PNG","PACKAGE_ICON_256.PNG"):
         members[icon]=((DSM/icon).read_bytes(),0o644)
+    # DSM Package Center consumes exactly 64px and 256px PNG assets.
+    # Both must be generated from the uploaded 120px master, not the old 16px icon.
+    def png_size(data:bytes)->tuple[int,int]:
+        if not data.startswith(b"\x89PNG\r\n\x1a\n") or data[12:16] != b"IHDR":
+            raise RuntimeError("Invalid PNG package artwork")
+        import struct
+        return struct.unpack(">II",data[16:24])
+    assert png_size(members["PACKAGE_ICON.PNG"][0]) == (64,64)
+    assert png_size(members["PACKAGE_ICON_256.PNG"][0]) == (256,256)
+    assert png_size((DSM/"PACKAGE_ICON_120.PNG").read_bytes()) == (120,120)
+    assert (DSM/"PACKAGE_ICON_120.PNG").read_bytes() == files["webapp/assets/dup.png"]
     return members
 
 def build(output:Path,version:str,php_backend:int)->None:
@@ -113,6 +125,8 @@ def build(output:Path,version:str,php_backend:int)->None:
                  for m in inner.getmembers() if m.isfile()}
     if rebuilt!=app:
         raise RuntimeError("SPK application files did not survive packaging")
+    if found["LICENSE"][0] != rebuilt["app/LICENSE"] or found["LICENSE"][0] != rebuilt["webapp/license.txt"] or found["LICENSE"][0] != rebuilt["webapp/assets/license.txt"]:
+        raise RuntimeError("MIT LICENSE must be identical in Package Center, app and public web assets")
     web={key for key in rebuilt if key.startswith("webapp/")}
     if any(key.endswith((".env",".env.local",".db",".sqlite",".log"))
            or key.startswith(("webapp/vendor/","webapp/src/","webapp/config/"))
@@ -120,7 +134,7 @@ def build(output:Path,version:str,php_backend:int)->None:
         raise RuntimeError("Private source or secrets exposed in DSM web directory")
     if not {"webapp/index.php","webapp/setup.php","webapp/assets/app.css","webapp/assets/folder-picker.js",
             "app/vendor/autoload.php","app/public/setup.php","app/bin/console","app/worker-loop.sh",
-            "app/misc/nginx_global.mustache","app/LICENSE","webapp/assets/dup.png"} <= rebuilt.keys():
+            "app/misc/nginx_global.mustache","app/LICENSE","webapp/license.txt","webapp/assets/license.txt","webapp/assets/dup.png"} <= rebuilt.keys():
         raise RuntimeError("Preview SPK missing required application runtime files")
     if b"DUP_ALLOWED_SCAN_ROOTS=" not in rebuilt["app/.env"]:
         raise RuntimeError("Missing setup safety default")
@@ -130,7 +144,7 @@ def build(output:Path,version:str,php_backend:int)->None:
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version",default="0.1.1")
+    parser.add_argument("--version",default="0.1.2")
     parser.add_argument("--php-backend",type=int,default=11,
         help="Web Station PHP backend ID, default 11 validated for PHP8.2 on the test DSM")
     parser.add_argument("--output",type=Path,default=None)
