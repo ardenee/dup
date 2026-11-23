@@ -92,7 +92,7 @@ def metadata(version:str,php_backend:int,files:dict[str,bytes])->dict[str,tuple[
     for icon in ("PACKAGE_ICON.PNG","PACKAGE_ICON_120.PNG","PACKAGE_ICON_256.PNG"):
         members[icon]=((DSM/icon).read_bytes(),0o644)
     # DSM Package Center consumes exactly 64px and 256px PNG assets.
-    # All sizes use the original 383px cropped photograph, never the 16px icon.
+    # Both must be generated from the uploaded 120px master, not the old 16px icon.
     def png_size(data:bytes)->tuple[int,int]:
         if not data.startswith(b"\x89PNG\r\n\x1a\n") or data[12:16] != b"IHDR":
             raise RuntimeError("Invalid PNG package artwork")
@@ -101,7 +101,7 @@ def metadata(version:str,php_backend:int,files:dict[str,bytes])->dict[str,tuple[
     assert png_size(members["PACKAGE_ICON.PNG"][0]) == (64,64)
     assert png_size(members["PACKAGE_ICON_256.PNG"][0]) == (256,256)
     assert png_size((DSM/"PACKAGE_ICON_120.PNG").read_bytes()) == (120,120)
-    assert members["PACKAGE_ICON_256.PNG"][0] == files["webapp/assets/dup.png"]
+    assert (DSM/"PACKAGE_ICON_120.PNG").read_bytes() == files["webapp/assets/dup.png"]
     return members
 
 def build(output:Path,version:str,php_backend:int)->None:
