@@ -141,3 +141,21 @@ textarea{font:inherit;color:var(--ink)}
 .brand-logo-original{display:block;width:32px;height:32px;flex:0 0 32px;object-fit:contain;image-rendering:auto}
 .sidebar .brand-logo-original{background:#fff;border:3px solid #fff;border-radius:6px}
 .app-footer a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+
+/* First-run setup: bounded cards with consistent outer gutters and inner padding. */
+.setup-shell{width:min(940px,calc(100% - 48px));margin:0 auto;padding:32px 0 20px}
+.setup-title{display:flex;align-items:center;gap:15px;margin-bottom:24px}
+.setup-title h1{margin-bottom:4px}
+.setup-title p{margin:0;color:var(--muted)}
+.setup-shell .panel{padding:24px 28px}
+.setup-shell .panel h2{margin-bottom:14px}
+.setup-shell .panel h2:not(:first-child){margin-top:26px}
+.setup-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:20px}
+.setup-shell .panel .field{min-width:0}
+.setup-shell .panel .form-actions{margin:18px 0}
+@media(max-width:650px){
+  .setup-shell{width:calc(100% - 24px);padding-top:18px}
+  .setup-shell .panel{padding:19px 18px}
+  .setup-fields{grid-template-columns:minmax(0,1fr)}
+  .setup-title{align-items:flex-start}
+}

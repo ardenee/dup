@@ -2,6 +2,9 @@
 
 use App\Kernel;
 
+require_once dirname(__DIR__).'/src/Core/Http/HttpsGuard.php';
+\App\Core\Http\HttpsGuard::enforce();
+
 // Fresh installations must enter the one-time installer before Symfony
 // attempts to load database credentials or its security/session services.
 // This also works behind a reverse proxy or Synology's alias portal because

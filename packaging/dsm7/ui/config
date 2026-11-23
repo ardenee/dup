@@ -1,0 +1,11 @@
+{
+  ".url": {
+    "com.arden.DUPv2": {
+      "type": "url",
+      "icon": "images/icon_{0}.png",
+      "title": "DUP v2",
+      "desc": "Duplicate file manager",
+      "url": "3rdparty/dupv2/launch.html"
+    }
+  }
+}

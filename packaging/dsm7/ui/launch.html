@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Opening DUP v2</title>
+</head>
+<body>
+<p>Opening DUP v2 over HTTPS…</p>
+<script>
+"use strict";
+// DSM's management UI can use port 5001; DUP's Web Station HTTPS portal is 443.
+const target = "https://" + window.location.hostname + "/dup-v2/";
+const link = document.createElement("a");
+link.href = target;
+link.textContent = "Open DUP v2";
+document.body.appendChild(link);
+window.location.replace(target);
+</script>
+</body>
+</html>

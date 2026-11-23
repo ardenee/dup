@@ -4,23 +4,17 @@ declare(strict_types=1);
 use App\Core\Setup\Installer;
 
 require dirname(__DIR__).'/vendor/autoload.php';
+require_once dirname(__DIR__).'/src/Core/Http/HttpsGuard.php';
+\App\Core\Http\HttpsGuard::enforce();
 
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('Referrer-Policy: no-referrer');
 header('Cache-Control: no-store, private');
-header("Content-Security-Policy: default-src 'none'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+header("Content-Security-Policy: default-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
 header('Content-Type: text/html; charset=UTF-8');
 
-$https=($_SERVER['HTTPS']??'')==='on' || ($_SERVER['SERVER_PORT']??'')==='443';
-$remote=(string)($_SERVER['REMOTE_ADDR']??'');
-$local=in_array($remote,['127.0.0.1','::1'],true);
-if(!$https && !$local) {
-    http_response_code(403);
-    echo '<!doctype html><html lang="en"><meta charset="utf-8"><title>HTTPS required</title>'.
-         '<main><h1>HTTPS required</h1><p>DUP setup cannot transmit database or administrator credentials over an unencrypted connection. Configure HTTPS or use localhost.</p></main></html>';
-    exit;
-}
+$https=\App\Core\Http\HttpsGuard::isSecure();
 session_set_cookie_params([
     'lifetime'=>0,
     'path'=>rtrim(str_replace('\\','/',dirname((string)($_SERVER['SCRIPT_NAME']??'/'))),'/').'/',
