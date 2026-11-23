@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+# No automatic deletion of the v1 or v2 database.
+exit 0

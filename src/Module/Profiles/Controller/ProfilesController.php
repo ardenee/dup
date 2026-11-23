@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace App\Module\Profiles\Controller;
 use App\Module\Profiles\Repository\ProfileRepository;
+use App\Module\Profiles\Service\DirectoryBrowser;
 use App\Module\Jobs\Service\JobStore;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,7 +20,7 @@ final class ProfilesController extends AbstractController
     }
 
     #[Route('/profiles/new',name:'app_profile_new',methods:['GET','POST'])]
-    public function create(Request $request,ProfileRepository $repository): Response
+    public function create(Request $request,ProfileRepository $repository,DirectoryBrowser $browser): Response
     {
         $types=$repository->types();
         $errors=[];
@@ -41,17 +42,19 @@ final class ProfilesController extends AbstractController
             if(!in_array($mode,['size','sha256'],true)) $errors[]='Choose a supported hash mode.';
             // Check real paths on the host, not paths in the user's browser.
             foreach(['Source'=>$source,'Move'=>$move] as $label=>$path) {
-                if($path==='' || !is_dir($path) || !is_readable($path) ||
-                   realpath($path) === false) $errors[]=$label.' folder is not accessible to PHP.';
+                if($browser->canonicalDirectory($path) === null)
+                    $errors[]=$label.' folder is outside the configured allowed scan roots.';
             }
             if(!$errors) {
-                $repository->create($name,realpath($source),realpath($move),
+                $repository->create($name,$browser->canonicalDirectory($source),$browser->canonicalDirectory($move),
                     (int)$type,(int)$size,$mode);
                 $this->addFlash('success','Profile created. Queue a scan when the CLI worker is configured.');
                 return $this->redirectToRoute('app_profiles');
             }
         }
-        return $this->render('profiles/new.html.twig',['types'=>$types,'errors'=>$errors]);
+        return $this->render('profiles/new.html.twig',[
+            'types'=>$types,'errors'=>$errors,'configured_roots'=>$browser->roots()
+        ]);
     }
 
     #[Route('/profiles/{id<\\d+>}/scan',name:'app_profile_scan',methods:['POST'])]

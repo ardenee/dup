@@ -8,3 +8,6 @@ services:
             tags: ['dup.module']
     App\:
         resource: '../src/'
+    App\Module\Profiles\Service\DirectoryBrowser:
+        arguments:
+            $configuredRoots: '%env(DUP_ALLOWED_SCAN_ROOTS)%'

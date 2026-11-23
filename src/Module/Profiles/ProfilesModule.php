@@ -5,5 +5,8 @@ use App\Core\Module\ModuleInterface;
 final class ProfilesModule implements ModuleInterface
 {
     public function id(): string { return 'profiles'; }
-    public function navigation(): array { return [['route'=>'app_profiles','label'=>'Profiles']]; }
+    public function navigation(): array { return [
+            ['route'=>'app_profiles','label'=>'Profiles'],
+            ['route'=>'app_ignore_folders','label'=>'Ignored folders']
+        ]; }
 }

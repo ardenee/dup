@@ -1,0 +1,26 @@
+{% extends 'base.html.twig' %}
+{% block title %}Ignored folders{% endblock %}
+{% block section %}Settings / Ignored folders{% endblock %}
+{% block body %}
+<div class="page-heading"><div>
+  <div class="eyebrow">DUP SETTINGS</div><h1>Ignored folder names</h1>
+  <p class="muted">Exclude selected directory names from duplicate matches, without losing indexed file information.</p>
+</div></div>
+<section class="panel form-panel">
+  <div class="panel-heading"><h2>Global exclusions</h2></div>
+  <form action="{{ path('app_ignore_folders_save') }}" method="post" class="panel-content">
+    <input type="hidden" name="_token" value="{{ csrf_token('ignore_rules') }}">
+    <div class="field"><label for="ignored-folders">Directory names (one per line)</label>
+      <textarea id="ignored-folders" name="names" rows="9" spellcheck="false" maxlength="24000">{{ names }}</textarea>
+      <p class="muted">For example: <code>@eaDir</code> and <code>#recycle</code>. Match any folder with this exact name, anywhere within a scan. Do not enter full paths.</p>
+    </div>
+    <div class="notice">
+      Scans still index eligible files inside these folders. Changes queue a database-only
+      duplicate recalculation for each profile's latest completed run. No filesystem rescan is required.
+      Historical successful scan results stay available.
+    </div>
+    <div class="form-actions"><button type="submit" class="primary">Save and recalculate</button>
+      <a class="secondary link-button" href="{{ path('app_jobs') }}">View job monitor</a></div>
+  </form>
+</section>
+{% endblock %}

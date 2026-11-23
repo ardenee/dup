@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+# Keep runtime settings under SYNOPKG_PKGVAR, not the replaceable package target.
+exit 0

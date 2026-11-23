@@ -1,0 +1,5 @@
+{
+  "defaults": { "run-as": "package" },
+  "username": "dupv2",
+  "groupname": "dupv2"
+}

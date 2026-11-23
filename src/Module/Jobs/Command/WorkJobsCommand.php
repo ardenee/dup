@@ -4,6 +4,7 @@ namespace App\Module\Jobs\Command;
 
 use App\Module\Jobs\Service\JobStore;
 use App\Module\Scans\Service\ScanEngine;
+use App\Module\Duplicates\Service\IgnoreRebuildWorker;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -17,6 +18,7 @@ final class WorkJobsCommand extends Command
     public function __construct(
         private readonly JobStore $jobs,
         private readonly ScanEngine $scanner,
+        private readonly IgnoreRebuildWorker $rebuild,
         private readonly Connection $db
     ) {parent::__construct();}
 
@@ -45,9 +47,11 @@ final class WorkJobsCommand extends Command
             $job=$this->jobs->claimNext($jobId);
             if(!$job) break;
             $id=(int)$job['id'];
-            $output->writeln('<info>Running scan job #'.$id.'...</info>');
+            $output->writeln('<info>Running '.$job['kind'].' job #'.$id.'...</info>');
             try {
-                $this->scanner->run($job);
+                if($job['kind']==='rebuild-duplicates') $this->rebuild->run($job);
+                elseif($job['kind']==='scan') $this->scanner->run($job);
+                else throw new \LogicException('Unknown job type.');
             } catch(\Throwable $ex) {
                 $output->writeln('<error>Job #'.$id.' failed: '.$ex->getMessage().'</error>');
             }

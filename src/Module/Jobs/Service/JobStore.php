@@ -3,11 +3,15 @@ declare(strict_types=1);
 namespace App\Module\Jobs\Service;
 
 use Doctrine\DBAL\Connection;
+use App\Module\Profiles\Service\DirectoryBrowser;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 
 final class JobStore
 {
-    public function __construct(private readonly Connection $db) {}
+    public function __construct(
+        private readonly Connection $db,
+        private readonly DirectoryBrowser $browser
+    ) {}
 
     public function queueScan(int $profileId): int
     {
@@ -17,9 +21,9 @@ final class JobStore
         );
         if(!$profile || !(bool)$profile['enabled'])
             throw new \DomainException('Select an enabled scan profile.');
-        $root=realpath((string)$profile['source_root']);
-        if($root===false || !is_dir($root) || !is_readable($root))
-            throw new \DomainException('The scan source is not accessible to PHP.');
+        $root=$this->browser->canonicalDirectory((string)$profile['source_root']);
+        if($root===null)
+            throw new \DomainException('The scan source is outside allowed scan roots or is not accessible.');
 
         $ignore=$this->db->fetchFirstColumn(
             'SELECT folder_name FROM profile_ignore_rules WHERE enabled=1 AND ' .
@@ -61,7 +65,7 @@ final class JobStore
     {
         for($attempt=0;$attempt<5;$attempt++) {
             $id=$this->db->fetchOne(
-                "SELECT id FROM jobs WHERE state='queued' AND kind='scan'" .
+                "SELECT id FROM jobs WHERE state='queued' AND kind IN ('scan','rebuild-duplicates')" .
                 ($onlyId===null?' ORDER BY id LIMIT 1':' AND id=? LIMIT 1'),
                 $onlyId===null?[]:[$onlyId]
             );
@@ -124,8 +128,9 @@ final class JobStore
                 "active_profile_id=NULL WHERE id=? AND state='queued'",[$now,$id]
             );
             if($queued===1) {
-                $runId=$db->fetchOne('SELECT run_id FROM jobs WHERE id=?',[$id]);
-                $db->executeStatement("UPDATE scan_runs SET state='cancelled',finished_at=? WHERE id=?",[$now,$runId]);
+                $job=$db->fetchAssociative('SELECT run_id,kind FROM jobs WHERE id=?',[$id]);
+                if($job['kind']==='scan')
+                    $db->executeStatement("UPDATE scan_runs SET state='cancelled',finished_at=? WHERE id=?",[$now,$job['run_id']]);
                 $this->event($id,'warning','SCAN_CANCELLED_QUEUED');
                 return true;
             }
@@ -162,6 +167,31 @@ final class JobStore
         });
     }
 
+    /**
+     * Called inside the rebuild transaction, so a failed recalculation cannot
+     * leave partly refreshed groups visible or corrupt a successful scan.
+     */
+    public function completeRebuild(int $id,string $token,int $groups,int $changedDirectories): void
+    {
+        $this->assertRunning($id,$token);
+        $now=gmdate('Y-m-d H:i:s');
+        $this->db->executeStatement(
+            "UPDATE scan_runs SET duplicate_groups=?,ignore_applied_at=? " .
+            "WHERE id=(SELECT run_id FROM jobs WHERE id=?) AND state='completed'",
+            [$groups,$now,$id]
+        );
+        $changed=$this->db->executeStatement(
+            "UPDATE jobs SET state='completed',phase='completed',finished_at=?," .
+            "progress_current=?,progress_total=?,active_profile_id=NULL,heartbeat_at=? " .
+            "WHERE id=? AND worker_token=? AND kind='rebuild-duplicates' AND state='running'",
+            [$now,$groups,$groups,$now,$id,$token]
+        );
+        if($changed!==1) throw new LostLease('Rebuild job lease changed during recalculation.');
+        $this->event($id,'info','IGNORE_RECALC_COMPLETED',[
+            'duplicate_groups'=>$groups,'changed_directory_flags'=>$changedDirectories
+        ]);
+    }
+
     public function stop(int $id,string $token,string $state,string $errorCode,array $details=[]): void
     {
         if(!in_array($state,['cancelled','failed'],true))
@@ -175,10 +205,11 @@ final class JobStore
                 [$state,$state,$errorCode,$now,$now,$id,$token]
             );
             if($changed!==1) return; // Stale worker has already been recovered.
-            $db->executeStatement(
-                "UPDATE scan_runs SET state=?,finished_at=?,error_count=error_count+1 " .
-                "WHERE id=(SELECT run_id FROM jobs WHERE id=?)",[$state,$now,$id]
-            );
+            if($db->fetchOne('SELECT kind FROM jobs WHERE id=?',[$id])==='scan')
+                $db->executeStatement(
+                    "UPDATE scan_runs SET state=?,finished_at=?,error_count=error_count+1 " .
+                    "WHERE id=(SELECT run_id FROM jobs WHERE id=?)",[$state,$now,$id]
+                );
             $this->event($id,$state==='cancelled'?'warning':'error',$errorCode,$details);
         });
     }
@@ -187,7 +218,7 @@ final class JobStore
     {
         $cutoff=gmdate('Y-m-d H:i:s',time()-max(30,$seconds));
         $rows=$this->db->fetchAllAssociative(
-            "SELECT id,run_id FROM jobs WHERE state IN ('running','cancelling') " .
+            "SELECT id,run_id,kind FROM jobs WHERE state IN ('running','cancelling') " .
             "AND (heartbeat_at IS NULL OR heartbeat_at<?)",[$cutoff]
         );
         $count=0;
@@ -200,10 +231,11 @@ final class JobStore
                 [gmdate('Y-m-d H:i:s'),$id,$cutoff]
             );
             if($changed!==1) continue;
-            $this->db->executeStatement(
-                "UPDATE scan_runs SET state='failed',finished_at=?,error_count=error_count+1 WHERE id=?",
-                [gmdate('Y-m-d H:i:s'),(int)$row['run_id']]
-            );
+            if($row['kind']==='scan')
+                $this->db->executeStatement(
+                    "UPDATE scan_runs SET state='failed',finished_at=?,error_count=error_count+1 WHERE id=?",
+                    [gmdate('Y-m-d H:i:s'),(int)$row['run_id']]
+                );
             $this->event($id,'error','WORKER_STALLED');
             $count++;
         }

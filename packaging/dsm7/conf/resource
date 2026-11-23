@@ -1,0 +1,45 @@
+{
+  "webservice": {
+    "services": [
+      {
+        "service": "dupv2",
+        "display_name": "DUP v2 Preview",
+        "support_alias": true,
+        "support_server": false,
+        "type": "nginx_php",
+        "root": "dup-v2",
+        "index": ["index.php"],
+        "php": {
+          "profile_name": "DUP v2 PHP",
+          "profile_desc": "DUP v2 preview PHP profile",
+          "backend": __PHP_BACKEND__,
+          "open_basedir": "/var/services/web_packages/dup-v2:/var/packages/dupv2/target/app:/var/packages/dupv2/var:/volume1:/volume2:/volume3:/volume4:/tmp:/var/services/tmp",
+          "extensions": ["pdo_mysql", "mbstring", "openssl", "fileinfo", "xml"],
+          "user": "dupv2",
+          "group": "http"
+        },
+        "connect_timeout": 30,
+        "read_timeout": 120,
+        "send_timeout": 30
+      }
+    ],
+    "portals": [
+      {
+        "service": "dupv2",
+        "name": "dup-v2",
+        "display_name": "DUP v2 Preview",
+        "type": "alias",
+        "alias": "dup-v2"
+      }
+    ],
+    "pkg_dir_prepare": [
+      {
+        "source": "/var/packages/dupv2/target/webapp",
+        "target": "dup-v2",
+        "mode": "0755",
+        "user": "dupv2",
+        "group": "http"
+      }
+    ]
+  }
+}

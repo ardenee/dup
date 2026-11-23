@@ -5,6 +5,8 @@ namespace App\Module\Scans\Service;
 use App\Module\Jobs\Service\JobStore;
 use App\Module\Jobs\Service\LostLease;
 use App\Module\Jobs\Service\ScanCancelled;
+use App\Module\Duplicates\Service\DuplicateRebuilder;
+use App\Module\Profiles\Service\DirectoryBrowser;
 use Doctrine\DBAL\Connection;
 
 /**
@@ -18,7 +20,9 @@ final class ScanEngine
 
     public function __construct(
         private readonly Connection $db,
-        private readonly JobStore $jobs
+        private readonly JobStore $jobs,
+        private readonly DuplicateRebuilder $rebuilder,
+        private readonly DirectoryBrowser $browser
     ) {}
 
     /** @param array<string,mixed> $job */
@@ -35,8 +39,8 @@ final class ScanEngine
             $settings=json_decode((string)$settingsRaw,true,512,JSON_THROW_ON_ERROR);
             if(!is_array($settings)) throw new \RuntimeException('Invalid scan settings snapshot.');
             $root=(string)($settings['source_root']??'');
-            if($root==='' || !is_dir($root) || !is_readable($root) || realpath($root)!==$root)
-                throw new \RuntimeException('The scan root has changed or is inaccessible.');
+            if($root==='' || $this->browser->canonicalDirectory($root)!==$root)
+                throw new \RuntimeException('The scan root is no longer allowed or accessible.');
             $mode=(string)($settings['hash_mode']??'');
             if(!in_array($mode,['size','sha256'],true))
                 throw new \RuntimeException('Invalid hash strategy in scan snapshot.');
@@ -58,7 +62,15 @@ final class ScanEngine
             if($mode==='sha256')
                 $this->hashCandidateFiles($id,$runId,$token);
             $this->jobs->progress($id,$token,'grouping',0,null);
-            $this->groupResults($id,$runId,$token,$mode);
+            $this->stats['duplicate_groups']=$this->db->transactional(
+                fn() => $this->rebuilder->rebuild($runId,$mode,
+                    fn(int $done) => $this->heartbeat($id,$token,'grouping',$done,null))
+            );
+            $this->jobs->progress($id,$token,'grouping',
+                $this->stats['duplicate_groups'],$this->stats['duplicate_groups']);
+            $this->jobs->event($id,'info','GROUPING_FINISHED',[
+                'groups'=>$this->stats['duplicate_groups'],'verified'=>$mode==='sha256'
+            ]);
             $this->jobs->complete($id,$token,$this->stats);
         } catch(ScanCancelled $ex) {
             $this->jobs->stop($id,$token,'cancelled','SCAN_CANCELLED');
@@ -233,51 +245,6 @@ final class ScanEngine
         if($read!==$size || filesize($path)!==$size || filemtime($path)!==$mtime)
             throw new \RuntimeException('File changed while hashing: '.$path);
         return hash_final($context);
-    }
-
-    private function groupResults(int $jobId,int $runId,string $token,string $mode): void
-    {
-        $verified=$mode==='sha256';
-        $where=$verified ? ' AND f.hash_value IS NOT NULL' : '';
-        $cols=$verified ? 'f.size_bytes,f.hash_value' : 'f.size_bytes';
-        $groups=$this->db->executeQuery(
-            'SELECT '.$cols.',COUNT(*) AS members FROM file_entries f ' .
-            'JOIN directories d ON d.id=f.directory_id ' .
-            'WHERE f.run_id=? AND d.is_ignored=0 AND f.error_code IS NULL'.$where .
-            ' GROUP BY '.$cols.' HAVING COUNT(*)>1 ORDER BY f.size_bytes',[$runId]
-        );
-        $completed=0;
-        while(($group=$groups->fetchAssociative())!==false) {
-            $this->heartbeat($jobId,$token,'grouping',$completed,null);
-            $size=(int)$group['size_bytes'];
-            $count=(int)$group['members'];
-            $hash=$verified?(string)$group['hash_value']:null;
-            $key=$verified?'sha256:'.$hash:'size:'.$size;
-            $this->db->insert('duplicate_groups',[
-                'run_id'=>$runId,'group_key'=>$key,'size_bytes'=>$size,
-                'file_count'=>$count,'reclaimable_bytes'=>($count-1)*$size,
-                'rules_version'=>$verified?1:0
-            ]);
-            $groupId=(int)$this->db->lastInsertId();
-            $stmt='SELECT f.id FROM file_entries f JOIN directories d ON d.id=f.directory_id ' .
-                'WHERE f.run_id=? AND d.is_ignored=0 AND f.error_code IS NULL AND f.size_bytes=?';
-            $params=[$runId,$size];
-            if($verified) {
-                $stmt.=' AND f.hash_value=?';
-                $params[]=$hash;
-            }
-            $members=$this->db->executeQuery($stmt.' ORDER BY f.id',$params);
-            while(($member=$members->fetchAssociative())!==false)
-                $this->db->insert('duplicate_group_members',[
-                    'group_id'=>$groupId,'file_entry_id'=>(int)$member['id']
-                ]);
-            $completed++;
-        }
-        $this->stats['duplicate_groups']=$completed;
-        $this->jobs->progress($jobId,$token,'grouping',$completed,$completed);
-        $this->jobs->event($jobId,'info','GROUPING_FINISHED',[
-            'groups'=>$completed,'verified'=>$verified
-        ]);
     }
 
     private function heartbeat(int $id,string $token,string $phase,int $current,?int $total): void

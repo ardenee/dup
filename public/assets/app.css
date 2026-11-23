@@ -105,3 +105,21 @@ button.secondary:disabled{opacity:.55;cursor:not-allowed}
 .notice-warning{border-color:#efd08b;background:#fff8e5;color:#72531a}
 .inline-filter{display:flex;align-items:center;gap:9px;font-size:13px}
 .inline-filter select{padding:7px 9px;border:1px solid var(--line);border-radius:7px;max-width:235px}
+
+.folder-dialog{border:1px solid var(--line);border-radius:12px;padding:0;background:var(--panel);color:var(--ink);width:min(620px,calc(100vw - 32px));max-height:85vh;box-shadow:0 16px 60px #11182750}
+.folder-dialog::backdrop{background:#0c192aa8}
+.folder-dialog-heading{padding:18px 22px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.folder-dialog-heading h2{margin:0}
+.folder-dialog-path{padding:12px 22px;background:#f6f8fb;word-break:break-all;font-size:13px;font-weight:650}
+.folder-dialog-list{padding:12px;overflow-y:auto;max-height:50vh;min-height:140px}
+.folder-dialog-item{width:100%;display:block;text-align:left;border:0;background:transparent;border-radius:7px;padding:10px 12px;color:var(--ink);cursor:pointer}
+.folder-dialog-item:hover,.folder-dialog-item:focus-visible{background:#e7f0f2;outline:0}
+.folder-dialog-actions{display:flex;gap:12px;justify-content:space-between;border-top:1px solid var(--line);padding:15px 22px}
+.folder-dialog-actions button:disabled,.field button:disabled{opacity:.4;cursor:not-allowed}
+.field input[data-directory-input]{width:calc(100% - 118px);vertical-align:middle}
+.field input[data-directory-input]+button{vertical-align:middle;margin-left:6px;min-width:105px}
+.field small{display:block;margin-top:6px}
+
+textarea{font:inherit;color:var(--ink)}
+.field textarea{width:100%;border:1px solid #bdcad7;border-radius:8px;padding:12px;resize:vertical;min-height:120px}
+.field textarea:focus{outline:3px solid #0a8f9930;border-color:var(--primary)}

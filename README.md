@@ -5,8 +5,10 @@ A modular PHP duplicate-file manager for Synology DSM and generic PHP hosts.
 **Development preview — not production-ready.** The Symfony application, fresh database,
 profiles, a database-backed CLI scan worker, SHA-256 duplicate detection, ignored-folder
 policies, job monitoring, and read-only duplicate results are implemented and tested on
-disposable DEV folders. A browser-based first-run installer, authenticated DSM integration
-tests, NAS folder picker, safe file actions, reporting, and SPK packaging remain to be built.
+disposable DEV folders. The authenticated NAS folder picker and background ignore-rule
+recalculation are implemented. A generic ZIP and isolated DSM SPK preview builder exist,
+but **DSM installation and the worker service have not been tested on a NAS**. A browser-based
+first-run installer, file actions, reporting and end-to-end DSM tests remain to be built.
 Do not replace DUP v1 yet.
 
 ## Design
@@ -39,7 +41,10 @@ php -S 127.0.0.1:8088 -t public public/index.php
 ```
 
 Create a new ignored `.env.local` or supply private environment values for
-`APP_SECRET`, `DATABASE_URL` and `APP_ENV`. Do not commit real credentials.
+`APP_SECRET`, `DATABASE_URL`, `APP_ENV` and `DUP_ALLOWED_SCAN_ROOTS`.
+For example: `DUP_ALLOWED_SCAN_ROOTS=/volume1/Music;/volume2/Archive`.
+Only these directories and their subfolders are accessible to the picker or scan workers;
+there are no default filesystem roots. Do not commit real credentials.
 
 Start at `/profiles/new` to configure an allowed file type, source folder,
 move folder and hash mode. Scans do not start from HTTP requests; the web app
@@ -55,7 +60,13 @@ Useful operational commands:
 php bin/console dup:scan:queue 1
 php bin/console dup:jobs:cancel 1
 php bin/console dup:jobs:recover --after=120
+php bin/console dup:settings:ignore --names='@eaDir,#recycle'
 ```
+
+The `/settings/ignored-folders` page lets an administrator change exact folder-name
+exclusions. The system queues a database-only regeneration of duplicate groups, using
+existing stored hashes and filenames; a filesystem rescan is not required. Historical
+completed scans are retained.
 
 To keep progress and cancel requests responsive, workers update their heartbeat
 at checkpoints. A terminated worker becomes failed after its heartbeat expires;
@@ -67,6 +78,8 @@ it never silently overwrites a previous successful result.
 - `/login` — login; remaining application routes require an administrator
 - `/` — dashboard (last successful snapshot per profile)
 - `/profiles`, `/profiles/new` — profile configuration and scan submission
+- `/api/folders` — authenticated, root-restricted NAS directory listing
+- `/settings/ignored-folders` — update ignore rules and queue duplicate recalculations
 - `/jobs`, `/api/jobs`, `/api/jobs/{id}/events` — job status and event history
 - `/duplicates`, `/duplicates/{id}` — read-only duplicate groups and file members
 - `/system` — authenticated PHP, schema and worker diagnostics
@@ -79,11 +92,21 @@ built with:
 
 ```bash
 python packaging/build_preview.py
+python packaging/build_dsm_preview.py --version 0.1.0 --php-backend 11
 ```
 
-The ZIP is **not** a production installer; private configuration and source
-databases are deliberately excluded. No Composer or Node.js should be needed
-on a deployed web host.
+The DSM preview uses package ID `dupv2` and a separate `/dup-v2/` portal. It places
+Symfony source/vendor/config in the **private package target**, copying only the web
+front controller and static assets into `web_packages`. A package-managed, PHP-only
+worker loop can process queued jobs after private configuration is established.
+The PHP backend ID is configurable at build time; the default 11 is known to work
+with PHP 8.2 on the test DSM, but other DSM installations need verification.
+
+**Neither artifact is a production installer yet.** The package generator checks
+file parity, excludes secrets and runtime databases, and leaves the old DUP portal
+untouched. Do not install the preview SPK until the first-run configuration,
+DSM service lifecycle, permissions and web routing have been tested. No Composer
+or Node.js should be required on a deployed web host.
 
 DUP v1 remains on GitHub `main` and the existing DSM installation at
 `Y:\dup`. DUP v2 is developed independently in branch `v2/rebuild`.

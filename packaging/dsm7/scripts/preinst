@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+# Web Station, PHP >= 8.2 and MariaDB 10 are declared dependencies.
+# Never modify or import the existing DUP v1 installation.
+exit 0

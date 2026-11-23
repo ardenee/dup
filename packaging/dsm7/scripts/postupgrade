@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+umask 077
+APP="${SYNOPKG_PKGDEST:-/var/packages/dupv2/target}/app"
+VAR="${SYNOPKG_PKGVAR:-/var/packages/dupv2/var}"
+mkdir -p "$VAR/runtime"
+if [ ! -e "$APP/var" ] && [ ! -L "$APP/var" ]; then
+    ln -s "$VAR/runtime" "$APP/var"
+fi
+if [ ! -e "$APP/.env.local" ] && [ ! -L "$APP/.env.local" ]; then
+    ln -s "$VAR/.env.local" "$APP/.env.local"
+fi
+exit 0

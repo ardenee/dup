@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+# Resource worker manages its own Web Station portal; never touch v1.
+exit 0

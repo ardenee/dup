@@ -12,6 +12,8 @@ DEPLOY_ENV="""APP_ENV=prod
 APP_SECRET=
 DATABASE_URL=
 DEFAULT_URI=http://localhost
+# Configure allowed NAS directories before creating scan profiles.
+DUP_ALLOWED_SCAN_ROOTS=
 APP_SHARE_DIR=var/share
 """
 
@@ -69,7 +71,7 @@ def build(target: Path) -> None:
         raise RuntimeError("Packaged environment contains a secret")
     print(f"PASS {target.name}: {len(files)} application files, {target.stat().st_size:,} bytes")
     print("SHA256 "+hashlib.sha256(target.read_bytes()).hexdigest())
-    print("PREVIEW ONLY: DSM SPK, first-run web installer, workers and file actions pending")
+    print("PREVIEW ONLY: separate DSM SPK preview available; first-run setup and file actions pending")
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
