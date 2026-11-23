@@ -156,7 +156,7 @@ def build(output:Path,version:str,php_backend:int)->None:
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version",default="0.7.5")
+    parser.add_argument("--version",default="0.7.6")
     parser.add_argument("--php-backend",type=int,default=11,
         help="Web Station PHP backend ID, default 11 validated for PHP8.2 on the test DSM")
     parser.add_argument("--output",type=Path,default=None)

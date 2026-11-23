@@ -3,7 +3,7 @@
     "services": [
       {
         "service": "dup",
-        "display_name": "DUP 0.7.5 Preview",
+        "display_name": "DUP 0.7.6 Preview",
         "support_alias": true,
         "support_server": false,
         "type": "nginx_php",
@@ -30,7 +30,7 @@
       {
         "service": "dup",
         "name": "dup",
-        "display_name": "DUP 0.7.5 Preview",
+        "display_name": "DUP 0.7.6 Preview",
         "type": "alias",
         "alias": "dup"
       }

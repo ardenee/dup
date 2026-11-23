@@ -92,7 +92,7 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>DUP 0.7.5 · First-run setup</title>
+  <title>DUP 0.7.6 · First-run setup</title>
   <link rel="stylesheet" href="assets/app.css">
   <link rel="icon" type="image/png" sizes="120x120" href="assets/dup.png">
 </head>
@@ -134,7 +134,7 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
   <form class="panel panel-content" method="post" autocomplete="off">
     <input type="hidden" name="_csrf" value="<?= show($_SESSION['dup_setup_csrf']) ?>">
     <h2>2. Database</h2>
-    <p class="muted">Use a dedicated <strong>empty</strong> database. The installer never alters an existing populated database.</p>
+    <p class="muted">Enter a new database name or select an existing empty database. DUP will create the database automatically if it is missing, using the supplied MariaDB account (which must have CREATE permission). Existing populated databases are never overwritten.</p>
     <div class="field"><label for="driver">Database type</label>
       <select id="driver" name="driver">
         <option value="mysql" <?= $old('driver','mysql')==='mysql'?'selected':'' ?>>MariaDB / MySQL (recommended)</option>
@@ -148,8 +148,8 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
       <?php if(!empty($preflight['synology'])): ?>
         <p class="muted setup-db-help">Synology MariaDB 10 normally uses port <strong>3307</strong>, not 3306. If TCP/IP is disabled, DUP also tries the MariaDB 10 local socket when it is accessible. Your phpMyAdmin login may use that socket.</p>
       <?php endif; ?>
-      <div class="field"><label for="db_name">Empty database name</label>
-        <input id="db_name" name="db_name" value="<?= show($old('db_name','dup')) ?>" maxlength="64"></div>
+      <div class="field"><label for="db_name">Database name (new or empty)</label>
+        <input id="db_name" name="db_name" value="<?= show($old('db_name','dup_data')) ?>" maxlength="64"></div>
       <div class="field"><label for="db_user">Database user</label>
         <input id="db_user" name="db_user" value="<?= show($old('db_user')) ?>" maxlength="128"></div>
       <div class="field"><label for="db_password">Database password</label>
@@ -167,10 +167,10 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
     <div class="form-actions">
       <button type="submit" class="primary" <?= !$ready?'disabled':'' ?>>Install DUP</button>
     </div>
-    <p class="muted">This action creates the initial database schema and administrator account, writes a private configuration file, then permanently closes the installer.</p>
+    <p class="muted">This action creates the database if needed, initializes the schema and administrator account, writes a private configuration file, then permanently closes the installer.</p>
   </form>
 <?php endif; ?>
-<footer class="app-footer">DUP 0.7.5 · <a href="assets/license.txt">MIT License</a></footer>
+<footer class="app-footer">DUP 0.7.6 · <a href="assets/license.txt">MIT License</a></footer>
 </div>
 </body>
 </html>

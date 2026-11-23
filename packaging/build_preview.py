@@ -46,7 +46,8 @@ def payload() -> dict[str,bytes]:
         raise RuntimeError("Symfony vendor dependencies are not installed")
     required=("public/index.php","bin/console","config/services.yaml",
               "src/Kernel.php","migrations/Version20261123000100.php",
-              "src/Core/Setup/HostEnvironment.php","src/Core/Setup/DatabaseDiagnostic.php")
+              "src/Core/Setup/HostEnvironment.php","src/Core/Setup/DatabaseDiagnostic.php",
+              "src/Core/Setup/DatabaseProvisioner.php")
     if not all(k in result for k in required):
         raise RuntimeError("Missing mandatory DUP foundation files")
     # A fresh installation needs only database and administrator credentials.
@@ -59,6 +60,12 @@ def payload() -> dict[str,bytes]:
         raise RuntimeError("Obsolete first-run setup requirements were reintroduced")
     if b"ini_get('open_basedir')" not in browser:
         raise RuntimeError("Directory browser must honour PHP filesystem restrictions")
+    if b"DatabaseProvisioner::create(" not in installer or b"driverCode($ex)!==1049" not in installer:
+        raise RuntimeError("Missing database must be created during first-run setup")
+    if b"listTableNames()" not in installer or b"listViews()" not in installer:
+        raise RuntimeError("Installer must reject pre-existing schema objects")
+    if b"Database name (new or empty)" not in setup:
+        raise RuntimeError("Installer must explain automatic database creation")
     if "bin/setup-token.php" in result:
         raise RuntimeError("Obsolete setup code command must not ship")
     return result
@@ -88,6 +95,6 @@ def build(target: Path) -> None:
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
-    parser.add_argument("--output",type=Path,default=ROOT/"dist"/"DUP-Web-0.7.5-Preview.zip")
+    parser.add_argument("--output",type=Path,default=ROOT/"dist"/"DUP-Web-0.7.6-Preview.zip")
     args=parser.parse_args()
     build(args.output)

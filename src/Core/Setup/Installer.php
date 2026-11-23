@@ -145,31 +145,60 @@ final class Installer
                 }
             }
             $lastConnectionError=null;
+            $creationError=null;
             foreach($candidates as $candidate) {
                 $attemptConnection=null;
+                $missingDatabase=false;
                 try {
                     $attemptConnection=DriverManager::getConnection($candidate['options']);
-                    $attemptConnection->executeQuery('SELECT 1')->fetchOne();
+                    try {
+                        $attemptConnection->executeQuery('SELECT 1')->fetchOne();
+                    } catch(\Throwable $ex) {
+                        if($driver!=='mysql' ||
+                           DatabaseDiagnostic::driverCode($ex)!==1049) throw $ex;
+                        // The requested schema is missing. Authenticate against
+                        // the server without selecting a schema and CREATE it.
+                        // Never reset or overwrite an existing database.
+                        $missingDatabase=true;
+                        try {
+                            DatabaseProvisioner::create($candidate['options'],$name);
+                        } catch(\Throwable $creationFailure) {
+                            // Another setup may have created the schema first;
+                            // reconnect and inspect it before making any writes.
+                            if(DatabaseDiagnostic::driverCode($creationFailure)!==1007) {
+                                $creationError=DatabaseDiagnostic::explainCreation($creationFailure);
+                                DatabaseDiagnostic::logFailure(
+                                    $creationFailure,$candidate['transport'].' (create database)');
+                                throw $creationFailure;
+                            }
+                        }
+                        $attemptConnection->close();
+                        $attemptConnection=DriverManager::getConnection($candidate['options']);
+                        $attemptConnection->executeQuery('SELECT 1')->fetchOne();
+                    }
                     $connection=$attemptConnection;
                     $url=$candidate['url'];
                     break;
                 } catch(\Throwable $ex) {
                     $lastConnectionError=$ex;
                     $transport=$candidate['transport'];
-                    DatabaseDiagnostic::logFailure($ex,$transport);
+                    if(!$missingDatabase) DatabaseDiagnostic::logFailure($ex,$transport);
                     if($attemptConnection instanceof Connection) $attemptConnection->close();
-                    // A wrong password, unknown database or denied privileges
-                    // cannot be fixed by silently changing the transport.
-                    if(!in_array(DatabaseDiagnostic::driverCode($ex),
-                        [null,2002,2003,2005],true)) break;
+                    // Try a different transport if TCP authentication or
+                    // connectivity fails, or if creating the schema fails here.
+                    if(!$missingDatabase && !in_array(DatabaseDiagnostic::driverCode($ex),
+                        [null,2002,2003,2005,1044,1045,1698],true)) break;
                 }
             }
             if(!($connection instanceof Connection)) {
-                throw new \DomainException(DatabaseDiagnostic::explain(
-                    $lastConnectionError,$isSynology,$transport),0,$lastConnectionError);
+                throw new \DomainException($creationError ??
+                    DatabaseDiagnostic::explain($lastConnectionError,$isSynology,$transport),
+                    0,$lastConnectionError);
             }
             try {
-                $existingTables=$connection->createSchemaManager()->listTableNames();
+                $schemaManager=$connection->createSchemaManager();
+                $existingTables=$schemaManager->listTableNames();
+                $existingViews=$schemaManager->listViews();
             } catch(\Throwable $ex) {
                 DatabaseDiagnostic::logFailure($ex,'schema inspection');
                 throw new \DomainException('Connected to the database, but could not inspect its tables. '.
@@ -177,8 +206,9 @@ final class Installer
                     (($code=DatabaseDiagnostic::driverCode($ex))===null?'': ' (MariaDB error '.$code.')').
                     '.',0,$ex);
             }
-            if($existingTables!==[])
-                throw new \DomainException('The selected database must be empty. Existing data will never be overwritten.');
+            if($existingTables!==[] || $existingViews!==[])
+                throw new \DomainException('The selected database contains tables or views. '.
+                    'Choose a new database name. DUP never overwrites existing data.');
             $config=[
                 'APP_ENV'=>'prod',
                 'APP_DEBUG'=>'0',
