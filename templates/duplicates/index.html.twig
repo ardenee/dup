@@ -42,6 +42,7 @@
     <div class="empty-state">No duplicate groups were found in the latest completed scan for this selection.</div>
   {% else %}
     {% include 'duplicates/_pager.html.twig' %}
+    <p class="dup-scroll-hint">Scroll the table sideways to view hashes and file actions.</p>
     <div class="table-wrap dup-file-table-wrap">
       <table class="dup-file-table">
         <colgroup>
