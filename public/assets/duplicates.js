@@ -7,6 +7,7 @@ if (browser) {
   const selected = new Map();
   const message = browser.querySelector('[data-dup-message]');
   const copyButton = browser.querySelector('[data-dup-copy]');
+  const renameButton = browser.querySelector('[data-dup-rename]');
   const selectedCount = browser.querySelector('[data-dup-selected-count]');
 
   function tell(text) {
@@ -16,6 +17,7 @@ if (browser) {
   function syncSelected() {
     if (selectedCount) selectedCount.textContent = selected.size.toLocaleString();
     if (copyButton) copyButton.disabled = selected.size === 0;
+    if (renameButton) renameButton.disabled = selected.size === 0;
   }
 
   function restoreSelections(group) {
@@ -169,6 +171,31 @@ if (browser) {
     });
     syncSelected();
     tell('Selection inverted for the files currently visible.');
+  });
+
+  renameButton?.addEventListener('click', () => {
+    if (!selected.size) return;
+    if (selected.size > 50) {
+      tell('Select at most 50 files for a rename batch.');
+      return;
+    }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = browser.dataset.bulkRenameUrl;
+    const token = document.createElement('input');
+    token.type = 'hidden';
+    token.name = '_token';
+    token.value = browser.dataset.bulkRenameToken;
+    form.appendChild(token);
+    for (const id of selected.keys()) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'files[]';
+      input.value = id;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
   });
 
   copyButton?.addEventListener('click', async () => {

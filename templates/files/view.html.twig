@@ -1,0 +1,44 @@
+{% extends 'base.html.twig' %}
+{% block title %}View {{ file.filename }}{% endblock %}
+{% block section %}Files / Viewer{% endblock %}
+{% block page_styles %}
+<link rel="stylesheet" href="{{ asset('assets/file-viewer.css') }}?v=1">
+{% endblock %}
+{% block body %}
+<div class="page-heading">
+  <div><div class="eyebrow">INDEXED FILE</div><h1>File viewer</h1>
+  <p class="muted">Metadata and a safe preview of the file in its latest completed scan.</p></div>
+  <div class="profile-page-actions">
+    <a class="secondary link-button" href="{{ path('app_search',{q:file.filename}) }}">Search filename</a>
+    <a class="primary link-button" href="{{ path('app_file_download',{id:file.id}) }}">Download</a>
+  </div>
+</div>
+<section class="panel">
+  <div class="panel-heading"><h2 class="file-viewer-title">{{ file.filename }}</h2>
+    <span class="muted">{{ file.profile_name }}</span></div>
+  <div class="panel-content">
+    <dl class="file-viewer-details">
+      <div><dt>Location</dt><dd><code>{{ file.directory }}{{ file.directory ends with '/' or file.directory ends with '\\' ? '' : '/' }}{{ file.filename }}</code></dd></div>
+      <div><dt>Size</dt><dd>{{ file.size_bytes|number_format }} bytes</dd></div>
+      <div><dt>Modified (UTC)</dt><dd>{{ file.mtime_epoch|date('Y-m-d H:i:s','UTC') }}</dd></div>
+      <div><dt>Hash</dt><dd><code>{{ file.hash_value ?? 'Not calculated' }}</code></dd></div>
+      <div><dt>Matching method</dt><dd>{{ file.hash_method }}</dd></div>
+    </dl>
+  </div>
+</section>
+<section class="panel">
+  <div class="panel-heading"><h2>Preview</h2><span class="muted">Read-only</span></div>
+  <div class="panel-content">
+    {% if file.preview_type == 'image' %}
+      <img class="file-preview-image" src="{{ path('app_file_inline',{id:file.id}) }}" alt="{{ file.filename }}">
+    {% elseif file.preview_type == 'pdf' %}
+      <iframe class="file-preview-pdf" src="{{ path('app_file_inline',{id:file.id}) }}" title="PDF preview: {{ file.filename }}"></iframe>
+    {% elseif file.preview_type == 'text' %}
+      {% if truncated %}<p class="muted">Showing the first 1 MiB. Download the file for the complete contents.</p>{% endif %}
+      <pre class="file-preview-text">{{ preview_text }}</pre>
+    {% else %}
+      <p>No inline preview is enabled for this extension or file size. You can download the file.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

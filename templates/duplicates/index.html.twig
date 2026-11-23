@@ -21,7 +21,9 @@
     <noscript><button class="secondary" type="submit">Filter</button></noscript>
   </form>
 </div>
-<section class="panel dup-browser" id="duplicate-groups">
+<section class="panel dup-browser" id="duplicate-groups"
+  data-bulk-rename-url="{{ path('app_rename_selected') }}"
+  data-bulk-rename-token="{{ csrf_token('rename_selected') }}">
   <div class="dup-toolbar">
     <div class="dup-overview">
       <strong>{{ totals.total_groups|number_format }}</strong> groups
@@ -36,6 +38,7 @@
       <span class="dup-control-divider"></span>
       <button type="button" data-dup-invert>Invert selection</button>
       <button type="button" data-dup-copy disabled>Copy paths (<span data-dup-selected-count>0</span>)</button>
+      <button type="button" data-dup-rename disabled>Rename selected</button>
     </div>
   </div>
   {% if groups is empty %}
@@ -92,6 +95,8 @@
               </td>
               <td class="dup-file-actions">
                 {% if group.first_file_id and group.first_error_code is null %}
+                  <a href="{{ path('app_file_view',{id:group.first_file_id}) }}" class="dup-action-link">View</a>
+                  <a href="{{ path('app_file_download',{id:group.first_file_id}) }}" class="dup-action-link">Download</a>
                   <a href="{{ path('app_rename_file',{id:group.first_file_id}) }}" class="dup-action-link">Rename</a>
                   {% if group.rules_version == 1 and group.file_count > 1 %}
                     <form method="post" action="{{ path('app_action_preview',{id:group.first_file_id}) }}">

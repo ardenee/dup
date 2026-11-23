@@ -8,6 +8,8 @@ $controllers = [
     \App\Module\Renaming\Controller\RenameController::class,
     \App\Module\Profiles\Controller\ProfilesController::class,
     \App\Module\Jobs\Controller\JobsController::class,
+    \App\Module\Profiles\Controller\ProfileTypesController::class,
+    \App\Module\Files\Controller\FileViewerController::class,
 ];
 foreach($controllers as $controller) {
     if(!class_exists($controller))

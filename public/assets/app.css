@@ -224,3 +224,9 @@ textarea{font:inherit;color:var(--ink)}
 @media(max-width:620px){.main:has(#ignored-folders) .form-panel>.panel-content{padding:19px}}
 
 .profile-page-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+
+.preset-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.preset-form .field{margin:0}.preset-form input{width:100%;min-height:44px}
+.preset-form .form-actions{grid-column:1/-1;display:flex;gap:9px}
+.preset-form p.muted{font-size:12px;line-height:1.55;margin-top:8px}
+@media(max-width:740px){.preset-form{grid-template-columns:minmax(0,1fr)}}

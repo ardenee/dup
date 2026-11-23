@@ -1,0 +1,31 @@
+{% extends 'base.html.twig' %}
+{% block title %}Rename selected files{% endblock %}
+{% block section %}Files / Rename selected{% endblock %}
+{% block body %}
+<div class="page-heading">
+ <div><div class="eyebrow">FILE MANAGEMENT</div><h1>Rename selected files</h1>
+ <p class="muted">Review each proposed filename. Changes run in a background job with collision checks and an audit trail.</p></div>
+ <a href="{{ path('app_duplicates',{profile:profile}) }}" class="secondary link-button">Back to duplicates</a>
+</div>
+<section class="panel">
+ <div class="panel-heading"><h2>{{ files|length }} selected files</h2><span class="muted">No files are modified on this page</span></div>
+ <form method="post" action="{{ path('app_rename_selected_queue') }}">
+  <input type="hidden" name="_token" value="{{ csrf_token('queue_selected_renames') }}">
+  <input type="hidden" name="profile" value="{{ profile }}">
+  <div class="table-wrap"><table>
+   <thead><tr><th>Current path</th><th>New filename</th><th>Size</th></tr></thead>
+   <tbody>{% for file in files %}
+     <tr>
+      <td><code>{{ file.directory }} / {{ file.filename }}</code></td>
+      <td><input type="text" name="names[{{ file.id }}]" required maxlength="255" value="{{ file.filename }}" aria-label="New filename for {{ file.filename }}"></td>
+      <td>{{ file.size_bytes|number_format }} bytes</td>
+     </tr>
+   {% endfor %}</tbody>
+  </table></div>
+  <div class="result-toolbar">
+   <span class="muted">Edit at least one filename. Unchanged filenames will be skipped automatically.</span>
+   <button class="primary" type="submit">Confirm and queue renames</button>
+  </div>
+ </form>
+</section>
+{% endblock %}

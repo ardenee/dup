@@ -17,7 +17,9 @@ DUP is a web-based duplicate-file scanner and manager for Windows, Linux and Syn
 - Provides general/duplicate/quarantined-file index searches, duplicate-group browsing with collapsed inline file lists, independent file-list and group pagination, reports, historic runs and CSV exports. Profiles remain for scan configuration and jobs; browse matching files in Duplicates.
 - Shows worker/queue diagnostics and authenticated system status
 - Supports explicitly confirmed, reversible quarantine and restore with hash verification and an audit history
-- Provides filename cleanup previews, selected-file batch renaming, and manual single-file renaming through the audited background-job worker, without overwriting existing paths
+- Provides filename cleanup previews, selected-file batch renaming directly from duplicate selections (with confirmation), and manual single-file renaming through the audited background-job worker, without overwriting existing paths
+- Includes indexed file viewing, read-only image/PDF/text previews and streamed downloads, rejecting stale scan records and symbolic links
+- Allows administrators to add, edit or remove unused file-type presets without resetting scan history
 
 Permanent deletion is deliberately unavailable pending further safety and recovery testing. General file moves, full legacy moved-file history, symbolic-link actions and inline file previews are not yet restored. The new rename operation supports selected batches of up to 50 files; this is not yet complete parity with every legacy rename option.
 

@@ -1,0 +1,51 @@
+{% extends 'base.html.twig' %}
+{% block title %}File-type presets{% endblock %}
+{% block section %}Profiles / File types{% endblock %}
+{% block body %}
+<div class="page-heading">
+  <div><div class="eyebrow">PROFILE CONFIGURATION</div><h1>File-type presets</h1>
+  <p class="muted">Manage reusable extension filters for scan profiles. Changes apply to future scans; existing results are preserved.</p></div>
+  <a class="secondary link-button" href="{{ path('app_profiles') }}">Back to profiles</a>
+</div>
+<section class="panel">
+ <div class="panel-heading"><h2>Configured types</h2><span class="muted">{{ types|length }} presets</span></div>
+ <div class="table-wrap"><table><thead><tr><th>Preset</th><th>Extensions</th><th>Profiles using</th><th>Actions</th></tr></thead>
+ <tbody>{% for preset in types %}
+  <tr>
+   <td><strong>{{ preset.name }}</strong></td>
+   <td><code>{{ preset.extensions is empty ? 'All file types' : preset.extensions }}</code></td>
+   <td>{{ preset.used_by }}</td>
+   <td><div class="profile-actions">
+     <a class="secondary link-button" href="{{ path('app_profile_types',{edit:preset.id}) }}">Edit</a>
+     {% if preset.used_by == 0 %}
+       <form method="post" action="{{ path('app_profile_type_delete',{id:preset.id}) }}" onsubmit="return confirm('Delete this unused preset?')">
+        <input type="hidden" name="_token" value="{{ csrf_token('delete_profile_type_' ~ preset.id) }}">
+        <button class="secondary" type="submit">Delete</button>
+       </form>
+     {% else %}<span class="muted">In use</span>{% endif %}
+   </div></td>
+  </tr>{% else %}
+  <tr><td colspan="4">No presets yet.</td></tr>
+ {% endfor %}</tbody></table></div>
+</section>
+<section class="panel">
+ <div class="panel-heading"><h2>{{ editing ? 'Edit preset' : 'Add preset' }}</h2></div>
+ <div class="panel-content">
+  <form method="post" action="{{ path('app_profile_type_save') }}" class="preset-form">
+   <input type="hidden" name="_token" value="{{ csrf_token('save_profile_type') }}">
+   {% if editing %}<input type="hidden" name="id" value="{{ editing.id }}">{% endif %}
+   <div class="field"><label for="preset-name">Name</label>
+     <input id="preset-name" type="text" name="name" maxlength="100" required value="{{ editing ? editing.name : '' }}" placeholder="e.g. Audio files">
+   </div>
+   <div class="field"><label for="preset-ext">Extensions (comma-separated)</label>
+     <input id="preset-ext" name="extensions" type="text" maxlength="3000" value="{{ editing ? editing.extensions : '' }}" placeholder="mp3,m4a,m4b,flac,ogg">
+     <p class="muted">Use extensions without dots, such as mp3,m4b,flac. Leave blank or enter * for all files.</p>
+   </div>
+   <div class="form-actions">
+    <button class="primary" type="submit">{{ editing ? 'Save changes' : 'Add preset' }}</button>
+    {% if editing %}<a class="secondary link-button" href="{{ path('app_profile_types') }}">Cancel</a>{% endif %}
+   </div>
+  </form>
+ </div>
+</section>
+{% endblock %}

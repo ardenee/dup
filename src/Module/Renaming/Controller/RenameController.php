@@ -86,6 +86,70 @@ final class RenameController extends AbstractController
         }
     }
 
+    /**
+     * Original DUP bulk rename from selected file rows. Preview is read-only;
+     * every target name is explicitly confirmed before queueing.
+     */
+    #[Route('/rename/selected',name:'app_rename_selected',methods:['POST'])]
+    public function selected(Request $request,RenameService $renames): Response
+    {
+        if(!$this->isCsrfTokenValid('rename_selected',
+            (string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid form token.');
+        $ids=$request->request->all('files');
+        if(count($ids)<1 || count($ids)>50)
+            throw $this->createNotFoundException('Select between 1 and 50 files to rename.');
+        $files=[];$profile=0;
+        foreach($ids as $value) {
+            $id=filter_var($value,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+            if($id===false || isset($files[$id]))
+                throw $this->createNotFoundException('Invalid or repeated file selection.');
+            $file=$renames->file($id);
+            if(!$file || $file['error_code']!==null || (int)$file['is_ignored']!==0)
+                throw $this->createNotFoundException('A selected file is no longer in the latest scan.');
+            if($profile!==0 && $profile!==(int)$file['profile_id'])
+                throw $this->createNotFoundException('Select files from one scan profile at a time.');
+            $profile=(int)$file['profile_id'];
+            $files[$id]=$file;
+        }
+        return $this->render('rename/selected.html.twig',[
+            'files'=>$files,'profile'=>$profile
+        ]);
+    }
+
+    #[Route('/rename/selected/queue',name:'app_rename_selected_queue',methods:['POST'])]
+    public function queueSelected(Request $request,RenameService $renames): Response
+    {
+        if(!$this->isCsrfTokenValid('queue_selected_renames',
+            (string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid form token.');
+        $profile=$this->number($request->request->get('profile'));
+        $names=$request->request->all('names');
+        if(!$names || count($names)>50 || $profile<1)
+            throw $this->createNotFoundException('Invalid selection.');
+        $ids=[];$overrides=[];
+        foreach($names as $key=>$value) {
+            $id=filter_var($key,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+            if($id===false || !is_string($value) || strlen($value)>255)
+                throw $this->createNotFoundException('Invalid filename selection.');
+            $file=$renames->file($id);
+            if(!$file || (int)$file['profile_id']!==$profile ||
+               $file['error_code']!==null)
+                throw $this->createNotFoundException('Selected scan record has changed.');
+            if(trim($value)===(string)$file['filename']) continue; // unchanged entry
+            $ids[]=$id;
+            $overrides[$id]=$value;
+        }
+        try {
+            $job=$renames->queue($profile,$this->actor(),$ids,'',0,0,false,$overrides);
+            $this->addFlash('success','Queued file rename job #'.$job.'. Existing files cannot be overwritten.');
+            return $this->redirectToRoute('app_jobs');
+        } catch(\DomainException $ex) {
+            $this->addFlash('warning',$ex->getMessage());
+            return $this->redirectToRoute('app_duplicates',['profile'=>$profile]);
+        }
+    }
+
     #[Route('/rename/file/{id<\\d+>}',name:'app_rename_file',methods:['GET','POST'])]
     public function renameFile(int $id,Request $request,RenameService $renames): Response
     {

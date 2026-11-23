@@ -45,7 +45,7 @@
   {% endif %}
 </section>
 <section class="panel">
-  <div class="panel-heading"><h2>File-type presets</h2><span class="muted">{{ types|length }} presets</span></div>
+  <div class="panel-heading"><h2>File-type presets</h2><a class="secondary link-button" href="{{ path('app_profile_types') }}">Manage presets ({{ types|length }})</a></div>
   <div class="table-wrap"><table><thead><tr><th>Name</th><th>Extensions</th></tr></thead><tbody>
     {% for preset in types %}<tr><td>{{ preset.name }}</td>
       <td><code>{{ preset.extensions is empty ? 'All file types' : preset.extensions }}</code></td></tr>{% endfor %}

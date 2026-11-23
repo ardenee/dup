@@ -17,6 +17,8 @@
     <td class="dup-file-hash">{{ hash(file.hash_value) }}</td>
     <td class="dup-file-actions">
       {% if file.error_code is null %}
+        <a class="dup-action-link" href="{{ path('app_file_view',{id:file.file_entry_id}) }}">View</a>
+        <a class="dup-action-link" href="{{ path('app_file_download',{id:file.file_entry_id}) }}">Download</a>
         <a class="dup-action-link" href="{{ path('app_rename_file',{id:file.file_entry_id}) }}">Rename</a>
         {% if group.rules_version == 1 and group.file_count > 1 %}
           <form method="post" action="{{ path('app_action_preview',{id:file.file_entry_id}) }}">
