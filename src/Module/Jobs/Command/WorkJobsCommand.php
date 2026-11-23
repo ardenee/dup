@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Module\Jobs\Command;
 
 use App\Module\Jobs\Service\JobStore;
+use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Scans\Service\ScanEngine;
 use App\Module\Duplicates\Service\IgnoreRebuildWorker;
 use Doctrine\DBAL\Connection;
@@ -12,56 +13,95 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name:'dup:jobs:work',description:'Process queued DUP scan jobs using a PHP CLI worker')]
+#[AsCommand(name:'dup:jobs:work',description:'Process DUP jobs (once for schedulers or continuously for system services)')]
 final class WorkJobsCommand extends Command
 {
+    private bool $stopping=false;
+
     public function __construct(
         private readonly JobStore $jobs,
         private readonly ScanEngine $scanner,
         private readonly IgnoreRebuildWorker $rebuild,
-        private readonly Connection $db
+        private readonly Connection $db,
+        private readonly WorkerHeartbeat $heartbeat
     ) {parent::__construct();}
 
     protected function configure(): void
     {
         $this->addOption('max-jobs',null,InputOption::VALUE_REQUIRED,
-            'Maximum jobs to process in this invocation (cron-friendly)',1);
-        $this->addOption('job',null,InputOption::VALUE_REQUIRED,'Process one specific queued job',null);
+            'Jobs to process per cycle (once by default)',1);
+        $this->addOption('job',null,InputOption::VALUE_REQUIRED,'One specific queued job ID',null);
+        $this->addOption('loop',null,InputOption::VALUE_NONE,
+            'Keep processing jobs, suitable for Windows/Linux/DSM service managers');
+        $this->addOption('idle-sleep',null,InputOption::VALUE_REQUIRED,
+            'Seconds to wait between loop cycles (1-60)',5);
+        $this->addOption('max-cycles',null,InputOption::VALUE_REQUIRED,
+            'Optional finite cycle count for health checks; 0 means unlimited',0);
     }
 
     protected function execute(InputInterface $input,OutputInterface $output): int
     {
         $max=filter_var($input->getOption('max-jobs'),FILTER_VALIDATE_INT,
             ['options'=>['min_range'=>1,'max_range'=>100]]);
-        $jobRaw=$input->getOption('job');
-        $jobId=$jobRaw===null?null:filter_var($jobRaw,FILTER_VALIDATE_INT,
+        $raw=$input->getOption('job');
+        $jobId=$raw===null?null:filter_var($raw,FILTER_VALIDATE_INT,
             ['options'=>['min_range'=>1]]);
-        if($max===false || $jobId===false) {
-            $output->writeln('<error>Invalid job limit or ID.</error>');
+        $delay=filter_var($input->getOption('idle-sleep'),FILTER_VALIDATE_INT,
+            ['options'=>['min_range'=>1,'max_range'=>60]]);
+        $maxCycles=filter_var($input->getOption('max-cycles'),FILTER_VALIDATE_INT,
+            ['options'=>['min_range'=>0,'max_range'=>100000]]);
+        $loop=(bool)$input->getOption('loop');
+        if($max===false || $jobId===false || $delay===false || $maxCycles===false ||
+           (!$loop && $maxCycles!==0) || ($loop && $jobId!==null)) {
+            $output->writeln('<error>Invalid job worker options.</error>');
             return Command::INVALID;
         }
-        $recovered=$this->jobs->recoverStalled(120);
-        if($recovered) $output->writeln('<comment>Marked '.$recovered.' stale job(s) failed.</comment>');
-        $processed=0;$errors=0;
-        while($processed<$max) {
-            $job=$this->jobs->claimNext($jobId);
-            if(!$job) break;
-            $id=(int)$job['id'];
-            $output->writeln('<info>Running '.$job['kind'].' job #'.$id.'...</info>');
-            try {
-                if($job['kind']==='rebuild-duplicates') $this->rebuild->run($job);
-                elseif($job['kind']==='scan') $this->scanner->run($job);
-                else throw new \LogicException('Unknown job type.');
-            } catch(\Throwable $ex) {
-                $output->writeln('<error>Job #'.$id.' failed: '.$ex->getMessage().'</error>');
-            }
-            $state=(string)$this->db->fetchOne('SELECT state FROM jobs WHERE id=?',[$id]);
-            $output->writeln('Job #'.$id.' finished with state: '.$state);
-            if($state==='failed') $errors++;
-            $processed++;
-            if($jobId!==null) break;
+        $this->stopping=false;
+        if($loop && function_exists('pcntl_async_signals') && function_exists('pcntl_signal')) {
+            pcntl_async_signals(true);
+            pcntl_signal(SIGTERM,fn() => $this->stopping=true);
+            pcntl_signal(SIGINT,fn() => $this->stopping=true);
         }
-        $output->writeln('Processed: '.$processed.', failures: '.($errors>0?'yes':'none'));
-        return $errors>0?Command::FAILURE:Command::SUCCESS;
+        $cycles=0;
+        $failed=false;
+        try {
+        do {
+            $this->heartbeat->touch();
+            $recovered=$this->jobs->recoverStalled(120);
+            if($recovered)
+                $output->writeln('<comment>Marked '.$recovered.' stalled job(s) failed.</comment>');
+            $processed=0;
+            while($processed<$max && !$this->stopping) {
+                $job=$this->jobs->claimNext($jobId);
+                if(!$job) break;
+                $id=(int)$job['id'];
+                $output->writeln('<info>Running '.$job['kind'].' job #'.$id.'...</info>');
+                try {
+                    match($job['kind']) {
+                        'scan' => $this->scanner->run($job),
+                        'rebuild-duplicates' => $this->rebuild->run($job),
+                        default => throw new \LogicException('Unknown job type.')
+                    };
+                } catch(\Throwable $ex) {
+                    $output->writeln('<error>Job #'.$id.' failed: '.$ex->getMessage().'</error>');
+                    $failed=true;
+                }
+                $state=(string)$this->db->fetchOne('SELECT state FROM jobs WHERE id=?',[$id]);
+                $output->writeln('Job #'.$id.' finished with state: '.$state);
+                if($state==='failed') $failed=true;
+                $processed++;
+                if($jobId!==null) break;
+            }
+            $cycles++;
+            if(!$loop || $this->stopping || ($maxCycles!==0 && $cycles>=$maxCycles)) break;
+            // Do not spin when the queue is empty, and provide fair pacing
+            // even when another service continuously submits work.
+            sleep($processed===0?$delay:1);
+        } while(!$this->stopping);
+        } finally {
+            $this->heartbeat->stop();
+        }
+        if(!$loop) $output->writeln('Processed: '.$processed.', failures: '.($failed?'yes':'none'));
+        return $failed?Command::FAILURE:Command::SUCCESS;
     }
 }

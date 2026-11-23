@@ -1,37 +1,86 @@
 # DUP v2
 
-A modular PHP duplicate-file manager for Synology DSM and generic PHP hosts.
+DUP is a PHP duplicate-file scanner and manager for **Windows web servers, Linux web servers, and Synology DSM**. The PHP application, database schema, web interface and job worker are shared. Synology is an optional deployment adapter—not the application's operating system.
 
-**Development preview — not production-ready.** The Symfony application, fresh database,
-profiles, a database-backed CLI scan worker, SHA-256 duplicate detection, ignored-folder
-policies, job monitoring, and read-only duplicate results are implemented and tested on
-disposable DEV folders. The authenticated NAS folder picker and background ignore-rule
-recalculation are implemented. A generic ZIP and isolated DSM SPK preview builder exist,
-but **DSM installation and the worker service have not been tested on a NAS**. A browser-based
-first-run installer, file actions, reporting and end-to-end DSM tests remain to be built.
-Do not replace DUP v1 yet.
+**Development preview, not a production release.** DUP v1 stays on GitHub `main` and the live DSM installation; v2 is developed on `v2/rebuild`.
 
-## Design
+## Features implemented
 
-- Symfony 7.4 LTS, Twig, Doctrine DBAL/Migrations, Symfony Security, and Monolog.
-- Independent modules for Accounts, Profiles, Scans, Jobs, Duplicates, Dashboard and System.
-- **One** durable, DB-backed job queue, processed by a PHP CLI worker; no Redis,
-  external executable or secondary Messenger queue.
-- MariaDB 10 / MySQL 8 is the intended production database. SQLite powers isolated
-  development tests. InnoDB tables are used on MariaDB.
-- Every scan creates its own immutable run: a failed/cancelled scan does not overwrite
-  the previous completed results.
-- All extension-eligible files are indexed, including files under `@eaDir` and
-  `#recycle`, but ignored folders are excluded from duplicate matches.
-- Streamed SHA-256 verifies potential duplicates of the same size; a size-only
-  mode produces **unverified candidate groups**, never presented as verified content.
-- Large-group members and duplicate-group lists use database cursor pagination.
-- All web requests must use **public/** as document root. The project root,
-  source, private configuration, vendor, job logs and databases must not be public.
+- Modular Symfony 7.4 LTS and Twig interface; Doctrine DBAL/Migrations, Symfony Security and Monolog
+- Fresh database, administrator, profile types, allowed directory roots, directory chooser, exact folder-name ignore rules
+- Persistent file scans and background jobs with progress, heartbeats, cancellation and stalled-job recovery
+- Streamed SHA-256 duplicate verification; size-only matching explicitly marked *unverified*
+- Indexed files from ignored directories retained; changing ignore rules regenerates duplicate groups without rescanning
+- Snapshot preservation: a failed scan or recalculation never destroys the last completed results
+- Read-only duplicate browser with indexed keyset pagination, job history, events and system diagnostics
+- Private, one-time pairing-code setup with PHP extension, storage, database and admin checks
 
-## DEV setup
+**Not implemented:** file actions, a complete report/export workspace, automatic upgrades and validated installation on an actual Linux/DSM host. Do not replace a production DUP installation yet.
 
-Install PHP 8.2+ and Composer on the development machine, then:
+## Deployment — all platforms
+
+The **generic web ZIP is the primary application**. It contains all PHP dependencies. Composer, Node.js, Docker, systemd, Task Scheduler and Synology packages are **not required by the application itself**.
+
+Requirements: PHP **8.2+** with `pdo`, `mbstring`, `intl`, `openssl`, `xml`, `ctype`, `iconv` and `json`. Enable `pdo_mysql` for MariaDB/MySQL (recommended) or `pdo_sqlite` for a small local/test database. MySQL 8/MariaDB 10 are supported targets; production database integration testing is still pending.
+
+1. Unpack the generic ZIP to a **private application directory** on the web server. Create a dedicated, initially empty database and database user with schema creation permissions. The application will not overwrite populated databases.
+2. Point the web server's **document root to the application's `public/` directory**. Never expose `vendor/`, `src/`, `migrations/`, `config/`, `var/` or `.env.local` over HTTP.
+3. Open **`https://your-site/setup.php`** (or `http://127.0.0.1:port/setup.php` for localhost development). Obtain the one-time pairing code from the private `var/setup.token` file using your server's file manager or the CLI command below.
+4. Fill out the single setup form: empty database, administrator and allowed scan directories. It creates the schema, private `.env.local`, admin hash and `var/setup.complete`, then invalidates the pairing code.
+5. Sign in, create a profile and configure a job worker using the **same PHP command on every platform**.
+
+```bash
+php bin/setup-token.php
+```
+
+Only a fresh installation accepts setup. Setup requires HTTPS for non-local requests. The installer will not overwrite an existing `.env.local`, any populated database, or installed administrator.
+
+`DUP_ALLOWED_SCAN_ROOTS` is a semicolon-separated list of directories that the PHP process can read. The setup wizard validates and saves them using the host's **actual filesystem paths**. A Windows machine may use `D:\\Music`, Linux `/srv/media`, DSM `/volume1/Music`. A Windows-mapped `Y:\\` drive on the development PC is *not* a path on a Synology PHP worker. The folder picker and job queue enforce these roots. No roots means no browsing/scanning.
+
+### Windows web servers
+
+Use PHP 8.2+ with IIS/FastCGI and URL Rewrite, or Apache. Set the site document root to `C:\\Sites\\dup-v2\\public` (or your chosen private path). The ZIP includes `public/web.config` for IIS and `public/.htaccess` for Apache. Configure the web server to serve PHP and give the application identity write permission to `var/`.
+
+### Linux web servers
+
+Use Apache/mod_rewrite or Nginx/PHP-FPM and a private install such as `/srv/dup-v2`. Set document root to `/srv/dup-v2/public`. A sample Nginx configuration is at `packaging/platform/linux-nginx.conf.example`. Give the PHP worker read access only to selected scan roots and writable access to the private runtime directory.
+
+### Synology DSM 7 (optional)
+
+The separate **preview SPK** uses package ID `dupv2` and a `/dup-v2/` Web Station portal. The existing DUP v1 package and `Y:\\dup` are unaffected. Its PHP application stays under the private package target; only `index.php`, `setup.php` and static assets are copied into Web Station. Its lifecycle scripts run the **same PHP job worker** as Windows/Linux, and store credentials/runtime state under the persistent package `var` directory.
+
+DSM Web Station, PHP 8.2+ and MariaDB 10 are required by the current SPK metadata. PHP profile backend IDs may differ across NAS models. **The SPK is not ready for installation:** Web Station portal resolution, PHP extension selection, permissions, setup, service start/stop, migration and upgrade behaviour still require live DSM testing.
+
+## Background jobs — all platforms
+
+For shared hosting, cron or Windows Task Scheduler can invoke one worker cycle at a time:
+
+```bash
+php bin/console dup:jobs:work --max-jobs=1 --env=prod
+```
+
+For a persistent service, use the cross-platform PHP loop:
+
+```bash
+php bin/console dup:jobs:work --loop --idle-sleep=5 --max-jobs=1 --env=prod
+```
+
+Windows Task Scheduler can launch the PHP CLI executable with that command and the application directory as its **working directory**. Linux may use systemd (sample: `packaging/platform/linux-systemd.service.example`), cron, Supervisor or another process manager. DSM's SPK provides its own service adapter. The application never assumes any one supervisor is installed.
+
+CLI management:
+
+```bash
+php bin/console dup:scan:queue 1
+php bin/console dup:jobs:cancel 1
+php bin/console dup:jobs:recover --after=120
+php bin/console dup:settings:ignore --names="@eaDir,#recycle"
+```
+
+`/system` reports the operating-system family and recent worker heartbeats, without coupling to an OS service API. `/health` exposes only a redacted ready/setup-required status.
+
+## Developer setup
+
+For local source development, install Composer on DEV (not on end-user hosts):
 
 ```bash
 composer install
@@ -40,75 +89,15 @@ php bin/console dup:admin:create admin
 php -S 127.0.0.1:8088 -t public public/index.php
 ```
 
-Create a new ignored `.env.local` or supply private environment values for
-`APP_SECRET`, `DATABASE_URL`, `APP_ENV` and `DUP_ALLOWED_SCAN_ROOTS`.
-For example: `DUP_ALLOWED_SCAN_ROOTS=/volume1/Music;/volume2/Archive`.
-Only these directories and their subfolders are accessible to the picker or scan workers;
-there are no default filesystem roots. Do not commit real credentials.
+Development database/administrator setup above is for an existing `.env.local`. For a *new extracted deployment*, use the one-page `public/setup.php` installer instead; its database and configuration must be empty.
 
-Start at `/profiles/new` to configure an allowed file type, source folder,
-move folder and hash mode. Scans do not start from HTTP requests; the web app
-only queues a job. Run this CLI command (or schedule it with cron):
-
-```bash
-php bin/console dup:jobs:work --max-jobs=1
-```
-
-Useful operational commands:
-
-```bash
-php bin/console dup:scan:queue 1
-php bin/console dup:jobs:cancel 1
-php bin/console dup:jobs:recover --after=120
-php bin/console dup:settings:ignore --names='@eaDir,#recycle'
-```
-
-The `/settings/ignored-folders` page lets an administrator change exact folder-name
-exclusions. The system queues a database-only regeneration of duplicate groups, using
-existing stored hashes and filenames; a filesystem rescan is not required. Historical
-completed scans are retained.
-
-To keep progress and cancel requests responsive, workers update their heartbeat
-at checkpoints. A terminated worker becomes failed after its heartbeat expires;
-it never silently overwrites a previous successful result.
-
-## Routes
-
-- `/health` — public status with private detail redacted
-- `/login` — login; remaining application routes require an administrator
-- `/` — dashboard (last successful snapshot per profile)
-- `/profiles`, `/profiles/new` — profile configuration and scan submission
-- `/api/folders` — authenticated, root-restricted NAS directory listing
-- `/settings/ignored-folders` — update ignore rules and queue duplicate recalculations
-- `/jobs`, `/api/jobs`, `/api/jobs/{id}/events` — job status and event history
-- `/duplicates`, `/duplicates/{id}` — read-only duplicate groups and file members
-- `/system` — authenticated PHP, schema and worker diagnostics
-
-## Testing and packaging
-
-On DEV, scan and recovery regression tests are kept offline (outside the public
-repository). A preview generic ZIP containing vendored PHP dependencies can be
-built with:
+## Build previews
 
 ```bash
 python packaging/build_preview.py
 python packaging/build_dsm_preview.py --version 0.1.0 --php-backend 11
 ```
 
-The DSM preview uses package ID `dupv2` and a separate `/dup-v2/` portal. It places
-Symfony source/vendor/config in the **private package target**, copying only the web
-front controller and static assets into `web_packages`. A package-managed, PHP-only
-worker loop can process queued jobs after private configuration is established.
-The PHP backend ID is configurable at build time; the default 11 is known to work
-with PHP 8.2 on the test DSM, but other DSM installations need verification.
+Both builders include vendored dependencies, verify the package contents, and exclude local databases and secrets. These are **preview artifacts only**, not releases. All regression fixtures and temporary outputs remain offline.
 
-**Neither artifact is a production installer yet.** The package generator checks
-file parity, excludes secrets and runtime databases, and leaves the old DUP portal
-untouched. Do not install the preview SPK until the first-run configuration,
-DSM service lifecycle, permissions and web routing have been tested. No Composer
-or Node.js should be required on a deployed web host.
-
-DUP v1 remains on GitHub `main` and the existing DSM installation at
-`Y:\dup`. DUP v2 is developed independently in branch `v2/rebuild`.
-No data migration is planned. A fresh DSM installation and explicit acceptance
-tests are required before any cutover.
+A fresh target database is used for DUP v2. There is no migration of v1 profiles or scan data.

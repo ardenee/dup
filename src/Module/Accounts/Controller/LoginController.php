@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace App\Module\Accounts\Controller;
+use App\Core\Setup\Installer;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -9,12 +10,13 @@ use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
 final class LoginController extends AbstractController
 {
     #[Route('/login',name:'app_login',methods:['GET','POST'])]
-    public function login(AuthenticationUtils $utils): Response
+    public function login(AuthenticationUtils $utils,Installer $installer): Response
     {
         if($this->getUser()) return $this->redirectToRoute('app_dashboard');
         return $this->render('accounts/login.html.twig',[
             'last_username'=>$utils->getLastUsername(),
-            'error'=>$utils->getLastAuthenticationError()
+            'error'=>$utils->getLastAuthenticationError(),
+            'setup_needed'=>!$installer->installed() && !$installer->hasPrivateConfig()
         ]);
     }
     #[Route('/logout',name:'app_logout',methods:['POST'])]

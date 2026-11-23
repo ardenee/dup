@@ -36,8 +36,14 @@ declare(strict_types=1);
 require '/var/packages/dupv2/target/app/public/index.php';
 """
     files["webapp/index.php"]=front
+    files["webapp/setup.php"]=b"""<?php
+// One-time bootstrap remains implemented in the platform-neutral private app.
+require '/var/packages/dupv2/target/app/public/setup.php';
+"""
     for name,data in source.items():
-        if name.startswith("public/") and name!="public/index.php":
+        if name.startswith("public/") and name not in {
+            "public/index.php","public/setup.php","public/.htaccess","public/web.config"
+        }:
             files["webapp/"+name[len("public/"):]]=data
     files["app/worker-loop.sh"]=(DSM/"worker-loop.sh").read_bytes().replace(b"\r\n",b"\n")
     return files
@@ -103,8 +109,8 @@ def build(output:Path,version:str,php_backend:int)->None:
            or key.startswith(("webapp/vendor/","webapp/src/","webapp/config/"))
            for key in web):
         raise RuntimeError("Private source or secrets exposed in DSM web directory")
-    if not {"webapp/index.php","webapp/assets/app.css","webapp/assets/folder-picker.js",
-            "app/vendor/autoload.php","app/bin/console","app/worker-loop.sh"} <= rebuilt.keys():
+    if not {"webapp/index.php","webapp/setup.php","webapp/assets/app.css","webapp/assets/folder-picker.js",
+            "app/vendor/autoload.php","app/public/setup.php","app/bin/console","app/worker-loop.sh"} <= rebuilt.keys():
         raise RuntimeError("Preview SPK missing required application runtime files")
     if b"DUP_ALLOWED_SCAN_ROOTS=" not in rebuilt["app/.env"]:
         raise RuntimeError("Missing setup safety default")

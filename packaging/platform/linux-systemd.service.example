@@ -1,0 +1,19 @@
+# Replace /srv/dup, the PHP path and the service account for your host.
+[Unit]
+Description=DUP v2 platform-neutral PHP job worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/dup
+Environment=APP_ENV=prod
+ExecStart=/usr/bin/php /srv/dup/bin/console dup:jobs:work --loop --idle-sleep=5 --max-jobs=1 --env=prod --no-ansi
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

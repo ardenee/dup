@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
-APP="${1:?private app directory required}"
-VAR="${2:?persistent package var directory required}"
+APP="${1:?private application directory required}"
+VAR="${2:?persistent runtime directory required}"
 umask 077
 
 find_php() {
@@ -22,19 +22,17 @@ find_php() {
     return 1
 }
 
-trap 'exit 0' TERM INT
 cd "$APP"
 while :; do
-    # Installation does not create credentials. The setup wizard must supply
-    # private APP_SECRET/DATABASE_URL before a worker may run.
-    if [ -r "$VAR/.env.local" ]; then
+    # The system-independent installer creates this marker and the private
+    # configuration. The DSM wrapper does not own schema or credentials.
+    if [ -r "$VAR/runtime/setup.complete" ] && [ -r "$VAR/.env.local" ]; then
         if PHP=$(find_php); then
-            APP_ENV=prod "$PHP" "$APP/bin/console" dup:jobs:work --max-jobs=1 --no-ansi ||
-                echo "DUP v2: worker invocation failed"
-        else
-            echo "DUP v2: no usable PHP 8.2+ CLI binary found"
-            sleep 60
+            # Replace the shell with the common PHP worker. DSM stop sends
+            # SIGTERM to the real worker PID; no orphaned child process.
+            exec "$PHP" "$APP/bin/console" dup:jobs:work --loop --idle-sleep=5 --max-jobs=1 --env=prod --no-ansi
         fi
+        echo "DUP v2: PHP 8.2+ CLI binary unavailable"
     fi
-    sleep 5
+    sleep 10
 done

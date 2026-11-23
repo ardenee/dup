@@ -11,6 +11,9 @@
     <div><dt>Database</dt><dd>{{ health.checks.database }}</dd></div>
     <div><dt>Database schema</dt><dd>{{ health.checks.schema }}</dd></div>
     <div><dt>Background worker</dt><dd>{{ health.checks.worker }}</dd></div>
+    <div><dt>Active worker processes</dt><dd>{{ health.checks.worker_processes }}</dd></div>
+    <div><dt>Last worker heartbeat</dt><dd>{{ health.checks.worker_last_heartbeat ?? 'Never' }} UTC</dd></div>
+    <div><dt>Host operating system</dt><dd>{{ health.checks.host_os }}</dd></div>
     <div><dt>Missing PHP extensions</dt><dd>{{ health.checks.required_extensions is empty ? 'None' : health.checks.required_extensions|join(', ') }}</dd></div>
   </dl>
 </div>

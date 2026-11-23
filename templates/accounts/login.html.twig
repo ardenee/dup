@@ -7,6 +7,7 @@
     <div class="eyebrow">DUP v2</div>
     <h1>Sign in</h1>
     <p class="muted">Access scanning, duplicate results and system diagnostics.</p>
+    {% if setup_needed %}<div class="notice">New installation? <a href="{{ app.request.basePath }}/setup.php">Complete first-run setup</a> using the server's private pairing code.</div>{% endif %}
     {% if error %}<div class="notice notice-error" role="alert">Invalid username or password.</div>{% endif %}
     <form method="post" action="{{ path('app_login') }}">
       <div class="field"><label for="username">Username</label>
