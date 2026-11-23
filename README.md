@@ -1,139 +1,52 @@
 # DUP
 
-DUP is a web-based duplicate-file manager for Synology NAS systems.
+DUP is a browser-based duplicate-file scanner and file manager. Profiles scan folders, index metadata in a database and group potential duplicates by size or CRC32. The web UI provides searches, per-profile review, logs, and queued rename, move, delete and link operations.
 
-It scans configured folders, records file metadata in MariaDB or SQLite, identifies duplicate groups, and provides browser-based tools to inspect, search, rename, move, delete, link, export/import, and download files.
+## Platforms
 
-## Current target platform
+- **Generic PHP web server** (primary distribution): PHP 8.2+, PDO and pdo_mysql, MariaDB 10, and a web server with permission to access the directories being scanned.
+- **Synology DSM 7** (optional generated package): Web Station, PHP 8.2+ and MariaDB 10 installed first; enable **pdo_mysql** in the Web Station PHP profile. The package uses a Web Station service and runs the same PHP source as the generic ZIP.
+- Local DEV lint baseline: PHP 8.5.12. MariaDB is preferred for large libraries. Legacy SQLite support still requires installation/schema and compatibility verification.
 
-- Synology DSM 7
-- Synology Web Station
-- PHP 8.2 or newer
-- MariaDB 10, or SQLite fallback mode
-- Modern desktop browser
+A working web PHP profile should provide PDO, pdo_mysql, mbstring and sessions. Enable curl, fileinfo and the necessary SQLite extensions if using those capabilities.
 
-## Requirements
+## Features
 
-### Synology packages
+- Profile-based recursive scans, extension and size filters, and ignored-folder settings
+- File-size, sampled CRC32 and full CRC32 duplicate modes (CRC32 is not a cryptographic hash)
+- Browsing and searching file records, duplicate groups and moved files
+- Queued rename, move, delete and symbolic-link operations
+- Per-profile scan state, operational logs and account-based access
 
-Install these first:
+**Important:** A match by size or sampled CRC32 is not proof that two files are identical. Confirm content before deletion or replacement.
 
-- Web Station
-- PHP 8.2 or newer
-- MariaDB 10
-- phpMyAdmin, optional but useful for troubleshooting
+## Installation
 
-### Required PHP extensions
+For a generic web server, extract the web ZIP into a site directory and configure the PHP runtime, MariaDB 10 and filesystem permissions. Open `setup.php` for a **new installation only**. Initial setup recreates the `dup` database, so never run it against a database containing data you intend to retain.
 
-The Web Station PHP profile used by DUP should have:
+DUP stores local DB configuration in `config.local.php` (ignored by Git); do not commit credentials. The web server needs write permission for `logs/` and `backup/`, and only the file access required for chosen scan folders. Restrict web access to a trusted network while the security modernisation is underway.
 
-- PDO
-- pdo_mysql
-- mysqli, recommended
-- curl, recommended for update checks
-- json
-- session
-- ctype
-- hash
-- mbstring
+The current code uses legacy MD5-derived authentication cookies and ageing JavaScript dependencies. **It is not yet suitable for exposure to the public internet.** Database migrations, sessions/CSRF protection, filesystem authorisation and private storage isolation are on the hardening roadmap.
 
-Do not enable obsolete extensions such as:
+## Building packages
 
-- old `mysql`
-- `mcrypt`
-
-### Web Station / PHP settings
-
-DUP needs filesystem access to the NAS folders it scans.
-
-Recommended `open_basedir` during setup/testing:
-
-```text
-none
-```
-
-A stricter production value can be used later, for example:
-
-```text
-/var/services/web_packages/dup:/volume1:/volume2:/volume3:/volume4:/tmp:/var/services/tmp
-```
-
-The PHP profile must allow DUP to access the scan folders, log folder, backup folder, and database/socket paths needed by MariaDB or SQLite.
-
-### Permissions
-
-The web package user must be able to read scanned folders.
-
-DUP also needs write access to:
-
-```text
-logs/
-backup/
-db.php during setup
-```
-
-Typical DSM test permissions:
+From the repository root, using Python 3.10 or newer:
 
 ```sh
-sudo chown -R dup:http /volume1/web_packages/dup/logs
-sudo chmod -R 775 /volume1/web_packages/dup/logs
-
-sudo chown -R dup:http /volume1/web_packages/dup/backup
-sudo chmod -R 775 /volume1/web_packages/dup/backup
+python packaging/build.py --version 0.7.0
 ```
 
-## Database modes
+The script builds and verifies:
 
-DUP supports:
+- `dist/DUP-Web-0.7.0.zip` — generic PHP web application
+- `dist/DUP-DSM7-0.7.0.spk` — the same application files plus Synology Web Station metadata and package scripts
 
-- MariaDB 10 through PDO/pdo_mysql
-- SQLite fallback mode for systems where MariaDB access is unavailable
+Builds exclude `config.local.php`, personal databases, logs, backups, the historical `orignal/` reference and other development-only content. This is a **staging build**; SPK installation and upgrade are not yet certified. Do not install it over an existing DSM instance without preserving its live configuration and database first.
 
-MariaDB is preferred for larger scans.
+To regenerate DSM icons from `images/dup.png` (Pillow required), run `python packaging/make_icons.py` before building.
 
-## Duplicate detection modes
+## Development status
 
-Profiles can use one of three duplicate-detection modes:
+The active DEV checkout is `dup/` on branch `main`; `dup2/` is an old reference copy, not the release source. Work is focused on securing authentication and file actions, introducing non-destructive migrations, improving database indexes and worker throughput, simplifying the PHP modules, and replacing outdated interface libraries. Existing scan records and ignored-folder semantics must be preserved through upgrades.
 
-- **File Size**: fastest mode. Groups files by identical size only.
-- **Fast CRC32 (start/middle/end)**: reads three parts of larger files: the first block, a middle block, and the final block. It CRCs those parts and combines the three CRCs into a final CRC32 value. If the file is smaller than the combined sample size, DUP falls back to a full-file CRC32.
-- **Full CRC32**: reads and hashes the full file. Slower, but more reliable than sampled hashing.
-
-The fast CRC32 mode is intended as a speed/uniqueness compromise for large media libraries. Future hash modes may include MD5 or SHA-based options.
-
-## Scanner behaviour
-
-Scans run as a background PHP CLI worker. The web UI remains responsive and polls status updates from the database.
-
-The scanner:
-
-1. Finds files under the profile path.
-2. Filters by file extension and minimum size.
-3. Stores path, size, modified time, profile id, and symlink target.
-4. Calculates duplicate groups by size or CRC32 depending on profile settings.
-5. Updates the profile status back to Idle when complete.
-
-## File actions
-
-DUP supports queued background file actions:
-
-- Rename
-- Move
-- Delete
-- Link / symlink
-
-Actions are queued from the web interface and processed by a worker thread so larger batches can run without blocking the browser.
-
-## Safety notes
-
-DUP can delete, rename, and move real files on the NAS. Test with a disposable folder before scanning large libraries.
-
-Keep the repository private until generated credentials are separated from source-controlled files.
-
-## Planned improvements
-
-- Split generated database credentials out of `db.php` into an ignored local config file.
-- Add file preview for images and safe text formats.
-- Improve search result highlighting.
-- Add more hash modes, such as MD5.
-- Add database indexes and migration helpers for larger libraries.
+Source: https://github.com/ardenee/dup

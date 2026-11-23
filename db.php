@@ -32,11 +32,11 @@ register_shutdown_function(function()
         "time" => date("Y-m-d H:i:s"),
         "type" => "fatal_shutdown_error",
         "php_version" => PHP_VERSION,
-        "request_uri" => $requestUri,
+        "request_path" => parse_url($requestUri, PHP_URL_PATH) ?: "/",
         "remote_addr" => $remoteAddr,
         "error" => $error,
-        "get" => $_GET,
-        "post" => $_POST
+        "get_fields" => array_keys($_GET),
+        "post_fields" => array_keys($_POST)
     );
 
     $text = print_r($report, true);
@@ -108,7 +108,7 @@ try
     {
         $sqliteOr = "OR";
         $dblink = new PDO("sqlite:".$dbdir."/dup.db");
-        $dblink->exec("pragma synchronous = off;");
+        $dblink->exec("PRAGMA synchronous = NORMAL;");
     }
 
     $dblink->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -954,13 +954,13 @@ function LogError($Error)
         "time" => date("Y-m-d H:i:s"),
         "php_version" => PHP_VERSION,
         "script" => $scriptName,
-        "request_uri" => $requestUri,
+        "request_path" => parse_url($requestUri, PHP_URL_PATH) ?: "/",
         "remote_addr" => $remoteAddr,
         "user" => $user,
         "error" => $Error,
         "last_php_error" => $lastPhpError,
-        "get" => $_GET,
-        "post" => $_POST
+        "get_fields" => array_keys($_GET),
+        "post_fields" => array_keys($_POST)
     );
 
     $text = print_r($report, true);

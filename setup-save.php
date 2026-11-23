@@ -1,4 +1,18 @@
 <?php
+// Installation is a one-time destructive operation. Never reset a configured instance.
+if(($_SERVER["REQUEST_METHOD"] ?? "GET") !== "POST" && PHP_SAPI !== "cli")
+{
+    http_response_code(405);
+    header("Allow: POST");
+    exit("DUP setup requires a POST request.");
+}
+
+if(is_file(__DIR__ . "/config.local.php"))
+{
+    http_response_code(403);
+    exit("DUP is already configured. Back up and use a migration procedure instead of resetting the database.");
+}
+
 ini_set("log_errors", "1");
 ini_set("error_log", __DIR__ . "/logs/php_errors.log");
 //ini_set("display_errors", "1");

@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+# Web Station manages the DUP web service. No database reset or delete here.
+exit 0
