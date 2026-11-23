@@ -2,7 +2,9 @@
 
 DUP is a PHP duplicate-file scanner and manager for **Windows web servers, Linux web servers, and Synology DSM**. The PHP application, database schema, web interface and job worker are shared. Synology is an optional deployment adapter—not the application's operating system.
 
-**Development preview, not a production release.** DUP v1 stays on GitHub `main` and the live DSM installation; v2 is developed on `v2/rebuild`.
+**Licence:** MIT for the DUP project code (see [LICENSE](LICENSE)). Bundled third-party packages retain their own licences, supplied with each dependency.
+
+**Development preview, not a production release.** DUP v1 remains in GitHub `main`; v2 is developed on `v2/rebuild`. Installing v2 is a separate package action and does not migrate v1 data.
 
 ## Features implemented
 
@@ -53,9 +55,9 @@ Use Apache/mod_rewrite or Nginx/PHP-FPM and a private install such as `/srv/dup-
 
 ### Synology DSM 7 (optional)
 
-The separate **preview SPK** uses package ID `dupv2` and a `/dup-v2/` Web Station portal. The existing DUP v1 package and `Y:\\dup` are unaffected. Its PHP application stays under the private package target; only `index.php`, `setup.php` and static assets are copied into Web Station. Its lifecycle scripts run the **same PHP job worker** as Windows/Linux, and store credentials/runtime state under the persistent package `var` directory.
+The separate **0.1.1 preview SPK** uses package ID `dupv2` and a `/dup-v2/` Web Station portal. DUP v1 is a separate package; this installer does not modify v1 data. Its PHP application stays under the private package target; only `index.php`, `setup.php` and static assets are copied into Web Station. Its lifecycle scripts run the **same PHP job worker** as Windows/Linux, and store credentials/runtime state under the persistent package `var` directory.
 
-DSM Web Station, PHP 8.2+ and MariaDB 10 are required by the current SPK metadata. PHP profile backend IDs may differ across NAS models. **The SPK is not ready for installation:** Web Station portal resolution, PHP extension selection, permissions, setup, service start/stop, migration and upgrade behaviour still require live DSM testing.
+DSM Web Station, PHP 8.2+ and MariaDB 10 are required by the current SPK metadata. The PHP profile must enable **iconv**, **pdo_mysql**, mbstring, intl and XML. Backend IDs may differ across NAS models. Preview 0.1.0 omitted iconv and had no front-controller rewrite; preview 0.1.1 adds these fixes plus an explicit first-run setup redirect. The rewrite has passed standalone Nginx tests but still needs live Synology Web Station validation. On an existing installation, inspect the **DUP v2 PHP** profile under **Web Station → Script Language Settings → PHP → Extensions** to confirm iconv is enabled before completing setup. Do not assume that updating the package always overrides an existing customised PHP profile.
 
 ## Background jobs — all platforms
 
@@ -109,7 +111,7 @@ Development database/administrator setup above is for an existing `.env.local`. 
 
 ```bash
 python packaging/build_preview.py
-python packaging/build_dsm_preview.py --version 0.1.0 --php-backend 11
+python packaging/build_dsm_preview.py --version 0.1.1 --php-backend 11
 ```
 
 Both builders include vendored dependencies, verify the package contents, and exclude local databases and secrets. These are **preview artifacts only**, not releases. All regression fixtures and temporary outputs remain offline.

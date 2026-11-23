@@ -9,12 +9,15 @@
         "type": "nginx_php",
         "root": "dup-v2",
         "index": ["index.php"],
+        "custom_rule": {
+          "global_rule": "/var/packages/dupv2/target/app/misc/nginx_global.mustache"
+        },
         "php": {
           "profile_name": "DUP v2 PHP",
           "profile_desc": "DUP v2 preview PHP profile",
           "backend": __PHP_BACKEND__,
           "open_basedir": "/var/services/web_packages/dup-v2:/var/packages/dupv2/target/app:/var/packages/dupv2/var:/volume1:/volume2:/volume3:/volume4:/tmp:/var/services/tmp",
-          "extensions": ["pdo_mysql", "mbstring", "intl", "openssl", "fileinfo", "xml"],
+          "extensions": ["pdo_mysql", "mbstring", "intl", "iconv", "openssl", "fileinfo", "xml"],
           "user": "dupv2",
           "group": "http"
         },

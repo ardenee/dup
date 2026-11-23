@@ -136,3 +136,6 @@ textarea{font:inherit;color:var(--ink)}
 .stat strong small{font-size:12px;font-weight:600;color:var(--muted)}
 .stat>small{display:block;margin-top:7px;color:var(--muted);font-size:12px}
 @media(max-width:650px){.report-filter{display:grid}.report-downloads{justify-content:flex-start}}
+
+/* Preserve the original 16x16 DUP artwork at its native resolution. */
+.brand-logo-original{display:block;width:16px;height:16px;flex:0 0 16px;object-fit:contain;image-rendering:auto}

@@ -32,7 +32,13 @@ def package_contents() -> dict[str,bytes]:
     files={"app/"+name:data for name,data in source.items()}
     front=b"""<?php
 declare(strict_types=1);
-// DSM v2 exposes ONLY this front controller and static public assets.
+// The DSM portal must direct an unconfigured installation to the setup
+// wizard before Symfony requires database credentials or sessions.
+if (!is_file('/var/packages/dupv2/var/runtime/setup.complete')) {
+    header('Location: /dup-v2/setup.php', true, 302);
+    header('Cache-Control: no-store');
+    exit;
+}
 require '/var/packages/dupv2/target/app/public/index.php';
 """
     files["webapp/index.php"]=front
@@ -46,6 +52,7 @@ require '/var/packages/dupv2/target/app/public/setup.php';
         }:
             files["webapp/"+name[len("public/"):]]=data
     files["app/worker-loop.sh"]=(DSM/"worker-loop.sh").read_bytes().replace(b"\r\n",b"\n")
+    files["app/misc/nginx_global.mustache"]=(DSM/"misc"/"nginx_global.mustache").read_bytes().replace(b"\r\n",b"\n")
     return files
 
 def make_inner(files:dict[str,bytes])->bytes:
@@ -66,6 +73,8 @@ def metadata(version:str,php_backend:int,files:dict[str,bytes])->dict[str,tuple[
     assert parsed["webservice"]["pkg_dir_prepare"][0]["target"]=="dup-v2"
     assert parsed["webservice"]["portals"][0]["alias"]=="dup-v2"
     assert "var/packages/dupv2/target/app" in service["php"]["open_basedir"]
+    assert "iconv" in service["php"]["extensions"]
+    assert service["custom_rule"]["global_rule"] == "/var/packages/dupv2/target/app/misc/nginx_global.mustache"
     info=(DSM/"INFO").read_text(encoding="utf-8").replace("__VERSION__",version).encode()
     assert b'package="dupv2"' in info and b'adminurl="dup-v2/"' in info
     members={
@@ -110,7 +119,8 @@ def build(output:Path,version:str,php_backend:int)->None:
            for key in web):
         raise RuntimeError("Private source or secrets exposed in DSM web directory")
     if not {"webapp/index.php","webapp/setup.php","webapp/assets/app.css","webapp/assets/folder-picker.js",
-            "app/vendor/autoload.php","app/public/setup.php","app/bin/console","app/worker-loop.sh"} <= rebuilt.keys():
+            "app/vendor/autoload.php","app/public/setup.php","app/bin/console","app/worker-loop.sh",
+            "app/misc/nginx_global.mustache","app/LICENSE","webapp/assets/dup.png"} <= rebuilt.keys():
         raise RuntimeError("Preview SPK missing required application runtime files")
     if b"DUP_ALLOWED_SCAN_ROOTS=" not in rebuilt["app/.env"]:
         raise RuntimeError("Missing setup safety default")
@@ -120,7 +130,7 @@ def build(output:Path,version:str,php_backend:int)->None:
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version",default="0.1.0")
+    parser.add_argument("--version",default="0.1.1")
     parser.add_argument("--php-backend",type=int,default=11,
         help="Web Station PHP backend ID, default 11 validated for PHP8.2 on the test DSM")
     parser.add_argument("--output",type=Path,default=None)

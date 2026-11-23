@@ -1,0 +1,6 @@
+{{#alias}}
+# DUP v2's Symfony routes need an Nginx front-controller rewrite.
+# Keep real PHP frontends and static assets served normally.
+# "rewrite" is valid in either server or location context in Web Station.
+rewrite ^/dup-v2/(?!index\.php(?:/|$)|setup\.php(?:/|$)|assets/)(.+)$ /dup-v2/index.php last;
+{{/alias}}

@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
 FOLDERS=("bin","config","src","templates","migrations","public","vendor")
-ROOT_FILES=("composer.json","composer.lock","symfony.lock","README.md")
+ROOT_FILES=("composer.json","composer.lock","symfony.lock","README.md","LICENSE")
 DEPLOY_ENV="""APP_ENV=prod
 # Provide APP_SECRET and DATABASE_URL through private runtime configuration.
 APP_SECRET=

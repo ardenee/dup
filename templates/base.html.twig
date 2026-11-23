@@ -6,13 +6,14 @@
   <meta name="robots" content="noindex,nofollow">
   <title>{% block title %}DUP{% endblock %} · Duplicate Manager</title>
   <link rel="stylesheet" href="{{ asset('assets/app.css') }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('assets/dup.png') }}">
 </head>
 <body>
   <a class="skip-link" href="#content">Skip to content</a>
   <div class="app-shell">
   {% if app.user %}
     <aside class="sidebar" aria-label="Application navigation">
-      <div class="brand"><span class="brand-mark">D</span><div><strong>DUP</strong><small>Duplicate Manager</small></div></div>
+      <div class="brand"><img class="brand-logo-original" src="{{ asset('assets/dup.png') }}" width="16" height="16" alt="DUP original icon"><div><strong>DUP</strong><small>Duplicate Manager</small></div></div>
       <nav>
       {% for link in dup_navigation() %}
         <a href="{{ path(link.route) }}" class="nav-link {{ app.request.attributes.get('_route') == link.route ? 'active' : '' }}">
