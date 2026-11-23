@@ -100,11 +100,11 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
   <meta name="robots" content="noindex,nofollow">
   <title>DUP v2 · First-run setup</title>
   <link rel="stylesheet" href="assets/app.css">
-  <link rel="icon" type="image/png" sizes="120x120" href="assets/dup.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="assets/dup.png?v=20261123">
 </head>
 <body>
 <div class="setup-shell">
-<header class="setup-title"><img class="brand-logo-original" src="assets/dup.png" width="32" height="32" alt="DUP icon"><div>
+<header class="setup-title"><img class="brand-logo-original" src="assets/dup.png?v=20261123" width="32" height="32" alt="DUP icon"><div>
   <h1>DUP v2 setup</h1><p>One-time configuration for Windows, Linux and Synology web hosts</p>
 </div></header>
 <?php if($installed): ?>
