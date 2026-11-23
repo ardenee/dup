@@ -80,6 +80,6 @@
             "require": "7.4.*"
         }
     },
-    "name": "ardenee/dup-v2",
+    "name": "ardenee/dup",
     "description": "Modular duplicate-file manager for Synology DSM and generic PHP hosts"
 }

@@ -34,17 +34,17 @@ def package_contents() -> dict[str,bytes]:
 declare(strict_types=1);
 // The DSM portal must direct an unconfigured installation to the setup
 // wizard before Symfony requires database credentials or sessions.
-if (!is_file('/var/packages/dupv2/var/runtime/setup.complete')) {
-    header('Location: /dup-v2/setup.php', true, 302);
+if (!is_file('/var/packages/dup/var/runtime/setup.complete')) {
+    header('Location: /dup/setup.php', true, 302);
     header('Cache-Control: no-store');
     exit;
 }
-require '/var/packages/dupv2/target/app/public/index.php';
+require '/var/packages/dup/target/app/public/index.php';
 """
     files["webapp/index.php"]=front
     files["webapp/setup.php"]=b"""<?php
 // One-time bootstrap remains implemented in the platform-neutral private app.
-require '/var/packages/dupv2/target/app/public/setup.php';
+require '/var/packages/dup/target/app/public/setup.php';
 """
     for name,data in source.items():
         if name.startswith("public/") and name not in {
@@ -70,15 +70,15 @@ def metadata(version:str,php_backend:int,files:dict[str,bytes])->dict[str,tuple[
     resource=resource.replace("__PHP_BACKEND__",str(php_backend))
     parsed=json.loads(resource)
     service=parsed["webservice"]["services"][0]
-    assert service["root"]=="dup-v2" and service["service"]=="dupv2"
-    assert parsed["webservice"]["pkg_dir_prepare"][0]["source"]=="/var/packages/dupv2/target/webapp"
-    assert parsed["webservice"]["pkg_dir_prepare"][0]["target"]=="dup-v2"
-    assert parsed["webservice"]["portals"][0]["alias"]=="dup-v2"
-    assert "var/packages/dupv2/target/app" in service["php"]["open_basedir"]
+    assert service["root"]=="dup" and service["service"]=="dup"
+    assert parsed["webservice"]["pkg_dir_prepare"][0]["source"]=="/var/packages/dup/target/webapp"
+    assert parsed["webservice"]["pkg_dir_prepare"][0]["target"]=="dup"
+    assert parsed["webservice"]["portals"][0]["alias"]=="dup"
+    assert "var/packages/dup/target/app" in service["php"]["open_basedir"]
     assert "iconv" in service["php"]["extensions"]
-    assert service["custom_rule"]["global_rule"] == "/var/packages/dupv2/target/app/misc/nginx_global.mustache"
+    assert service["custom_rule"]["global_rule"] == "/var/packages/dup/target/app/misc/nginx_global.mustache"
     info=(DSM/"INFO").read_text(encoding="utf-8").replace("__VERSION__",version).encode()
-    assert b'package="dupv2"' in info and b'adminurl="dup-v2/"' in info
+    assert b'package="dup"' in info and b'adminurl="dup/"' in info
     assert b'adminprotocol="https"' in info and b'adminport="443"' in info
     assert b'dsmuidir=' not in info and b'dsmappname=' not in info
     members={
@@ -120,7 +120,7 @@ def build(output:Path,version:str,php_backend:int)->None:
     members=metadata(version,php_backend,app)
     output.parent.mkdir(parents=True,exist_ok=True)
     with tarfile.open(output,"w",format=tarfile.USTAR_FORMAT) as outer:
-        # Match the entry ordering of the previously installed DUP v2 SPK.
+        # Match the entry ordering of the previously installed DUP SPK.
         # INFO is first, with bare (not ./-prefixed) USTAR member paths.
         for name,(data,mode) in sorted(members.items()):
             member(outer,name,data,mode)
@@ -149,18 +149,16 @@ def build(output:Path,version:str,php_backend:int)->None:
             "app/vendor/autoload.php","app/public/setup.php","app/bin/console","app/worker-loop.sh",
             "app/misc/nginx_global.mustache","app/LICENSE","webapp/license.txt","webapp/assets/license.txt","webapp/assets/dup.png"} <= rebuilt.keys():
         raise RuntimeError("Preview SPK missing required application runtime files")
-    if b"DUP_ALLOWED_SCAN_ROOTS=" not in rebuilt["app/.env"]:
-        raise RuntimeError("Missing setup safety default")
     print("PASS",output.name, len(app),"files",len(web),"public paths")
     print("SHA256",hashlib.sha256(output.read_bytes()).hexdigest())
     print("PREVIEW ONLY — not installed, not a release")
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version",default="0.7.3")
+    parser.add_argument("--version",default="0.7.4")
     parser.add_argument("--php-backend",type=int,default=11,
         help="Web Station PHP backend ID, default 11 validated for PHP8.2 on the test DSM")
     parser.add_argument("--output",type=Path,default=None)
     args=parser.parse_args()
-    output=args.output or ROOT/"dist"/f"DUP-v2-DSM7-{args.version}-compat.spk"
+    output=args.output or ROOT/"dist"/f"DUP-DSM7-{args.version}-compat.spk"
     build(output,args.version,args.php_backend)

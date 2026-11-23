@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 umask 077
-APP="${SYNOPKG_PKGDEST:-/var/packages/dupv2/target}/app"
-VAR="${SYNOPKG_PKGVAR:-/var/packages/dupv2/var}"
+APP="${SYNOPKG_PKGDEST:-/var/packages/dup/target}/app"
+VAR="${SYNOPKG_PKGVAR:-/var/packages/dup/var}"
 mkdir -p "$VAR/runtime"
 if [ ! -e "$APP/var" ] && [ ! -L "$APP/var" ]; then
     ln -s "$VAR/runtime" "$APP/var"

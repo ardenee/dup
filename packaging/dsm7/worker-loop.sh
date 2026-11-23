@@ -32,7 +32,7 @@ while :; do
             # SIGTERM to the real worker PID; no orphaned child process.
             exec "$PHP" "$APP/bin/console" dup:jobs:work --loop --idle-sleep=5 --max-jobs=1 --env=prod --no-ansi
         fi
-        echo "DUP v2: PHP 8.2+ CLI binary unavailable"
+        echo "DUP: PHP 8.2+ CLI binary unavailable"
     fi
     sleep 10
 done

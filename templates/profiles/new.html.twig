@@ -7,16 +7,13 @@
 <a class="secondary link-button" href="{{ path('app_profiles') }}">Back to profiles</a></div>
 <section class="panel form-panel">
   {% if errors %}<div class="notice notice-error" role="alert"><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
-  {% if configured_roots is empty %}
-    <div class="notice notice-warning">No permitted scan folders are configured. Set <code>DUP_ALLOWED_SCAN_ROOTS</code> in your private server configuration first.</div>
-  {% endif %}
   <form method="post" action="{{ path('app_profile_new') }}" data-folder-browser-endpoint="{{ path('app_folder_browse') }}">
     <input type="hidden" name="_token" value="{{ csrf_token('create_profile') }}">
     <div class="field"><label for="name">Profile name</label>
       <input id="name" name="name" maxlength="140" required value="{{ app.request.request.get('name', '') }}" placeholder="e.g. Music library"></div>
     <div class="field"><label for="source">Main folder</label>
       <input id="source" data-directory-input name="source_root" required value="{{ app.request.request.get('source_root', '') }}" placeholder="D:\\Media or /srv/media">
-      <small class="muted">Only explicitly permitted roots and their readable subfolders are available.</small></div>
+      <small class="muted">Available folders depend on filesystem permissions of the PHP and background worker accounts.</small></div>
     <div class="field"><label for="move">Move folder</label>
       <input id="move" data-directory-input name="move_root" required value="{{ app.request.request.get('move_root', '') }}" placeholder="D:\\Archive or /srv/archive"></div>
     <div class="field"><label for="type">File-type preset</label>
@@ -30,7 +27,7 @@
       </select></div>
     <div class="field"><label for="minimum">Minimum file size (bytes)</label>
       <input id="minimum" name="minimum_bytes" type="number" min="0" step="1" value="{{ app.request.request.get('minimum_bytes','0') }}" required></div>
-    <div class="form-actions"><button class="primary" type="submit" {{ configured_roots is empty ? 'disabled' : '' }}>Save profile</button>
+    <div class="form-actions"><button class="primary" type="submit" >Save profile</button>
       <a class="secondary link-button" href="{{ path('app_profiles') }}">Cancel</a></div>
   </form>
 </section>

@@ -13,7 +13,7 @@ use App\Kernel;
 
 /**
  * One-time, OS-neutral installer. The web front controller never receives
- * OS-specific or DSM-specific knowledge. Requires a private pairing code.
+ * OS-specific or DSM-specific knowledge.
  *
  * Existing databases, accounts, and configuration cannot be overwritten.
  */
@@ -22,7 +22,6 @@ final class Installer
     public function __construct(private readonly string $root) {}
 
     public function storage(): string { return $this->root.DIRECTORY_SEPARATOR.'var'; }
-    public function tokenPath(): string { return $this->storage().DIRECTORY_SEPARATOR.'setup.token'; }
     public function completePath(): string { return $this->storage().DIRECTORY_SEPARATOR.'setup.complete'; }
     private function envLink(): string { return $this->root.DIRECTORY_SEPARATOR.'.env.local'; }
 
@@ -45,31 +44,6 @@ final class Installer
                 rtrim(str_replace('\\','/',$public),'/').'/')) {
             throw new \RuntimeException('The private runtime directory is not writable or is web-accessible.');
         }
-    }
-
-    /** One token for this installation. Store it only outside the document root. */
-    public function ensureToken(): string
-    {
-        $this->prepareStorage();
-        if($this->installed()) throw new \DomainException('DUP is already installed.');
-        $path=$this->tokenPath();
-        if(!is_file($path)) {
-            $stream=@fopen($path,'x');
-            if($stream!==false) {
-                try {
-                    chmod($path,0600);
-                    $bytes=bin2hex(random_bytes(24))."\n";
-                    if(fwrite($stream,$bytes)!==strlen($bytes))
-                        throw new \RuntimeException('Unable to write setup pairing code.');
-                } finally {
-                    fclose($stream);
-                }
-            }
-        }
-        $token=trim((string)@file_get_contents($path));
-        if(!preg_match('/^[a-f0-9]{48}$/D',$token))
-            throw new \RuntimeException('The private pairing code is missing or damaged.');
-        return $token;
     }
 
     /** @return array<string,mixed> */
@@ -100,8 +74,6 @@ final class Installer
         $connection=null;
         try {
             if($this->installed()) throw new \DomainException('DUP is already installed.');
-            if(!hash_equals($this->ensureToken(),(string)($input['setup_code']??'')))
-                throw new \DomainException('Invalid pairing code.');
             if($this->hasPrivateConfig())
                 throw new \DomainException('Existing private configuration found. Setup will not overwrite it.');
 
@@ -119,7 +91,6 @@ final class Installer
             if(strlen($password)<12 || strlen($password)>72 || !hash_equals($password,$confirmation))
                 throw new \DomainException('Administrator password must be 12–72 bytes and match confirmation.');
 
-            $roots=$this->validateRoots((string)($input['roots']??''));
             if($driver==='mysql') {
                 if(!$required['mysql']) throw new \DomainException('Enable the PHP pdo_mysql extension.');
                 $host=trim((string)($input['db_host']??''));
@@ -158,8 +129,7 @@ final class Installer
                 'APP_ENV'=>'prod',
                 'APP_DEBUG'=>'0',
                 'APP_SECRET'=>bin2hex(random_bytes(32)),
-                'DATABASE_URL'=>$url,
-                'DUP_ALLOWED_SCAN_ROOTS'=>implode(';',$roots)
+                'DATABASE_URL'=>$url
             ];
             $this->writePrivateEnv($config);
             $wroteConfig=true;
@@ -191,12 +161,11 @@ final class Installer
                 'roles'=>'["ROLE_ADMIN"]',
                 'created_at'=>gmdate('Y-m-d H:i:s')
             ]);
-            $marker=json_encode(['installed_at'=>gmdate('c'),'schema'=>'v2'],
+            $marker=json_encode(['installed_at'=>gmdate('c'),'schema'=>'0.7'],
                 JSON_THROW_ON_ERROR)."\n";
             if(file_put_contents($this->completePath(),$marker,LOCK_EX)!==strlen($marker))
                 throw new \RuntimeException('Unable to finalize the private setup marker.');
             chmod($this->completePath(),0600);
-            @unlink($this->tokenPath());
         } catch(\Throwable $ex) {
             if($wroteConfig && !$this->installed()) {
                 $this->deleteNewPrivateEnv();
@@ -207,24 +176,6 @@ final class Installer
             flock($lock,LOCK_UN);
             fclose($lock);
         }
-    }
-
-    /** @return list<string> */
-    private function validateRoots(string $raw): array
-    {
-        if(strlen($raw)>8192) throw new \DomainException('Too many scan roots.');
-        $roots=[];
-        foreach(preg_split('/[\r\n;]+/',$raw) ?: [] as $value) {
-            $path=trim($value);
-            if($path==='') continue;
-            $canonical=realpath($path);
-            if($canonical===false || !is_dir($canonical) || !is_readable($canonical) ||
-                $canonical==='/' || preg_match('~^[A-Za-z]:[\\\\/]?$~',$canonical))
-                throw new \DomainException('One or more scan roots are invalid or inaccessible.');
-            $roots[$canonical]=$canonical;
-            if(count($roots)>25) throw new \DomainException('Maximum 25 configured scan roots.');
-        }
-        return array_values($roots);
     }
 
     /** @param array<string,string> $values */
@@ -241,7 +192,7 @@ final class Installer
         if(is_file($path)) throw new \DomainException('An existing configuration cannot be overwritten.');
         if(!is_dir(dirname($path)) || !is_writable(dirname($path)))
             throw new \RuntimeException('The private configuration directory is not writable.');
-        $contents="# Generated by DUP v2 first-run setup. Keep outside the web root.\n";
+        $contents="# Generated by DUP setup. Keep outside the web root.\n";
         foreach($values as $key=>$value) {
             // JSON strings use double-quoted dotenv values with escaped backslashes.
             // Encode dollar signs to avoid variable interpolation.

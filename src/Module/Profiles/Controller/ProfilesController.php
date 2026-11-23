@@ -43,7 +43,7 @@ final class ProfilesController extends AbstractController
             // Check real paths on the host, not paths in the user's browser.
             foreach(['Source'=>$source,'Move'=>$move] as $label=>$path) {
                 if($browser->canonicalDirectory($path) === null)
-                    $errors[]=$label.' folder is outside the configured allowed scan roots.';
+                    $errors[]=$label.' folder is not accessible to the server PHP account.';
             }
             if(!$errors) {
                 $repository->create($name,$browser->canonicalDirectory($source),$browser->canonicalDirectory($move),
@@ -53,7 +53,7 @@ final class ProfilesController extends AbstractController
             }
         }
         return $this->render('profiles/new.html.twig',[
-            'types'=>$types,'errors'=>$errors,'configured_roots'=>$browser->roots()
+            'types'=>$types,'errors'=>$errors
         ]);
     }
 

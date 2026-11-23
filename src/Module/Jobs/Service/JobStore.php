@@ -23,7 +23,7 @@ final class JobStore
             throw new \DomainException('Select an enabled scan profile.');
         $root=$this->browser->canonicalDirectory((string)$profile['source_root']);
         if($root===null)
-            throw new \DomainException('The scan source is outside allowed scan roots or is not accessible.');
+            throw new \DomainException('The scan source is not accessible to the server account.');
 
         $ignore=$this->db->fetchFirstColumn(
             'SELECT folder_name FROM profile_ignore_rules WHERE enabled=1 AND ' .

@@ -11,6 +11,3 @@ services:
     App\Core\Setup\Installer:
         arguments:
             $root: '%kernel.project_dir%'
-    App\Module\Profiles\Service\DirectoryBrowser:
-        arguments:
-            $configuredRoots: '%env(DUP_ALLOWED_SCAN_ROOTS)%'

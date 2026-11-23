@@ -1,6 +1,6 @@
 # Replace /srv/dup, the PHP path and the service account for your host.
 [Unit]
-Description=DUP v2 platform-neutral PHP job worker
+Description=DUP platform-neutral PHP job worker
 After=network-online.target
 Wants=network-online.target
 

@@ -28,7 +28,7 @@ $installed=$installer->installed();
 $existing=$installer->hasPrivateConfig();
 try {
     if(!$installed) {
-        $installer->ensureToken();
+        $installer->prepareStorage();
         $preflight=$installer->requirements();
     }
 } catch(\Throwable) {
@@ -54,7 +54,7 @@ if(!$installed && !$existing && !$errors && ($_SERVER['REQUEST_METHOD']??'GET')=
         $errors[]='The setup form expired. Refresh the page and try again.';
     } else {
         $_SESSION['dup_setup_attempts']=$attempts+1;
-        $fields=['setup_code','driver','db_host','db_port','db_name','db_user','db_password',
+        $fields=['driver','db_host','db_port','db_name','db_user','db_password',
                  'admin_user','admin_password','confirm_password','roots'];
         $input=[];
         foreach($fields as $field) {
@@ -92,19 +92,19 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>DUP v2 · First-run setup</title>
+  <title>DUP 0.7.4 · First-run setup</title>
   <link rel="stylesheet" href="assets/app.css">
   <link rel="icon" type="image/png" sizes="120x120" href="assets/dup.png">
 </head>
 <body>
 <div class="setup-shell">
 <header class="setup-title"><img class="brand-logo-original" src="assets/dup.png" width="32" height="32" alt="DUP icon"><div>
-  <h1>DUP v2 setup</h1><p>One-time configuration for Windows, Linux and Synology web hosts</p>
+  <h1>DUP setup</h1><p>One-time configuration for Windows, Linux and Synology web hosts</p>
 </div></header>
 <?php if($installed): ?>
   <section class="panel panel-content">
     <h2><?= $complete?'Installation completed':'DUP is already configured' ?></h2>
-    <p>The private configuration and administrator account have been created. The setup code is no longer valid.</p>
+    <p>The private configuration and administrator account have been created. Setup is now closed.</p>
     <p><a class="primary link-button" href="./login">Continue to sign in</a></p>
     <p class="muted">Configure a PHP CLI job worker with <code>php bin/console dup:jobs:work --loop</code> or schedule <code>dup:jobs:work --max-jobs=1</code>.</p>
   </section>
@@ -127,9 +127,6 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
     <p class="muted">MariaDB/MySQL: <?= !empty($preflight['mysql'])?'Available':'pdo_mysql missing' ?>;
     SQLite: <?= !empty($preflight['sqlite'])?'Available':'pdo_sqlite missing' ?>.
     Private storage: <?= !empty($preflight['private_storage'])?'Writable':'Not writable' ?>.</p>
-    <p>For security, setup requires the pairing code stored at
-      <code>var/setup.token</code> in the private application directory. Read it with SSH, FTP or your hosting file manager.
-      The code is never exposed by this page.</p>
   </section>
   <form class="panel panel-content" method="post" autocomplete="off">
     <input type="hidden" name="_csrf" value="<?= show($_SESSION['dup_setup_csrf']) ?>">
@@ -146,7 +143,7 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
       <div class="field"><label for="db_port">Port</label>
         <input id="db_port" name="db_port" inputmode="numeric" value="<?= show($old('db_port','3306')) ?>" maxlength="5"></div>
       <div class="field"><label for="db_name">Empty database name</label>
-        <input id="db_name" name="db_name" value="<?= show($old('db_name','dup_v2')) ?>" maxlength="64"></div>
+        <input id="db_name" name="db_name" value="<?= show($old('db_name','dup')) ?>" maxlength="64"></div>
       <div class="field"><label for="db_user">Database user</label>
         <input id="db_user" name="db_user" value="<?= show($old('db_user')) ?>" maxlength="128"></div>
       <div class="field"><label for="db_password">Database password</label>
@@ -161,20 +158,13 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
       <div class="field"><label for="confirm_password">Confirm password</label>
         <input id="confirm_password" name="confirm_password" type="password" required minlength="12" autocomplete="new-password"></div>
     </div>
-    <h2>4. Storage</h2>
-    <div class="field"><label for="roots">Allowed scan directories (one full server path per line)</label>
-      <textarea id="roots" name="roots" rows="4" placeholder="Linux / DSM: /volume1/Music&#10;Windows: D:\Music"><?= show($old('roots')) ?></textarea>
-      <p class="muted">Optional at setup; no directories can be browsed or scanned until roots are configured. These are server paths, not browser or mapped-drive paths.</p></div>
-    <h2>5. Authorization</h2>
-    <div class="field"><label for="setup_code">Private setup pairing code</label>
-      <input id="setup_code" name="setup_code" required minlength="48" maxlength="48" autocomplete="off" spellcheck="false"></div>
     <div class="form-actions">
-      <button type="submit" class="primary" <?= !$ready?'disabled':'' ?>>Install DUP v2</button>
+      <button type="submit" class="primary" <?= !$ready?'disabled':'' ?>>Install DUP</button>
     </div>
     <p class="muted">This action creates the initial database schema and administrator account, writes a private configuration file, then permanently closes the installer.</p>
   </form>
 <?php endif; ?>
-<footer class="app-footer">DUP v2 · <a href="assets/license.txt">MIT License</a></footer>
+<footer class="app-footer">DUP 0.7.4 · <a href="assets/license.txt">MIT License</a></footer>
 </div>
 </body>
 </html>

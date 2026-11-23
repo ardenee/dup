@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a reproducible DUP v2 generic web-hosting PREVIEW ZIP; not a release."""
+"""Build a reproducible DUP generic web-hosting PREVIEW ZIP; not a release."""
 from __future__ import annotations
 import argparse,hashlib,re,zipfile
 from pathlib import Path
@@ -12,8 +12,6 @@ DEPLOY_ENV="""APP_ENV=prod
 APP_SECRET=
 DATABASE_URL=
 DEFAULT_URI=http://localhost
-# Configure allowed server filesystem roots for Windows, Linux or DSM.
-DUP_ALLOWED_SCAN_ROOTS=
 APP_SHARE_DIR=var/share
 """
 
@@ -49,7 +47,19 @@ def payload() -> dict[str,bytes]:
     required=("public/index.php","bin/console","config/services.yaml",
               "src/Kernel.php","migrations/Version20261123000100.php")
     if not all(k in result for k in required):
-        raise RuntimeError("Missing mandatory v2 foundation files")
+        raise RuntimeError("Missing mandatory DUP foundation files")
+    # A fresh installation needs only database and administrator credentials.
+    # Scan folders are chosen later using the server's effective permissions.
+    setup=result["public/setup.php"]
+    installer=result["src/Core/Setup/Installer.php"]
+    browser=result["src/Module/Profiles/Service/DirectoryBrowser.php"]
+    if any(marker in setup+installer for marker in
+           (b"setup_code", b"setup.token", b"ensureToken", b"DUP_ALLOWED_SCAN_ROOTS")):
+        raise RuntimeError("Obsolete first-run setup requirements were reintroduced")
+    if b"ini_get('open_basedir')" not in browser:
+        raise RuntimeError("Directory browser must honour PHP filesystem restrictions")
+    if "bin/setup-token.php" in result:
+        raise RuntimeError("Obsolete setup code command must not ship")
     return result
 
 def build(target: Path) -> None:
@@ -77,6 +87,6 @@ def build(target: Path) -> None:
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
-    parser.add_argument("--output",type=Path,default=ROOT/"dist"/"DUP-v2-Web-Preview.zip")
+    parser.add_argument("--output",type=Path,default=ROOT/"dist"/"DUP-Web-0.7.4-Preview.zip")
     args=parser.parse_args()
     build(args.output)

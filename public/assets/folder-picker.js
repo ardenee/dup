@@ -55,7 +55,7 @@ if (endpoint && inputs.length) {
       if (generation !== myGeneration || !dialog.open) return;
       currentPath = typeof result.path === "string" ? result.path : null;
       parentPath = result.parent;
-      currentLabel.textContent = currentPath || "Allowed scan roots";
+      currentLabel.textContent = currentPath || "Browse server folders";
       up.disabled = parentPath === null;
       select.disabled = !result.can_select;
       list.replaceChildren();
@@ -63,7 +63,7 @@ if (endpoint && inputs.length) {
       if (directories.length === 0) {
         notice(currentPath
           ? "No readable subfolders. You can select this directory."
-          : "No scan roots configured. Set DUP_ALLOWED_SCAN_ROOTS in the private application configuration.");
+          : "No readable filesystem locations are available to this server account.");
       }
       for (const item of directories) {
         if (typeof item.path !== "string" || typeof item.name !== "string") continue;

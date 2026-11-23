@@ -91,7 +91,7 @@ final class ReportController extends AbstractController
         });
         $response->headers->set('Content-Type','text/csv; charset=UTF-8');
         $response->headers->set('Content-Disposition',
-            'attachment; filename="dup-v2-run-'.$id.'-'.$kind.'.csv"');
+            'attachment; filename="dup-run-'.$id.'-'.$kind.'.csv"');
         $response->headers->set('Cache-Control','private, no-store, max-age=0');
         $response->headers->set('X-Content-Type-Options','nosniff');
         return $response;

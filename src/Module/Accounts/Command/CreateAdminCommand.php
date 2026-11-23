@@ -11,7 +11,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\Question;
 
-#[AsCommand(name: 'dup:admin:create', description: 'Create the first DUP v2 administrator without putting a password on the command line')]
+#[AsCommand(name: 'dup:admin:create', description: 'Create the first DUP administrator without putting a password on the command line')]
 final class CreateAdminCommand extends Command
 {
     public function __construct(private readonly Connection $connection)

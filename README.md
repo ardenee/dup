@@ -1,119 +1,76 @@
-# DUP v2
+# DUP
 
-DUP is a PHP duplicate-file scanner and manager for **Windows web servers, Linux web servers, and Synology DSM**. The PHP application, database schema, web interface and job worker are shared. Synology is an optional deployment adapter—not the application's operating system.
+DUP is a web-based duplicate-file scanner and manager for Windows, Linux and Synology DSM. The same PHP application, scan engine, database and job worker run on all three platforms. DSM is a packaging/integration option, not a requirement of the application.
 
-**Licence:** MIT for the DUP project code (see [LICENSE](LICENSE)). Bundled third-party packages retain their own licences, supplied with each dependency.
+**Current development version: 0.7.4.** This is a major rebuild of DUP and a development preview, not a production-ready upgrade. The Synology package retains the original package ID `dup` and the `/dup/` URL. The new database schema does not migrate older profile data automatically. An upgrade must be tested using disposable data before replacing an existing installation.
 
-**Development preview, not a production release.** DUP v1 remains in GitHub `main`; v2 is developed on `v2/rebuild`. Installing v2 is a separate package action and does not migrate v1 data.
+**Licence:** MIT for DUP source code. Bundled dependencies retain their respective licences.
 
-## Features implemented
+## What DUP does
 
-- Modular Symfony 7.4 LTS and Twig interface; Doctrine DBAL/Migrations, Symfony Security and Monolog
-- Fresh database, administrator, profile types, allowed directory roots, directory chooser, exact folder-name ignore rules
-- Persistent file scans and background jobs with progress, heartbeats, cancellation and stalled-job recovery
-- Streamed SHA-256 duplicate verification; size-only matching explicitly marked *unverified*
-- Indexed files from ignored directories retained; changing ignore rules regenerates duplicate groups without rescanning
-- Snapshot preservation: a failed scan or recalculation never destroys the last completed results
-- Duplicate browser with indexed keyset pagination, job history, events and system diagnostics
-- Reports workspace: per-profile latest successful snapshots, historical run navigation, stored file states, scan warning/error events and potential duplicate savings
-- Streamed UTF-8 CSV exports (all indexed files, duplicate memberships, file states and job events) with spreadsheet formula-injection protection
-- Authenticated /api/system/status diagnostics and 15-second live-refreshing System page for worker heartbeats, backlogs, failures and manual-recovery flags
-- Explicitly confirmed **reversible quarantine and restore** via the same CLI job queue, with SHA-256 re-verification of both the selected file and another surviving copy, before any move
-- Same-volume rename only (no copy/delete fallback), unique private quarantine directories, collision protection and audit history
-- Automatic duplicate-group regeneration after quarantine or restoration, without rescanning source files
-- Private, one-time pairing-code setup with PHP extension, storage, database and admin checks
+- Creates scan profiles for source folders, move destinations, file types and matching settings
+- Browses filesystem folders available to the server's PHP account, without a separate allowlist configured during installation
+- Runs persistent background scan jobs with progress, heartbeat, cancellation, and error reporting
+- Uses streamed SHA-256 comparison for verified duplicates; size-only candidates are explicitly marked unverified
+- Retains indexed files from ignored folders so ignore rules can be changed without a full rescan
+- Preserves prior successful scan snapshots if a later scan fails
+- Provides duplicate-group browsing, results pagination, reports, historic runs and CSV exports
+- Shows worker/queue diagnostics and authenticated system status
+- Supports explicitly confirmed, reversible quarantine and restore with hash verification and an audit history
 
-**Not implemented:** permanent deletion, scheduled report delivery, automatic upgrades and validated production deployment under Linux Apache/Nginx or Synology DSM. Permanent deletion is intentionally disabled until further safety and recovery testing. Do not replace a production DUP installation yet.
+Permanent deletion is deliberately unavailable pending further safety and recovery testing.
 
-## Deployment — all platforms
+## Requirements
 
-The **generic web ZIP is the primary application**. It contains all PHP dependencies. The core reads configuration from the web server or private `.env.local`; database URLs preserve encoded credentials on all platforms. Composer, Node.js, Docker, systemd, Task Scheduler and Synology packages are **not required by the application itself**.
+PHP 8.2 or later, with PDO, mbstring, intl, openssl, xml, ctype, iconv and json. Enable pdo_mysql for MariaDB/MySQL (recommended), or pdo_sqlite for a small local setup. MySQL 8 and MariaDB 10 are supported targets.
 
-Requirements: PHP **8.2+** with `pdo`, `mbstring`, `intl`, `openssl`, `xml`, `ctype`, `iconv` and `json`. Enable `pdo_mysql` for MariaDB/MySQL (recommended) or `pdo_sqlite` for a small local/test database. MySQL 8/MariaDB 10 are supported targets. Disposable database and browser integration tests have passed with MariaDB 10.11 on Windows PHP 8.5 and Ubuntu PHP 8.3. Production server integration remains to be verified.
+The PHP web account must be able to read the folders it browses. The background worker needs filesystem access to the scan sources; move and quarantine operations additionally require write permission. Grant access only to directories the application is intended to manage. Filesystem permissions, not the setup wizard, govern access. No scanner folder selection is required at installation.
 
-1. Unpack the generic ZIP to a **private application directory** on the web server. Create a dedicated, initially empty database and database user with schema creation permissions. The application will not overwrite populated databases.
-2. Point the web server's **document root to the application's `public/` directory**. Never expose `vendor/`, `src/`, `migrations/`, `config/`, `var/` or `.env.local` over HTTP.
-3. Open **`https://your-site/setup.php`** (or `http://127.0.0.1:port/setup.php` for localhost development). Obtain the one-time pairing code from the private `var/setup.token` file using your server's file manager or the CLI command below.
-4. Fill out the single setup form: empty database, administrator and allowed scan directories. It creates the schema, private `.env.local`, admin hash and `var/setup.complete`, then invalidates the pairing code.
-5. Sign in, create a profile and configure a job worker using the **same PHP command on every platform**.
+## Install on a Windows or Linux web server
 
-```bash
-php bin/setup-token.php
-```
+1. Extract the generic web ZIP into a private application directory.
+2. Configure the web server to serve the application's `public/` directory with PHP enabled. Never expose `src/`, `vendor/`, `config/`, `var/` or `.env.local` over HTTP.
+3. Create a dedicated, initially empty MariaDB/MySQL database and a database user with schema-creation permissions.
+4. Open `https://your-host/setup.php`. Configure the database and initial administrator account using the one-page setup wizard. No filesystem paths are required during installation.
+5. Sign in, create a scan profile, browse for a source and destination folder, then start a scan.
 
-Only a fresh installation accepts setup. DUP redirects non-local HTTP GET/HEAD requests to HTTPS and rejects insecure form submissions; localhost development HTTP is allowed. On HTTPS reverse proxies, configure the PHP gateway to report HTTPS to PHP, or set `DUP_TRUSTED_HTTPS_PROXIES` to the comma-separated IP addresses of the trusted TLS proxies (in the server/PHP environment) to honour their `X-Forwarded-Proto` header. To use a nonstandard HTTPS port on a generic server, set `DUP_HTTPS_PORT` in the PHP process environment (default: 443). The installer will not overwrite an existing `.env.local`, any populated database, or installed administrator.
+The installer writes private configuration, creates the schema and administrator, and closes itself after successful setup. It refuses to overwrite existing private configuration or a populated database. Since the first administrator is created through the setup page, complete setup on a trusted server/network and do not leave an unconfigured installation publicly accessible.
 
-`DUP_ALLOWED_SCAN_ROOTS` is a semicolon-separated list of directories that the PHP process can read. The setup wizard validates and saves them using the host's **actual filesystem paths**. A Windows machine may use `D:\\Music`, Linux `/srv/media`, DSM `/volume1/Music`. A Windows-mapped `Y:\\` drive on the development PC is *not* a path on a Synology PHP worker. The folder picker and job queue enforce these roots. No roots means no browsing/scanning.
+Non-local HTTP page requests redirect to HTTPS; insecure form submissions are rejected. Localhost HTTP is supported for development. Reverse proxies must pass the original HTTPS scheme to PHP or explicitly configure trusted proxy IPs using `DUP_TRUSTED_HTTPS_PROXIES`. The optional `DUP_HTTPS_PORT` variable sets a non-standard HTTPS port.
 
-### Windows web servers
+For Windows, configure PHP on Apache or IIS/FastCGI and allow the relevant service account to access media drives and writable runtime storage. For Linux, use Apache or Nginx with PHP-FPM; a sample configuration is in `packaging/platform/`.
 
-Use PHP 8.2+ with IIS/FastCGI and URL Rewrite, or Apache. Generic ZIP first-run MariaDB installation, scanning and reports have been tested with Windows PHP 8.5; IIS and Apache deployment still need live validation. Set the site document root to `C:\\Sites\\dup-v2\\public` (or your chosen private path). The ZIP includes `public/web.config` for IIS and `public/.htaccess` for Apache. Configure the web server to serve PHP and give the application identity write permission to `var/`.
+## Synology DSM 7
 
-### Linux web servers
+Install Web Station, PHP 8.2+ and MariaDB 10 first, then use Package Center's **Manual Install** with the DUP SPK. The package provides the Web Station portal `/dup/` and opens it over HTTPS. The PHP profile must enable pdo_mysql, mbstring, intl, iconv, openssl, fileinfo and xml.
 
-Use Apache/mod_rewrite or Nginx/PHP-FPM and a private install such as `/srv/dup-v2`. The generic ZIP has passed fresh MariaDB installation and application tests on Ubuntu 24.04 with PHP 8.3; Nginx/Apache and a production service manager still need validation. Set document root to `/srv/dup-v2/public`. A sample Nginx configuration is at `packaging/platform/linux-nginx.conf.example`. Give the PHP worker read access only to selected scan roots and writable access to the private runtime directory.
+Complete the same web setup wizard. Scan folders are selected when creating profiles and depend on the installed package user's filesystem permissions. Synology shared-folder permissions must grant that account access; the scan worker cannot use mapped Windows drive paths.
 
-### Synology DSM 7 (optional)
+**Upgrade caveat:** The 0.7.4 package uses the same Synology package identity as previous DUP releases, but the redesigned application requires a fresh database. It does not automatically migrate older database schemas or profiles. Back up any installation you want to preserve and do not apply this preview over production data.
 
-The **0.7.3 compatibility-preview SPK** uses package ID `dupv2` and a `/dup-v2/` Web Station portal. DUP v1 is a separate package; this installer does not modify v1 data. Its PHP application stays under the private package target; only `index.php`, `setup.php` and static assets are copied into Web Station. Its lifecycle scripts run the **same PHP job worker** as Windows/Linux, and store credentials/runtime state under the persistent package `var` directory.
+## Background processing
 
-DSM Web Station, PHP 8.2+ and MariaDB 10 are required by the current SPK metadata. The PHP profile must enable **iconv**, **pdo_mysql**, mbstring, intl and XML. Backend IDs may differ across NAS models. The 0.7.3 compatibility-preview retains HTTPS redirects, Package Center's HTTPS Open link, the original DUP icon, corrected setup-page padding, and the MIT licence. Because DSM rejected an earlier build as an invalid file format, the package temporarily omits the DSM Main Menu shortcut registration and reuses the earlier installable SPK's USTAR layout and minimal package metadata. DSM installation acceptance is still unverified; only install this as a test. The rewrite has passed standalone Nginx tests but still needs live Synology Web Station validation. On an existing installation, inspect the **DUP v2 PHP** profile under **Web Station → Script Language Settings → PHP → Extensions** to confirm iconv is enabled before completing setup. Do not assume that updating the package always overrides an existing customised PHP profile.
-
-## Background jobs — all platforms
-
-For shared hosting, cron or Windows Task Scheduler can invoke one worker cycle at a time:
+Run one cycle through cron, Task Scheduler or a service manager:
 
 ```bash
 php bin/console dup:jobs:work --max-jobs=1 --env=prod
 ```
 
-For a persistent service, use the cross-platform PHP loop:
+For a persistent worker:
 
 ```bash
 php bin/console dup:jobs:work --loop --idle-sleep=5 --max-jobs=1 --env=prod
 ```
 
-Windows Task Scheduler can launch the PHP CLI executable with that command and the application directory as its **working directory**. Linux may use systemd (sample: `packaging/platform/linux-systemd.service.example`), cron, Supervisor or another process manager. DSM's SPK provides its own service adapter. The application never assumes any one supervisor is installed.
+The Synology package includes its own service adapter using the same job-worker command.
 
-CLI management:
+## Development and preview packages
 
-```bash
-php bin/console dup:scan:queue 1
-php bin/console dup:jobs:cancel 1
-php bin/console dup:jobs:recover --after=120
-php bin/console dup:settings:ignore --names="@eaDir,#recycle"
-```
-
-Open **Duplicates → a verified group → Preview quarantine** to plan a reversible action. Only a separate, explicit confirmation queues it. The CLI worker then verifies both the selected file and another surviving copy before a same-volume rename. Every quarantined file may be restored from **File actions**, unless the original path has become occupied.
-
-Quarantined files live beneath the profile's private `.dup-quarantine` folder, which is always excluded from duplicate matching. Hard delete and cross-filesystem copy-and-delete are intentionally unavailable. The action history and audit records work across Windows, Linux and DSM.
-
-Open **Reports** for latest-successful-scan storage totals, historical scans (25 per page, bidirectional cursor pagination), and per-run diagnostics. Reported potential recoverable bytes are NOT space already freed. SHA-256 verified groups and unverified size-only candidates are reported separately. Per-profile totals can double-count files if profile roots overlap. CSV exports read only stored database metadata; scans are not rerun. Ignored-folder file rows remain exportable for later policy changes. Scan failures can be found in the job events export even when a scan aborted before indexing a file.
-
-The authenticated **System** page refreshes queue and worker counters every 15 seconds and reports stalled jobs and file actions requiring manual review. `/api/system/status` is administrator-only; public `/health` returns a redacted readiness status.
-
-`/system` reports the operating-system family and recent worker heartbeats, without coupling to an OS service API. `/health` exposes only a redacted ready/setup-required status.
-
-## Developer setup
-
-For local source development, install Composer on DEV (not on end-user hosts):
-
-```bash
-composer install
-php bin/console doctrine:migrations:migrate --no-interaction
-php bin/console dup:admin:create admin
-php -S 127.0.0.1:8088 -t public public/index.php
-```
-
-Development database/administrator setup above is for an existing `.env.local`. For a *new extracted deployment*, use the one-page `public/setup.php` installer instead; its database and configuration must be empty.
-
-## Build previews
+Development source requires Composer dependencies and a configured local database. Generic ZIP and DSM SPK builders package vendored dependencies; end users do not need Composer.
 
 ```bash
 python packaging/build_preview.py
-python packaging/build_dsm_preview.py --version 0.7.3 --php-backend 11  # produces DUP-v2-DSM7-0.7.3-compat.spk
+python packaging/build_dsm_preview.py --version 0.7.4 --php-backend 11
 ```
 
-Both builders include vendored dependencies, verify the package contents, and exclude local databases and secrets. These are **preview artifacts only**, not releases. All regression fixtures and temporary outputs remain offline.
-
-A fresh target database is used for DUP v2. There is no migration of v1 profiles or scan data.
+The DSM build produces `DUP-DSM7-0.7.4-compat.spk`. Both outputs are development previews and must pass a real installation test before release. DSM Web Station PHP backend IDs vary between machines and must be verified for the target.

@@ -22,7 +22,7 @@ if (PHP_SAPI !== 'cli' && !is_file(dirname(__DIR__).'/var/setup.complete')) {
 // $_SERVER/$_ENV. Symfony Runtime's dotenv bootstrap primarily reads the
 // superglobals. Preserve any explicit server value and copy only missing
 // application settings, without exposing credentials in HTTP responses.
-foreach (['APP_ENV','APP_DEBUG','APP_SECRET','DATABASE_URL','DUP_ALLOWED_SCAN_ROOTS'] as $name) {
+foreach (['APP_ENV','APP_DEBUG','APP_SECRET','DATABASE_URL'] as $name) {
     if (!array_key_exists($name, $_SERVER)) {
         $value = getenv($name);
         if ($value !== false) {
