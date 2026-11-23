@@ -12,7 +12,8 @@ use Doctrine\DBAL\DriverManager;
 function checkLink(bool $condition,string $message):void {
     if(!$condition) throw new RuntimeException($message);
 }
-$root=sys_get_temp_dir().DIRECTORY_SEPARATOR.'dup-link-'.bin2hex(random_bytes(6));
+$temp=realpath(sys_get_temp_dir())?:sys_get_temp_dir();
+$root=$temp.DIRECTORY_SEPARATOR.'dup-link-'.bin2hex(random_bytes(6));
 $sourceDir=$root.DIRECTORY_SEPARATOR.'files';
 $backupDir=$root.DIRECTORY_SEPARATOR.'recovery';
 mkdir($sourceDir,0700,true);

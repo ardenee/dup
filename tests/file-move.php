@@ -14,7 +14,8 @@ use Doctrine\DBAL\DriverManager;
 function checkMove(bool $pass,string $why):void {
     if(!$pass) throw new RuntimeException($why);
 }
-$root=sys_get_temp_dir().DIRECTORY_SEPARATOR.'dup-move-'.bin2hex(random_bytes(6));
+$temp=realpath(sys_get_temp_dir())?:sys_get_temp_dir();
+$root=$temp.DIRECTORY_SEPARATOR.'dup-move-'.bin2hex(random_bytes(6));
 $scan=$root.DIRECTORY_SEPARATOR.'scanned';
 $to=$root.DIRECTORY_SEPARATOR.'relocated';
 $sub=$scan.DIRECTORY_SEPARATOR.'Author'.DIRECTORY_SEPARATOR.'Novel';
