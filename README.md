@@ -26,7 +26,7 @@ The generic distribution and SPK intentionally exclude local secrets, SQLite dat
 
 ## Features
 
-- Multiple scan profiles with folder and extension filters and ignored-folder settings.
+- Multiple scan profiles with extension filters and configurable ignored-folder names. Files in ignored folders stay indexed; matching and duplicate totals use the current ignore settings.
 - File-size, sampled CRC32, and full CRC32 duplicate detection.
 - Search, moved files, duplicate groups, and per-profile file review.
 - Queued file operations, scan status, logging and a built-in interface.
@@ -64,10 +64,10 @@ Regenerate DSM icons, if required, with `python packaging/make_icons.py` (Pillow
 
 **Keep DUP on a trusted network. Do not expose it to the public internet yet.** Session authentication, legacy-hash upgrade-on-login, login throttling, CSRF and administrator checks, path restrictions for file actions, and CLI-only worker entry points have been implemented in DEV and passed synthetic PHP/HTTP tests.
 
-**Deployment status (23 November 2026):** The authentication and administrator-guard code was deployed directly to the existing DSM installation after a verified migration of its single account from `VARCHAR(50)` to `VARCHAR(255)`. All 119 deployed files match the tested package, and live tests confirm the login form, CSRF rejection, unauthenticated redirects, and rejection of legacy auth cookies. A complete copy of the previous DSM web files is retained offline. Successful administrator login and normal scanning/file actions still need hands-on verification, and the **DSM SPK upgrade mechanism has not been installed or validated**.
+**Deployment status (23 November 2026):** The authentication and administrator-guard code was deployed directly to DSM after an account migration from `VARCHAR(50)` to `VARCHAR(255)`. The user confirmed successful administrator login. The new duplicate-filter and pagination code was subsequently synchronized to `Y:\dup`; matching and SQL count expressions were verified against DSM MariaDB, while profile rendering and large-page behaviour passed isolated tests. The DSM database currently has no profiles, so real profile scans and file operations are not yet live-tested. Rollback copies are kept offline; the **DSM SPK upgrade mechanism has not been installed or validated**.
 
 Completed baseline: reconciled DEV/GitHub/DSM files, restored the missing action dispatcher, moved DSM private runtime data outside the HTTP root, and introduced a verified shared generic-web/DSM package builder. The hardening branch also removes per-request schema changes and late log-attribution updates.
 
-Remaining work: verify successful administrator login, account management, profile scans and file-action operations on DSM; finish any outstanding auth/CSRF paths, ignore-folder and duplicate-list behaviour, log efficiency, and UI improvements.
+Remaining work: verify authenticated account management, real profile scans and file-action operations on DSM; support individual duplicate groups exceeding the 990-file page budget, refresh unknown CRC values from old ignored-folder scans where needed, and finish remaining auth/CSRF coverage, logging efficiency and UI fixes.
 
 Source: https://github.com/ardenee/dup

@@ -107,6 +107,10 @@ $cpfolder = PostCheckbox("cpfolder");
 $shortfilenames = PostInt("shortfilenames", isset($dup->Settings["shortfilenames"]) ? $dup->Settings["shortfilenames"] : 0);
 $runtime = PostInt("runtime", isset($dup->Settings["runtime"]) ? $dup->Settings["runtime"] : 10800);
 $ifolders = isset($_POST["ifolders"]) ? CleanFilters($_POST["ifolders"]) : (isset($dup->Settings["ifolders"]) ? $dup->Settings["ifolders"] : "");
+$refreshDuplicateCounts = (
+    DupIgnoredFolders($ifolders) !== DupIgnoredFolders($dup->Settings['ifolders'] ?? '') ||
+    $displaymoved !== (int)($dup->Settings['displaymoved'] ?? 0)
+);
 $download = PostCheckbox("download");
 $viewEnable = PostCheckbox("view_enable");
 $viewImageExts = isset($_POST["view_image_exts"]) ? CleanFilters($_POST["view_image_exts"]) : "jpg,jpeg,png,gif,webp,bmp";
@@ -163,6 +167,15 @@ try
     $sdt->bindValue(":view_pdf_exts", $viewPdfExts, PDO::PARAM_STR);
     $sdt->execute();
     $sdt->closeCursor();
+
+    if($refreshDuplicateCounts)
+    {
+        // Recalculate existing indexed duplicates without restarting a scan.
+        $newSettings = $dup->Settings;
+        $newSettings['ifolders'] = $ifolders;
+        $newSettings['displaymoved'] = $displaymoved;
+        DupRefreshAllProfileCounts($dblink, $newSettings);
+    }
 
     SetConfigMessage(true);
 }

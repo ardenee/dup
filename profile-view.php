@@ -36,40 +36,6 @@ function JavaScriptSafeString($value)
     return str_replace(array("\\", "'", "\r", "\n"), array("\\\\", "\\'", "", ""), (string)$value);
 }
 
-function BuildIgnoreFolderList($folders)
-{
-    $out = array();
-    $parts = explode(",", (string)$folders);
-
-    foreach($parts as $part)
-    {
-        $part = strtolower(trim(trim($part), "/\\"));
-
-        if($part != "" && !in_array($part, $out))
-            $out[] = $part;
-    }
-
-    return $out;
-}
-
-function IsIgnoredFolderFile($file, $ignoreFolders)
-{
-    if(!is_array($ignoreFolders) || count($ignoreFolders) == 0)
-        return false;
-
-    $parts = explode("/", trim(str_replace("\\", "/", (string)$file), "/"));
-
-    foreach($parts as $part)
-    {
-        $part = strtolower(trim($part));
-
-        if($part != "" && in_array($part, $ignoreFolders))
-            return true;
-    }
-
-    return false;
-}
-
 function sortByValue($array, $sortOn, $sortOn2, $direction = SORT_ASC)
 {
     $sort = array();
@@ -108,10 +74,13 @@ function ProfileViewUpdatePages($page, $start, $end)
         {
             $decoded = json_decode($row['data'], true);
 
-            if(is_array($decoded))
+            // Previous versions used file-row offsets instead of group offsets.
+            // Discard those saved cursors rather than navigating to the wrong page.
+            if(is_array($decoded) && (int)($decoded['_version'] ?? 0) === 2)
                 $data = $decoded;
         }
 
+        $data['_version'] = 2;
         $data[$page] = array("start" => $start, "end" => $end);
         $json = json_encode($data);
 
@@ -177,10 +146,18 @@ else
 if($start < 0)
     $start = 0;
 
+// Page offsets are cursor-based because a group can contain many file rows.
+// A deep link without a previously visited page must start from page 1.
+if($page > 1 && $start === 0)
+{
+    header('Location: profile-view.php?profile=' . $profileId . '&page=1');
+    exit;
+}
+
 $pageLimit = 990;
 $DUPS = $dup->GetDups($profileId, $start);
-$ignoreFolders = BuildIgnoreFolderList(isset($dup->Settings['ifolders']) ? $dup->Settings['ifolders'] : "");
-$movedFolders = array(isset($dup->Profile['mpath']) ? $dup->Profile['mpath'] : "");
+// GetDups has already applied the ignored/moved directory rules in SQL.
+$oversizedGroups = (int)($DUPS['stats']['oversized'] ?? 0);
 $displayGroups = array();
 $tsize = 0;
 $dupsize = 0;
@@ -199,21 +176,9 @@ foreach($DUPS as $key => $value)
         continue;
 
     $value = sortByValue($value, 'link', 'file');
-    $filtered = array();
-
-    foreach($value as $row)
-    {
-        if(!isset($row['file']))
-            continue;
-
-        if(IsIgnoredFolderFile($row['file'], $ignoreFolders))
-            continue;
-
-        if($dup->Settings['displaymoved'] == 0 && IsMovedFile($row['file'], $movedFolders))
-            continue;
-
-        $filtered[] = $row;
-    }
+    // The database query filters *before* duplicate groups are counted.
+    // Do not filter rows again here: that desynchronizes pagination.
+    $filtered = $value;
 
     if(count($filtered) < 2)
         continue;
@@ -244,10 +209,10 @@ foreach($DUPS as $key => $value)
 }
 
 $displayedDupGroups = count($displayGroups);
-$endPageMarker = max($start, $parent - 1);
+$endPageMarker = max($start, (int)($DUPS['stats']['end'] ?? $start));
 ProfileViewUpdatePages($page, $start, $endPageMarker);
 $matchedOn = (isset($dup->Profile['crc32']) && intval($dup->Profile['crc32']) == 0) ? "Size" : "CRC32";
-$profileDups = isset($dup->Profile['dups']) ? intval($dup->Profile['dups']) : 0;
+$profileDups = DupCountVisibleGroups($dblink, $profileId, $dup->Settings, $dup->Profile);
 $hasNext = ($nextPageAvailable || $endPageMarker < $profileDups);
 ?>
 <!DOCTYPE HTML>
@@ -306,6 +271,13 @@ $(document).ready(function(){
 <DIV id=contentWrapper>
 <DIV id=content>
 <H1 class=title>Files for <B><?php echo ProfileViewHtml($profilePath); ?></B></H1>
+<?php if($oversizedGroups > 0): ?>
+<div class="alert alert-warning">
+    <?php echo number_format($oversizedGroups); ?> duplicate group(s) contained more than
+    <?php echo number_format($pageLimit); ?> files each and could not fit in this page.
+    These groups are preserved in the database; no file action was performed.
+</div>
+<?php endif; ?>
 <?php echo ProfilePagerHtml($profileId, $page, $start, $endPageMarker, $profileDups, $shownRows, $pageLimit, $hasNext); ?>
 <form id=dups name=dups method=post action="action-files.php">
 <input type="hidden" name="profile" value="<?php echo $profileId; ?>">

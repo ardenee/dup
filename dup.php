@@ -1,5 +1,6 @@
 <?php
 include("db.php");
+require_once __DIR__ . "/duplicate-filters.php";
 // Account attribution is now handled at insertion time by db.php.
 
 class dup
@@ -348,178 +349,101 @@ class dup
 	}
 	//-------------------------------------------------------------------------------------------------------
 	function GetDups($pProfile, $start)
-{
-    global $oldstart;
-    global $dblink;
-
-    $pProfile = intval($pProfile);
-    $start = intval($start);
-
-    if($start < 0)
-        $start = 0;
-
-    LogStr("GetDups() Get dups starting from via prams - $pProfile - $start", 2, __FILE__, __LINE__, __FUNCTION__);
-
-    $mixedRows = array();
-    $groups = array();
-    $total = 0;
-    $useMovedFilter = false;
-    $movedLike = "";
-
-    if(isset($this->Settings['displaymoved']) && intval($this->Settings['displaymoved']) == 0 && isset($this->Profile['mpath']) && trim($this->Profile['mpath']) != "")
     {
-        $useMovedFilter = true;
-        $movedLike = "%" . $this->Profile['mpath'] . "%";
-    }
+        global $dblink;
+        $pProfile = (int)$pProfile;
+        $start = max(0, (int)$start);
+        $tabledata = array(
+            'stats' => array('total' => 0, 'items' => 0,
+                'start' => $start, 'end' => $start, 'oldstart' => $start,
+                'oversized' => 0)
+        );
+        if($pProfile <= 0) return $tabledata;
 
-    if($pProfile <= 0)
-    {
-        $tabledata = array();
-        $tabledata['stats']['total'] = 0;
-        $tabledata['stats']['items'] = 0;
-        $tabledata['stats']['start'] = $start;
-        $tabledata['stats']['end'] = $start;
-        $tabledata['stats']['oldstart'] = $oldstart;
+        $key = ((int)($this->Profile['crc32'] ?? 0) > 0) ? 'crc32' : 'size';
+        $hashPredicate = $key === 'crc32' ? " AND crc32!='unknown' AND crc32!=''" : '';
+        $filter = DupVisibilityFilter($this->Settings, $this->Profile, 'dupg');
+        $sql = "SELECT $key, COUNT(*) AS cnt
+            FROM files WHERE profile=:profile $hashPredicate " . $filter['where'] . "
+            GROUP BY $key HAVING COUNT(*)>1
+            ORDER BY MIN(file) ASC LIMIT :start, 500";
+        try
+        {
+            $stmt = $dblink->prepare($sql);
+            $stmt->bindValue(':profile', $pProfile, PDO::PARAM_INT);
+            $stmt->bindValue(':start', $start, PDO::PARAM_INT);
+            DupBindVisibility($stmt, $filter['params']);
+            $stmt->execute();
+            $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $stmt->closeCursor();
+
+            $selected = array();
+            $consumed = 0;
+            $count = 0;
+            $oversized = 0;
+            foreach($groups as $group)
+            {
+                $groupSize = (int)$group['cnt'];
+                if($groupSize > 990)
+                {
+                    // Report oversized groups without an endless pagination loop.
+                    $oversized++;
+                    $consumed++;
+                    continue;
+                }
+                if($count > 0 && $count + $groupSize > 990) break;
+                $selected[] = (string)$group[$key];
+                $count += $groupSize;
+                $consumed++;
+                if($count >= 990) break;
+            }
+
+            // Fetch page contents in one query instead of 1 SQL query per
+            // duplicate group (which previously caused ~500 queries/page).
+            $rows = array();
+            if(count($selected) > 0)
+            {
+                $rowFilter = DupVisibilityFilter($this->Settings, $this->Profile, 'dupr');
+                $placeholders = array();
+                foreach($selected as $idx => $unused)
+                    $placeholders[] = ':dupkey' . $idx;
+                $rowSql = "SELECT * FROM files WHERE profile=:profile AND $key IN (" .
+                    implode(',', $placeholders) . ") $hashPredicate " . $rowFilter['where'] .
+                    " ORDER BY file";
+                $stmt = $dblink->prepare($rowSql);
+                $stmt->bindValue(':profile', $pProfile, PDO::PARAM_INT);
+                foreach($selected as $idx => $value)
+                    $stmt->bindValue(':dupkey' . $idx, $value, PDO::PARAM_STR);
+                DupBindVisibility($stmt, $rowFilter['params']);
+                $stmt->execute();
+                $byGroup = array();
+                while($row = $stmt->fetch(PDO::FETCH_ASSOC))
+                    $byGroup[(string)$row[$key]][] = $row;
+                $stmt->closeCursor();
+
+                // Preserve the same group ordering as the group cursor query.
+                foreach($selected as $value)
+                    foreach(($byGroup[$value] ?? array()) as $row)
+                        $rows[] = $row;
+            }
+            $tabledata = $this->FixArray2($rows);
+            $tabledata['stats'] = array(
+                'total' => $consumed - $oversized,
+                'items' => count($rows),
+                'start' => $start,
+                'end' => $start + $consumed,
+                'oldstart' => $start,
+                'oversized' => $oversized
+            );
+        }
+        catch(PDOException $ex)
+        {
+            LogError(print_r($ex, true));
+            header("Location: error.php");
+            exit;
+        }
         return $tabledata;
     }
-
-    try
-    {
-        if(isset($this->Profile['crc32']) && intval($this->Profile['crc32']) > 0)
-        {
-            LogStr("MySQL/SQLite: Finding matches based on CRC32", 2, __FILE__, __LINE__, __FUNCTION__);
-
-            $whereMoved = $useMovedFilter ? " AND file NOT LIKE :moved " : "";
-
-            $query = "
-                SELECT crc32, COUNT(crc32) AS cnt
-                FROM files
-                WHERE crc32!='unknown'
-                  AND crc32!=''
-                  AND profile=:profile
-                  " . $whereMoved . "
-                GROUP BY crc32
-                HAVING COUNT(crc32)>1
-                ORDER BY MIN(file) ASC
-                LIMIT :start, 500;
-            ";
-
-            LogStr("MySQL/SQLite: Get duplicate CRC groups", 3, __FILE__, __LINE__, __FUNCTION__);
-
-            $sdt = $dblink->prepare($query);
-            $sdt->bindValue(":profile", $pProfile, PDO::PARAM_INT);
-            $sdt->bindValue(":start", $start, PDO::PARAM_INT);
-
-            if($useMovedFilter)
-                $sdt->bindValue(":moved", $movedLike, PDO::PARAM_STR);
-
-            $sdt->execute();
-            $groups = $sdt->fetchAll(PDO::FETCH_ASSOC);
-            $sdt->closeCursor();
-
-            foreach($groups as $k => $v)
-            {
-                $cnt = isset($v['cnt']) ? intval($v['cnt']) : 0;
-
-                if(($total + 5) + $cnt > 1000)
-                    break;
-
-                $query = "SELECT * FROM files WHERE crc32=:crc32 AND profile=:profile" . ($useMovedFilter ? " AND file NOT LIKE :moved " : " ") . "ORDER BY file;";
-
-                LogStr("MySQL/SQLite: Get duplicate CRC rows", 3, __FILE__, __LINE__, __FUNCTION__);
-
-                $sdt = $dblink->prepare($query);
-                $sdt->bindValue(":crc32", $v['crc32'], PDO::PARAM_STR);
-                $sdt->bindValue(":profile", $pProfile, PDO::PARAM_INT);
-
-                if($useMovedFilter)
-                    $sdt->bindValue(":moved", $movedLike, PDO::PARAM_STR);
-
-                $sdt->execute();
-
-                while($row = $sdt->fetch(PDO::FETCH_ASSOC))
-                    $mixedRows[] = $row;
-
-                $sdt->closeCursor();
-
-                $total += $cnt;
-            }
-        }
-        else
-        {
-            LogStr("MySQL/SQLite: Finding matches based on Size", 2, __FILE__, __LINE__, __FUNCTION__);
-
-            $whereMoved = $useMovedFilter ? " AND file NOT LIKE :moved " : "";
-
-            $query = "
-                SELECT size, COUNT(size) AS cnt
-                FROM files
-                WHERE profile=:profile
-                  " . $whereMoved . "
-                GROUP BY size
-                HAVING COUNT(size)>1
-                ORDER BY MIN(file) ASC
-                LIMIT :start, 500;
-            ";
-
-            LogStr("MySQL/SQLite: Get duplicate size groups", 3, __FILE__, __LINE__, __FUNCTION__);
-
-            $sdt = $dblink->prepare($query);
-            $sdt->bindValue(":profile", $pProfile, PDO::PARAM_INT);
-            $sdt->bindValue(":start", $start, PDO::PARAM_INT);
-
-            if($useMovedFilter)
-                $sdt->bindValue(":moved", $movedLike, PDO::PARAM_STR);
-
-            $sdt->execute();
-            $groups = $sdt->fetchAll(PDO::FETCH_ASSOC);
-            $sdt->closeCursor();
-
-            foreach($groups as $k => $v)
-            {
-                $cnt = isset($v['cnt']) ? intval($v['cnt']) : 0;
-
-                if(($total + 5) + $cnt > 1000)
-                    break;
-
-                $query = "SELECT * FROM files WHERE size=:size AND profile=:profile" . ($useMovedFilter ? " AND file NOT LIKE :moved " : " ") . "ORDER BY file;";
-
-                LogStr("MySQL/SQLite: Get duplicate size rows", 3, __FILE__, __LINE__, __FUNCTION__);
-
-                $sdt = $dblink->prepare($query);
-                $sdt->bindValue(":size", intval($v['size']), PDO::PARAM_INT);
-                $sdt->bindValue(":profile", $pProfile, PDO::PARAM_INT);
-
-                if($useMovedFilter)
-                    $sdt->bindValue(":moved", $movedLike, PDO::PARAM_STR);
-
-                $sdt->execute();
-
-                while($row = $sdt->fetch(PDO::FETCH_ASSOC))
-                    $mixedRows[] = $row;
-
-                $sdt->closeCursor();
-
-                $total += $cnt;
-            }
-        }
-    }
-    catch(PDOException $ex) {
-        LogError(print_r($ex, true));
-        header("Location: error.php");
-        exit;
-    }
-
-    $tabledata = $this->FixArray2($mixedRows);
-
-    $tabledata['stats']['total'] = count($groups);
-    $tabledata['stats']['items'] = count($mixedRows);
-    $tabledata['stats']['start'] = $start;
-    $tabledata['stats']['end'] = $start + $total;
-    $tabledata['stats']['oldstart'] = $oldstart;
-
-    return $tabledata;
-}
 	//-------------------------------------------------------------------------------
 	function GetPage($page)
 {
@@ -552,7 +476,7 @@ class dup
         {
             $decoded = json_decode($row['data'], true);
 
-            if(is_array($decoded))
+            if(is_array($decoded) && (int)($decoded['_version'] ?? 0) === 2)
                 $value = $decoded;
         }
 

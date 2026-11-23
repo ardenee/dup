@@ -18,6 +18,7 @@ if(PHP_SAPI == "cli")
 }
 
 include("dup.php");
+require_once __DIR__ . "/duplicate-filters.php";
 
 $profileId = intval($profile);
 
@@ -42,7 +43,6 @@ LogStr("Scan Files", 1, __FILE__, __LINE__, __FUNCTION__);
 $scanRoot = isset($dup->Profile["path"]) ? rtrim($dup->Profile["path"], "/") : "";
 $minFileSize = ((1024 * 1024) * intval($dup->Profile["msize"]));
 $fileTypes = BuildFileTypeList(isset($dup->Profile["filetypes"]) ? $dup->Profile["filetypes"] : "");
-$skipFolders = BuildSkipFolderList(isset($dup->Settings["ifolders"]) ? $dup->Settings["ifolders"] : "");
 $crcMode = isset($dup->Profile["crc32"]) ? intval($dup->Profile["crc32"]) : 0;
 
 if($scanRoot == "" || !is_dir($scanRoot))
@@ -59,7 +59,7 @@ try
 
     ClearProfileFiles();
 
-    $scanResult = ScanFolderToDatabase($scanRoot, $minFileSize, $fileTypes, $skipFolders);
+    $scanResult = ScanFolderToDatabase($scanRoot, $minFileSize, $fileTypes);
 
     LogStr("Scan insert complete: scanned=" . $scanResult["scanned"] . " inserted=" . $scanResult["inserted"] . " skipped=" . $scanResult["skipped"] . " errors=" . $scanResult["errors"], 1, __FILE__, __LINE__, __FUNCTION__);
 
@@ -106,24 +106,6 @@ function BuildFileTypeList($fileTypes)
 }
 
 //--------------------------------------------------------------------------------------
-
-function BuildSkipFolderList($folders)
-{
-    $value = array();
-    $parts = explode(",", (string)$folders);
-
-    foreach($parts as $part)
-    {
-        $part = trim($part);
-        $part = trim($part, "/\\");
-        $part = strtolower($part);
-
-        if($part != "" && !in_array($part, $value))
-            $value[] = $part;
-    }
-
-    return $value;
-}
 
 //--------------------------------------------------------------------------------------
 
@@ -174,11 +156,17 @@ function ClearProfileFiles()
     $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
     $sdt->execute();
     $sdt->closeCursor();
+
+    // A new scan invalidates all previously saved duplicate-group page offsets.
+    $reset = $dblink->prepare("DELETE FROM viewpages WHERE profile=:profile");
+    $reset->bindValue(":profile", $profileId, PDO::PARAM_INT);
+    $reset->execute();
+    $reset->closeCursor();
 }
 
 //--------------------------------------------------------------------------------------
 
-function BuildFindCommand($scanRoot, $skipFolders)
+function BuildFindCommand($scanRoot)
 {
     $findBin = "/usr/bin/find";
 
@@ -190,7 +178,7 @@ function BuildFindCommand($scanRoot, $skipFolders)
 
 //--------------------------------------------------------------------------------------
 
-function ScanFolderToDatabase($scanRoot, $minFileSize, $fileTypes, $skipFolders)
+function ScanFolderToDatabase($scanRoot, $minFileSize, $fileTypes)
 {
     global $dblink;
     global $profileId;
@@ -208,7 +196,7 @@ function ScanFolderToDatabase($scanRoot, $minFileSize, $fileTypes, $skipFolders)
 
     $insert = $dblink->prepare($insertSql);
 
-    $cmd = BuildFindCommand($scanRoot, $skipFolders);
+    $cmd = BuildFindCommand($scanRoot);
     LogStr("Scan find command: " . $cmd, 3, __FILE__, __LINE__, __FUNCTION__);
 
     UpdateStatus("Finding files...", "Starting folder scan: " . $scanRoot);
@@ -354,37 +342,6 @@ function ResolveSymlinkTarget($path)
 
 //--------------------------------------------------------------------------------------
 
-function ShouldSkipPath($path, $skipFolders)
-{
-    if(!is_array($skipFolders) || count($skipFolders) == 0)
-        return false;
-
-    $path = str_replace("\\", "/", (string)$path);
-    $parts = explode("/", trim($path, "/"));
-
-    foreach($parts as $part)
-    {
-        $part = strtolower(trim($part));
-
-        foreach($skipFolders as $skip)
-        {
-            $skip = strtolower(trim((string)$skip));
-
-            if($skip != "" && $part == $skip)
-                return true;
-        }
-    }
-
-    return false;
-}
-
-//--------------------------------------------------------------------------------------
-
-function ShouldSkipFolder($folder, $skipFolders)
-{
-    return ShouldSkipPath($folder, $skipFolders);
-}
-
 //--------------------------------------------------------------------------------------
 
 function HashDuplicateCandidates($minFileSize)
@@ -443,7 +400,6 @@ function GetHashCandidateIds($minFileSize)
 {
     global $dblink;
     global $profileId;
-    global $skipFolders;
 
     $rows = array();
     $sizes = array();
@@ -459,7 +415,9 @@ function GetHashCandidateIds($minFileSize)
 
     while($row = $sdt->fetch(PDO::FETCH_ASSOC))
     {
-        if(!isset($row["file"]) || ShouldSkipPath($row["file"], $skipFolders))
+        // Preserve hashing for ignored-folder files: changing the ignore list
+        // later must not require a filesystem rescan.
+        if(!isset($row["file"]))
             continue;
 
         $size = isset($row["size"]) ? intval($row["size"]) : 0;
@@ -490,7 +448,6 @@ function UpdateSymlinkHashes()
 {
     global $dblink;
     global $profileId;
-    global $skipFolders;
 
     $query = "SELECT id, file, link FROM files WHERE link!='' AND profile=:profile ORDER BY id;";
     LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
@@ -511,7 +468,7 @@ function UpdateSymlinkHashes()
         $link = isset($row["link"]) ? $row["link"] : "";
         $id = isset($row["id"]) ? intval($row["id"]) : 0;
 
-        if($id <= 0 || $link == "" || ShouldSkipPath($file, $skipFolders))
+        if($id <= 0 || $link == "")
             continue;
 
         $hash = GetHashForPathOrLinkTarget($link);
@@ -602,48 +559,10 @@ function GetFileById($id)
 
 function CountDuplicateGroups($type)
 {
-    global $dblink;
-    global $profileId;
-    global $skipFolders;
-
-    $type = ($type == "crc32") ? "crc32" : "size";
-    $groups = array();
-
-    if($type == "crc32")
-        $query = "SELECT file, crc32 FROM files WHERE profile=:profile AND crc32!='unknown' AND crc32!='' ORDER BY crc32;";
-    else
-        $query = "SELECT file, size FROM files WHERE profile=:profile ORDER BY size;";
-
-    LogStr("MySQL/SQLite: count duplicate groups by " . $type, 3, __FILE__, __LINE__, __FUNCTION__);
-
-    $sdt = $dblink->prepare($query);
-    $sdt->bindValue(":profile", $profileId, PDO::PARAM_INT);
-    $sdt->execute();
-
-    while($row = $sdt->fetch(PDO::FETCH_ASSOC))
-    {
-        if(!isset($row["file"]) || ShouldSkipPath($row["file"], $skipFolders))
-            continue;
-
-        $key = ($type == "crc32") ? $row["crc32"] : intval($row["size"]);
-
-        if(!isset($groups[$key]))
-            $groups[$key] = 0;
-
-        $groups[$key]++;
-    }
-
-    $sdt->closeCursor();
-
-    $total = 0;
-
-    foreach($groups as $count)
-    {
-        if($count > 1)
-            $total++;
-    }
-
-    return $total;
+    global $dblink, $profileId, $dup;
+    // Use exactly the same visibility rules as profile-view and GetDups.
+    // All files remain stored in the files table, including ignored folders.
+    return DupCountVisibleGroups($dblink, (int)$profileId, $dup->Settings, $dup->Profile);
 }
 
 //--------------------------------------------------------------------------------------

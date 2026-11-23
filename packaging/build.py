@@ -18,7 +18,7 @@ SCRIPTS = ("preinst", "postinst", "preuninst", "postuninst",
 ESSENTIAL = {"index.php", "db.php", "dup.php", "action-list-files.php",
              "action-files-thread.php", "scan-files.php", "scan-files-thread.php",
              "profile-view.php", "setup.php", "setup-save.php", "database-schema.php",
-             "database-migrations.php", "bin/migrate.php"}
+             "database-migrations.php", "bin/migrate.php", "duplicate-filters.php"}
 ASSETS = {".js", ".css", ".png", ".gif", ".jpg", ".jpeg",
           ".svg", ".ico", ".html", ".htm", ".txt"}
 SCHEMA = set()  # Raw SQL is never published into the HTTP document root.
