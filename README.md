@@ -14,7 +14,7 @@ DUP is a web-based duplicate-file scanner and manager for Windows, Linux and Syn
 - Supports four matching modes: file size, original CRC32 3 Part (150 KiB at start/middle/end of large files), full CRC32, and streamed SHA-256; size and CRC32 groups are explicitly marked as candidates
 - Retains indexed files from ignored folders so ignore rules can be changed without a full rescan
 - Preserves prior successful scan snapshots if a later scan fails
-- Provides general/duplicate/quarantined-file index searches, duplicate-group browsing, results pagination, reports, historic runs and CSV exports
+- Provides general/duplicate/quarantined-file index searches, duplicate-group browsing with collapsed inline file lists, independent file-list and group pagination, reports, historic runs and CSV exports. Profiles remain for scan configuration and jobs; browse matching files in Duplicates.
 - Shows worker/queue diagnostics and authenticated system status
 - Supports explicitly confirmed, reversible quarantine and restore with hash verification and an audit history
 - Provides filename cleanup previews, selected-file batch renaming, and manual single-file renaming through the audited background-job worker, without overwriting existing paths

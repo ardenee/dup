@@ -3,48 +3,89 @@
 {% block section %}Duplicates{% endblock %}
 {% block body %}
 <div class="page-heading">
-  <div><div class="eyebrow">RESULTS</div><h1>Duplicate groups</h1>
-    <p class="muted">Results from each profile's latest completed scan. Failed scans do not replace successful results.</p></div>
+  <div>
+    <div class="eyebrow">SCAN RESULTS</div>
+    <h1>Duplicate files</h1>
+    <p class="muted">Expand a group to view its files, paths, hashes and available actions here. All groups start collapsed, and expanding them does not reload the page.</p>
+  </div>
 </div>
-<section class="panel">
-  <div class="panel-heading">
-    <h2>Results</h2>
-    <form action="{{ path('app_duplicates') }}" method="get" class="inline-filter">
-      <label for="profile-filter">Profile</label>
-      <select id="profile-filter" name="profile" onchange="this.form.submit()">
-        <option value="">All profiles</option>
-        {% for profile in profiles %}
-          <option value="{{ profile.id }}" {{ selected_profile == profile.id ? 'selected' : '' }}>
-            {{ profile.name }} {% if profile.duplicate_groups is not null %}({{ profile.duplicate_groups }} groups){% endif %}
-          </option>
-        {% endfor %}
-      </select>
-      <noscript><button type="submit">Filter</button></noscript>
-    </form>
+<div class="stats-grid dup-stats">
+  <div class="stat"><span>Matching groups</span><strong>{{ totals.total_groups|number_format }}</strong></div>
+  <div class="stat"><span>File records in groups</span><strong>{{ totals.total_members|number_format }}</strong></div>
+  <div class="stat"><span>Potential reclaimable bytes</span><strong>{{ totals.reclaimable_bytes|number_format }}</strong></div>
+</div>
+<section class="panel" id="duplicate-groups">
+  <div class="panel-heading dup-results-heading">
+    <div><h2>Results</h2><p class="muted">Latest successful scan for each profile</p></div>
+    <div class="dup-results-controls">
+      <form action="{{ path('app_duplicates') }}" method="get" class="inline-filter">
+        <label for="profile-filter">Profile</label>
+        <select id="profile-filter" name="profile" onchange="this.form.submit()">
+          <option value="">All profiles</option>
+          {% for profile in profiles %}
+            <option value="{{ profile.id }}" {{ selected_profile == profile.id ? 'selected' : '' }}>
+              {{ profile.name }} {% if profile.duplicate_groups is not null %}({{ profile.duplicate_groups }} groups){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit">Filter</button></noscript>
+      </form>
+      {% if groups is not empty %}
+      <div class="dup-expand-actions">
+        <button type="button" class="secondary" data-dup-expand-all>Expand all</button>
+        <button type="button" class="secondary" data-dup-collapse-all>Collapse all</button>
+      </div>
+      {% endif %}
+    </div>
   </div>
   {% if groups is empty %}
-    <div class="empty-state">No duplicate groups are available for this selection.</div>
+    <div class="empty-state">No duplicate groups are available for this selection. <a href="{{ path('app_profiles') }}">View scan profiles</a>.</div>
   {% else %}
-    <div class="table-wrap"><table>
-      <thead><tr><th>Group</th><th>Profile</th><th>Files</th><th>File size</th><th>Potential savings</th><th>Confidence</th></tr></thead>
-      <tbody>{% for group in groups %}
-        <tr>
-          <td><a href="{{ path('app_duplicate_group',{id:group.id}) }}">#{{ group.id }}</a></td>
-          <td>{{ group.profile_name }}</td>
-          <td>{{ group.file_count|number_format }}</td>
-          <td class="group-size">{{ group.size_bytes|number_format }} bytes</td>
-          <td class="group-size">{{ group.reclaimable_bytes|number_format }} bytes</td>
-          <td><span class="status">{{ group.rules_version == 1 ? 'Verified SHA-256' : (group.rules_version == 2 ? 'CRC32 3 Part — candidate' : (group.rules_version == 3 ? 'CRC32 Full — candidate' : 'Size only — candidate')) }}</span></td>
-        </tr>
-      {% endfor %}</tbody>
-    </table></div>
-    <div class="result-toolbar">
-      <span class="muted">Showing {{ groups|length }} groups on this page</span>
-      <nav aria-label="Duplicate results pagination">
+    <div class="table-wrap dup-results-table">
+      <table>
+        <thead><tr>
+          <th>View</th><th>Group / sample file</th><th>Profile</th>
+          <th>Files</th><th>File size</th><th>Potential savings</th><th>Match type</th>
+        </tr></thead>
+        <tbody>
+          {% for group in groups %}
+            <tr class="dup-group-row" data-dup-group-row>
+              <td>
+                <button type="button" class="dup-toggle" data-dup-toggle
+                  data-members-url="{{ path('app_duplicate_members',{id:group.id}) }}"
+                  aria-expanded="false" aria-controls="dup-members-{{ group.id }}"
+                  aria-label="Expand group #{{ group.id }}">
+                  <span class="dup-chevron" aria-hidden="true">▸</span>
+                </button>
+              </td>
+              <td>
+                <strong><a class="text-link" href="{{ path('app_duplicate_group',{id:group.id}) }}">Group #{{ group.id }}</a></strong>
+                <div class="muted dup-sample" title="{{ group.example_filename ?? '' }}">{{ group.example_filename ?? 'No file name' }}</div>
+              </td>
+              <td>{{ group.profile_name }}</td>
+              <td class="group-size">{{ group.file_count|number_format }}</td>
+              <td class="group-size">{{ group.size_bytes|number_format }} bytes</td>
+              <td class="group-size">{{ group.reclaimable_bytes|number_format }} bytes</td>
+              <td><span class="status">{{ group.rules_version == 1 ? 'SHA-256 (full)' : (group.rules_version == 2 ? 'CRC32 3 Part (candidate)' : (group.rules_version == 3 ? 'CRC32 Full (candidate)' : 'Size only (candidate)')) }}</span></td>
+            </tr>
+            <tr class="dup-details-row" hidden>
+              <td colspan="7">
+                <div id="dup-members-{{ group.id }}" data-dup-detail role="region" aria-label="Files in group #{{ group.id }}" aria-live="polite"></div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="result-toolbar dup-results-footer">
+      <span class="muted">{{ groups|length }} duplicate groups on this page · {{ totals.total_groups|number_format }} matching groups · {{ totals.reclaimable_bytes|number_format }} potentially reclaimable bytes</span>
+      <nav aria-label="Duplicate results pages">
         {% if previous %}<a href="{{ path('app_duplicates',(selected_profile ? {profile:selected_profile} : {})|merge({before:previous})) }}">Previous</a>{% endif %}
         {% if next %}<a href="{{ path('app_duplicates',(selected_profile ? {profile:selected_profile} : {})|merge({after:next})) }}">Next</a>{% endif %}
       </nav>
     </div>
   {% endif %}
 </section>
+<p class="muted dup-candidate-note">Size and CRC32 matches are candidate duplicates, not proof that all bytes are identical. Destructive file actions remain restricted to the verified workflow.</p>
+<script type="module" src="{{ asset('assets/duplicates.js') }}?v=1"></script>
 {% endblock %}

@@ -4,7 +4,10 @@
 {% block body %}
 <div class="page-heading"><div><div class="eyebrow">SCANNING</div><h1>Profiles</h1>
   <p class="muted">Define source folders, file types, and scan settings. Scans run through a separate PHP CLI worker.</p></div>
-  <a class="primary link-button" href="{{ path('app_profile_new') }}">Add profile</a></div>
+  <div class="profile-page-actions">
+    <a class="secondary link-button" href="{{ path('app_jobs') }}">Scan jobs</a>
+    <a class="primary link-button" href="{{ path('app_profile_new') }}">Add profile</a>
+  </div></div>
 <section class="panel">
   <div class="panel-heading"><h2>Configured profiles</h2><span class="muted">{{ profiles|length }} total</span></div>
   {% if profiles is empty %}

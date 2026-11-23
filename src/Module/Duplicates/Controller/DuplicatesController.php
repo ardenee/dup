@@ -56,7 +56,10 @@ final class DuplicatesController extends AbstractController
 
         $rows=$db->fetchAllAssociative(
             'SELECT g.id,g.size_bytes,g.file_count,g.reclaimable_bytes,' .
-            'g.rules_version,g.group_key,p.name AS profile_name,p.id AS profile_id ' .
+            'g.rules_version,g.group_key,p.name AS profile_name,p.id AS profile_id, ' .
+            '(SELECT f.filename FROM duplicate_group_members m ' .
+            'JOIN file_entries f ON f.id=m.file_entry_id ' .
+            'WHERE m.group_id=g.id ORDER BY m.id LIMIT 1) AS example_filename ' .
             $pageWhere.$order.' LIMIT '.(self::PAGE_GROUPS+1),
             $params
         );
@@ -73,9 +76,16 @@ final class DuplicatesController extends AbstractController
             'SELECT 1'.$where.' AND g.id>:cursor LIMIT 1',
             array_merge($baseParams,['cursor'=>$last])
         );
+        $totals=$db->fetchAssociative(
+            'SELECT COUNT(*) AS total_groups, '.
+            'COALESCE(SUM(g.file_count),0) AS total_members, '.
+            'COALESCE(SUM(g.reclaimable_bytes),0) AS reclaimable_bytes '.
+            $where,$baseParams
+        );
         return $this->render('duplicates/index.html.twig',[
             'groups'=>$rows,'profiles'=>$profiles,'selected_profile'=>$profile,
-            'previous'=>$prior?$first:null,'next'=>$later?$last:null
+            'previous'=>$prior?$first:null,'next'=>$later?$last:null,
+            'totals'=>$totals ?: ['total_groups'=>0,'total_members'=>0,'reclaimable_bytes'=>0]
         ]);
     }
 
