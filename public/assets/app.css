@@ -88,3 +88,20 @@ td code{word-break:break-all;white-space:normal}
 .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(max-width:480px){.stats-grid{grid-template-columns:1fr 1fr}.stat{padding:16px}.stat strong{font-size:23px}.page-heading{display:block}.page-heading .link-button{margin-top:14px}}
+
+/* Shared job monitoring and result navigation */
+.panel-content{padding:21px 24px}
+.panel-content code{background:#f1f5f9;padding:5px 8px;border-radius:6px;display:inline-block;max-width:100%;overflow-x:auto}
+progress{display:block;width:100%;height:8px;accent-color:var(--primary);margin:8px 0}
+button.secondary:disabled{opacity:.55;cursor:not-allowed}
+.table-wrap form{white-space:nowrap}
+.table-wrap button.secondary{font-size:12px;padding:6px 10px}
+.group-size{font-variant-numeric:tabular-nums}
+.result-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px 20px;border-top:1px solid var(--line)}
+.result-toolbar nav{display:flex;gap:8px}
+.result-toolbar a{display:inline-block;border:1px solid var(--line);padding:6px 12px;border-radius:7px;text-decoration:none}
+.empty-note{padding:24px;color:var(--muted);text-align:center}
+
+.notice-warning{border-color:#efd08b;background:#fff8e5;color:#72531a}
+.inline-filter{display:flex;align-items:center;gap:9px;font-size:13px}
+.inline-filter select{padding:7px 9px;border:1px solid var(--line);border-radius:7px;max-width:235px}

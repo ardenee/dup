@@ -3,24 +3,42 @@
 {% block section %}Profiles{% endblock %}
 {% block body %}
 <div class="page-heading"><div><div class="eyebrow">SCANNING</div><h1>Profiles</h1>
-  <p class="muted">Define source folders, destination folders and matching rules.</p></div>
+  <p class="muted">Define source folders, file types, and scan settings. Scans run through a separate PHP CLI worker.</p></div>
   <a class="primary link-button" href="{{ path('app_profile_new') }}">Add profile</a></div>
 <section class="panel">
   <div class="panel-heading"><h2>Configured profiles</h2><span class="muted">{{ profiles|length }} total</span></div>
-  {% if profiles is empty %}<div class="empty-state">No profiles configured. <a href="{{ path('app_profile_new') }}">Create the first profile</a>.</div>
+  {% if profiles is empty %}
+    <div class="empty-state">No profiles configured. <a href="{{ path('app_profile_new') }}">Create the first profile</a>.</div>
   {% else %}
-  <div class="table-wrap"><table>
-    <thead><tr><th>Name</th><th>Source</th><th>Move folder</th><th>Type</th><th>Hash strategy</th><th>State</th></tr></thead>
-    <tbody>{% for profile in profiles %}<tr><td><strong>{{ profile.name }}</strong></td><td><code>{{ profile.source_root }}</code></td>
-       <td><code>{{ profile.move_root }}</code></td><td>{{ profile.type_name }}</td>
-       <td>{{ profile.hash_mode }}</td><td>{{ profile.enabled ? 'Enabled' : 'Disabled' }}</td></tr>{% endfor %}</tbody>
-  </table></div>
+    <div class="table-wrap"><table><thead>
+      <tr><th>Name / source</th><th>File type</th><th>Matching</th><th>Last completed run</th><th>State</th><th>Actions</th></tr>
+    </thead><tbody>
+    {% for profile in profiles %}
+      <tr>
+        <td><strong>{{ profile.name }}</strong><div class="muted"><code>{{ profile.source_root }}</code></div></td>
+        <td>{{ profile.type_name }}</td>
+        <td>{{ profile.hash_mode == 'sha256' ? 'Verified SHA-256' : 'Size candidates only' }}</td>
+        <td>{% if profile.finished_at %}
+          <strong>{{ profile.duplicate_groups|number_format }} groups</strong>
+          <div class="muted">{{ profile.files_indexed|number_format }} indexed · {{ profile.finished_at }}</div>
+          {% else %}<span class="muted">Never scanned</span>{% endif %}</td>
+        <td>{% if profile.active_state %}<span class="status">{{ profile.active_state }}</span>
+          <div class="muted">{{ profile.active_phase }}</div>
+          {% else %}<span class="status">Idle</span>{% endif %}</td>
+        <td><form method="post" action="{{ path('app_profile_scan',{id:profile.id}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('scan_profile_' ~ profile.id) }}">
+            <button class="secondary" type="submit" {{ not profile.enabled or profile.active_state ? 'disabled' : '' }}>Start scan</button>
+          </form></td>
+      </tr>
+    {% endfor %}
+    </tbody></table></div>
   {% endif %}
 </section>
 <section class="panel">
   <div class="panel-heading"><h2>File-type presets</h2><span class="muted">{{ types|length }} presets</span></div>
   <div class="table-wrap"><table><thead><tr><th>Name</th><th>Extensions</th></tr></thead><tbody>
-  {% for preset in types %}<tr><td>{{ preset.name }}</td><td><code>{{ preset.extensions is empty ? 'All file types' : preset.extensions }}</code></td></tr>{% endfor %}
+    {% for preset in types %}<tr><td>{{ preset.name }}</td>
+      <td><code>{{ preset.extensions is empty ? 'All file types' : preset.extensions }}</code></td></tr>{% endfor %}
   </tbody></table></div>
 </section>
 {% endblock %}

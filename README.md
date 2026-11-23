@@ -1,19 +1,33 @@
 # DUP v2
 
-A modular, PHP-based duplicate-file manager for Synology DSM and generic web hosts.
+A modular PHP duplicate-file manager for Synology DSM and generic PHP hosts.
 
-**Development preview — not yet a replacement for DUP v1.** The framework, database schema, authentication infrastructure, profile configuration, health checks, dashboard, and job-monitor views are present. Scanning, duplicate verification, file actions, the NAS folder picker, interactive first-run setup, and DSM SPK installation remain under development. Do not deploy to a production NAS yet.
+**Development preview — not production-ready.** The Symfony application, fresh database,
+profiles, a database-backed CLI scan worker, SHA-256 duplicate detection, ignored-folder
+policies, job monitoring, and read-only duplicate results are implemented and tested on
+disposable DEV folders. A browser-based first-run installer, authenticated DSM integration
+tests, NAS folder picker, safe file actions, reporting, and SPK packaging remain to be built.
+Do not replace DUP v1 yet.
 
-## Architecture
+## Design
 
-- Symfony 7.4 LTS, Twig, Doctrine DBAL/Migrations, Symfony Security, Messenger, and Monolog
-- Modules: Accounts, Profiles, Dashboard, Jobs, and System; each module owns its controllers/services and registers navigation through a shared interface
-- MariaDB 10 intended for production; SQLite used for isolated DEV testing
-- New scan-run snapshots and indexed file/directory tables, with durable job/event and file-action tables
-- Symfony web root is **public/**. Never expose the project root, vendor, config, source, migrations, or private environment files through HTTP
-- Existing DUP v1 database and profiles will **not** be migrated
+- Symfony 7.4 LTS, Twig, Doctrine DBAL/Migrations, Symfony Security, and Monolog.
+- Independent modules for Accounts, Profiles, Scans, Jobs, Duplicates, Dashboard and System.
+- **One** durable, DB-backed job queue, processed by a PHP CLI worker; no Redis,
+  external executable or secondary Messenger queue.
+- MariaDB 10 / MySQL 8 is the intended production database. SQLite powers isolated
+  development tests. InnoDB tables are used on MariaDB.
+- Every scan creates its own immutable run: a failed/cancelled scan does not overwrite
+  the previous completed results.
+- All extension-eligible files are indexed, including files under `@eaDir` and
+  `#recycle`, but ignored folders are excluded from duplicate matches.
+- Streamed SHA-256 verifies potential duplicates of the same size; a size-only
+  mode produces **unverified candidate groups**, never presented as verified content.
+- Large-group members and duplicate-group lists use database cursor pagination.
+- All web requests must use **public/** as document root. The project root,
+  source, private configuration, vendor, job logs and databases must not be public.
 
-## Development (Windows)
+## DEV setup
 
 Install PHP 8.2+ and Composer on the development machine, then:
 
@@ -24,19 +38,54 @@ php bin/console dup:admin:create admin
 php -S 127.0.0.1:8088 -t public public/index.php
 ```
 
-Provide a fresh `.env.local` with a random `APP_SECRET` and a `DATABASE_URL`; it is ignored by Git. The CLI admin command asks for the password without echoing it (or accepts `--password-stdin` for trusted automated setup). Login at `/login`.
+Create a new ignored `.env.local` or supply private environment values for
+`APP_SECRET`, `DATABASE_URL` and `APP_ENV`. Do not commit real credentials.
 
-The application skeleton is restricted to PHP 8.2-compatible dependencies through Composer's platform constraint. PHP 8.4 is the preferred DSM runtime when available.
+Start at `/profiles/new` to configure an allowed file type, source folder,
+move folder and hash mode. Scans do not start from HTTP requests; the web app
+only queues a job. Run this CLI command (or schedule it with cron):
 
-## Status
+```bash
+php bin/console dup:jobs:work --max-jobs=1
+```
 
-- Health: `GET /health` (redacted, no filesystem paths)
-- Private diagnostics: `GET /system`
-- Profiles: `GET /profiles` and `/profiles/new`
-- Jobs: `GET /jobs` and `/api/jobs` (authenticated; no worker connected yet)
+Useful operational commands:
 
-## Packaging and safety
+```bash
+php bin/console dup:scan:queue 1
+php bin/console dup:jobs:cancel 1
+php bin/console dup:jobs:recover --after=120
+```
 
-The generic ZIP and DSM SPK must be generated from the same tested application sources, including vendored PHP dependencies, so Composer/Node are not required on deployment hosts. DSM-specific packaging and installation/upgrade validation are not yet complete.
+To keep progress and cancel requests responsive, workers update their heartbeat
+at checkpoints. A terminated worker becomes failed after its heartbeat expires;
+it never silently overwrites a previous successful result.
 
-v1 remains on GitHub `main` and the existing DSM deployment. This v2 worktree uses branch `v2/rebuild`. Cutover is allowed only after installation, runtime, scanning and file-action acceptance tests pass.
+## Routes
+
+- `/health` — public status with private detail redacted
+- `/login` — login; remaining application routes require an administrator
+- `/` — dashboard (last successful snapshot per profile)
+- `/profiles`, `/profiles/new` — profile configuration and scan submission
+- `/jobs`, `/api/jobs`, `/api/jobs/{id}/events` — job status and event history
+- `/duplicates`, `/duplicates/{id}` — read-only duplicate groups and file members
+- `/system` — authenticated PHP, schema and worker diagnostics
+
+## Testing and packaging
+
+On DEV, scan and recovery regression tests are kept offline (outside the public
+repository). A preview generic ZIP containing vendored PHP dependencies can be
+built with:
+
+```bash
+python packaging/build_preview.py
+```
+
+The ZIP is **not** a production installer; private configuration and source
+databases are deliberately excluded. No Composer or Node.js should be needed
+on a deployed web host.
+
+DUP v1 remains on GitHub `main` and the existing DSM installation at
+`Y:\dup`. DUP v2 is developed independently in branch `v2/rebuild`.
+No data migration is planned. A fresh DSM installation and explicit acceptance
+tests are required before any cutover.

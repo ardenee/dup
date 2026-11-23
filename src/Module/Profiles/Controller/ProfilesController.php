@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace App\Module\Profiles\Controller;
 use App\Module\Profiles\Repository\ProfileRepository;
+use App\Module\Jobs\Service\JobStore;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -46,10 +47,26 @@ final class ProfilesController extends AbstractController
             if(!$errors) {
                 $repository->create($name,realpath($source),realpath($move),
                     (int)$type,(int)$size,$mode);
-                $this->addFlash('success','Profile created. Scanning will be enabled after worker verification.');
+                $this->addFlash('success','Profile created. Queue a scan when the CLI worker is configured.');
                 return $this->redirectToRoute('app_profiles');
             }
         }
         return $this->render('profiles/new.html.twig',['types'=>$types,'errors'=>$errors]);
+    }
+
+    #[Route('/profiles/{id<\\d+>}/scan',name:'app_profile_scan',methods:['POST'])]
+    public function scan(int $id,Request $request,JobStore $jobs): Response
+    {
+        if(!$this->isCsrfTokenValid('scan_profile_'.$id,
+            (string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid form token.');
+        try {
+            $jobId=$jobs->queueScan($id);
+            $this->addFlash('success','Queued scan job #'.$jobId.'.');
+            return $this->redirectToRoute('app_jobs');
+        } catch(\DomainException $ex) {
+            $this->addFlash('warning',$ex->getMessage());
+            return $this->redirectToRoute('app_profiles');
+        }
     }
 }

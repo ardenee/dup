@@ -11,7 +11,8 @@ DEPLOY_ENV="""APP_ENV=prod
 # Provide APP_SECRET and DATABASE_URL through private runtime configuration.
 APP_SECRET=
 DATABASE_URL=
-MESSENGER_TRANSPORT_DSN=doctrine://default?auto_setup=0
+DEFAULT_URI=http://localhost
+APP_SHARE_DIR=var/share
 """
 
 def payload() -> dict[str,bytes]:

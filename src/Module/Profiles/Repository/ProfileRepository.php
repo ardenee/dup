@@ -14,8 +14,12 @@ final class ProfileRepository
     {
         return $this->db->fetchAllAssociative(
             'SELECT p.id,p.name,p.source_root,p.move_root,p.hash_mode,p.minimum_bytes,p.enabled, ' .
-            't.name AS type_name FROM scan_profiles p ' .
-            'INNER JOIN profile_types t ON t.id=p.profile_type_id ORDER BY p.id'
+            't.name AS type_name,r.files_indexed,r.duplicate_groups,r.finished_at, ' .
+            'j.state AS active_state,j.phase AS active_phase FROM scan_profiles p ' .
+            'INNER JOIN profile_types t ON t.id=p.profile_type_id ' .
+            'LEFT JOIN scan_runs r ON r.id=(SELECT MAX(id) FROM scan_runs ' .
+            "WHERE profile_id=p.id AND state='completed') " .
+            'LEFT JOIN jobs j ON j.active_profile_id=p.id ORDER BY p.id'
         );
     }
     public function create(string $name,string $source,string $move,int $type,int $minimum,string $hashMode): void

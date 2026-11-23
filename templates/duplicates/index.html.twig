@@ -1,0 +1,50 @@
+{% extends 'base.html.twig' %}
+{% block title %}Duplicates{% endblock %}
+{% block section %}Duplicates{% endblock %}
+{% block body %}
+<div class="page-heading">
+  <div><div class="eyebrow">RESULTS</div><h1>Duplicate groups</h1>
+    <p class="muted">Results from each profile's latest completed scan. Failed scans do not replace successful results.</p></div>
+</div>
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Results</h2>
+    <form action="{{ path('app_duplicates') }}" method="get" class="inline-filter">
+      <label for="profile-filter">Profile</label>
+      <select id="profile-filter" name="profile" onchange="this.form.submit()">
+        <option value="">All profiles</option>
+        {% for profile in profiles %}
+          <option value="{{ profile.id }}" {{ selected_profile == profile.id ? 'selected' : '' }}>
+            {{ profile.name }} {% if profile.duplicate_groups is not null %}({{ profile.duplicate_groups }} groups){% endif %}
+          </option>
+        {% endfor %}
+      </select>
+      <noscript><button type="submit">Filter</button></noscript>
+    </form>
+  </div>
+  {% if groups is empty %}
+    <div class="empty-state">No duplicate groups are available for this selection.</div>
+  {% else %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Group</th><th>Profile</th><th>Files</th><th>File size</th><th>Potential savings</th><th>Confidence</th></tr></thead>
+      <tbody>{% for group in groups %}
+        <tr>
+          <td><a href="{{ path('app_duplicate_group',{id:group.id}) }}">#{{ group.id }}</a></td>
+          <td>{{ group.profile_name }}</td>
+          <td>{{ group.file_count|number_format }}</td>
+          <td class="group-size">{{ group.size_bytes|number_format }} bytes</td>
+          <td class="group-size">{{ group.reclaimable_bytes|number_format }} bytes</td>
+          <td><span class="status">{{ group.rules_version == 1 ? 'Verified SHA-256' : 'Size only — unverified' }}</span></td>
+        </tr>
+      {% endfor %}</tbody>
+    </table></div>
+    <div class="result-toolbar">
+      <span class="muted">Showing {{ groups|length }} groups on this page</span>
+      <nav aria-label="Duplicate results pagination">
+        {% if previous %}<a href="{{ path('app_duplicates',(selected_profile ? {profile:selected_profile} : {})|merge({before:previous})) }}">Previous</a>{% endif %}
+        {% if next %}<a href="{{ path('app_duplicates',(selected_profile ? {profile:selected_profile} : {})|merge({after:next})) }}">Next</a>{% endif %}
+      </nav>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

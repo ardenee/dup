@@ -27,6 +27,23 @@ final class HealthService
                 ['users','profile_types','scan_profiles','scan_runs','file_entries','jobs']
             );
             $checks['schema'] = $installed ? 'installed' : 'not_installed';
+            if($installed) {
+                $state=$this->connection->fetchAssociative(
+                    "SELECT COUNT(*) AS total, " .
+                    "SUM(CASE WHEN state='queued' THEN 1 ELSE 0 END) AS queued, " .
+                    "SUM(CASE WHEN state IN ('running','cancelling') THEN 1 ELSE 0 END) AS active " .
+                    'FROM jobs'
+                );
+                $checks['worker']=$state['active'] > 0 ? 'processing' :
+                    ($state['queued'] > 0 ? 'awaiting_cli_worker' :
+                    ($state['total'] > 0 ? 'idle' : 'not_started'));
+                $cutoff=gmdate('Y-m-d H:i:s',time()-120);
+                $stalled=(int)$this->connection->fetchOne(
+                    "SELECT COUNT(*) FROM jobs WHERE state IN ('running','cancelling') " .
+                    'AND (heartbeat_at IS NULL OR heartbeat_at<?)',[$cutoff]
+                );
+                if($stalled>0) $checks['worker']='stalled';
+            }
         } catch(\Throwable $ex) {
             $checks['database'] = 'unreachable';
         }

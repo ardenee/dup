@@ -1,0 +1,34 @@
+{% extends 'base.html.twig' %}
+{% block title %}Duplicate group #{{ group.id }}{% endblock %}
+{% block section %}Duplicates / Group #{{ group.id }}{% endblock %}
+{% block body %}
+<div class="page-heading"><div><div class="eyebrow">DUPLICATE COMPARISON</div><h1>Group #{{ group.id }}</h1>
+  <p class="muted">{{ group.profile_name }} · {{ group.file_count|number_format }} files · {{ group.size_bytes|number_format }} bytes each</p>
+  <p><span class="status">{{ group.rules_version == 1 ? 'Verified SHA-256' : 'Size candidates only — NOT verified' }}</span></p>
+</div><a class="secondary link-button" href="{{ path('app_duplicates') }}">Back to groups</a></div>
+<div class="stats-grid">
+  <div class="stat"><span>Files</span><strong>{{ group.file_count|number_format }}</strong></div>
+  <div class="stat"><span>Bytes per file</span><strong>{{ group.size_bytes|number_format }}</strong></div>
+  <div class="stat"><span>Potential reclaimable bytes</span><strong>{{ group.reclaimable_bytes|number_format }}</strong></div>
+</div>
+<section class="panel">
+  <div class="panel-heading"><h2>File members</h2><span class="muted">Read-only — file actions are not yet enabled</span></div>
+  {% if members is empty %}
+    <div class="empty-state">No file records in this group.</div>
+  {% else %}
+    <div class="table-wrap"><table><thead><tr><th>File path</th><th>Size (bytes)</th><th>Modified (Unix time)</th><th>Hash</th></tr></thead>
+    <tbody>{% for file in members %}
+      <tr><td><code>{{ file.path }}{{ file.path ends with '/' or file.path ends with '\\' ? '' : '/' }}{{ file.filename }}</code></td>
+      <td class="group-size">{{ file.size_bytes|number_format }}</td>
+      <td>{{ file.mtime_epoch }}</td>
+      <td><code>{{ file.hash_value ?? 'Not computed' }}</code></td></tr>
+    {% endfor %}</tbody></table></div>
+    <div class="result-toolbar"><span class="muted">{{ members|length }} files shown on this page</span>
+      <nav aria-label="Group members pagination">
+        {% if previous %}<a href="{{ path('app_duplicate_group',{id:group.id,before:previous}) }}">Previous</a>{% endif %}
+        {% if next %}<a href="{{ path('app_duplicate_group',{id:group.id,after:next}) }}">Next</a>{% endif %}
+      </nav>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
