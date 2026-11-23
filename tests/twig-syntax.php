@@ -17,6 +17,7 @@ $files = [
     'jobs/index.html.twig',
     'actions/index.html.twig',
     'actions/detail.html.twig',
+    'actions/move.html.twig',
     'profiles/settings/ignore-folders.html.twig',
     'duplicates/group.html.twig',
     'duplicates/index.html.twig',

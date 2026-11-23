@@ -13,8 +13,10 @@ final class FileActionService
     ) {}
 
     /** Create a read-only, expiring, one-file reversible quarantine preview. */
-    public function plan(int $entryId,int $actorId): int
+    public function plan(int $entryId,int $actorId,string $action='quarantine'): int
     {
+        if(!in_array($action,['quarantine','link'],true))
+            throw new \DomainException('Unknown file action.');
         $file=$this->db->fetchAssociative(
             "SELECT f.id,f.run_id,f.filename,f.size_bytes,f.mtime_epoch,f.hash_value," .
             "f.error_code,d.path AS directory,g.id AS group_id,g.file_count," .
@@ -31,44 +33,57 @@ final class FileActionService
             "LIMIT 1",[$entryId]
         );
         if(!$file || !preg_match('/^[a-f0-9]{64}$/i',(string)$file['hash_value']))
-            throw new \DomainException('Only currently verified duplicates can be quarantined.');
+            throw new \DomainException('Only currently verified SHA-256 duplicates qualify for this action.');
         $source=$this->fs->checkedPath((string)$file['directory'],(string)$file['filename']);
         $this->fs->checkedStat($source,(int)$file['size_bytes'],(int)$file['mtime_epoch']);
         $targetRoot=$this->fs->checkedRoot((string)$file['move_root']);
         $this->fs->requireSameDevice($source,$targetRoot);
-        $survivor=$this->db->fetchOne(
-            "SELECT other.id FROM duplicate_group_members m JOIN file_entries other " .
+        $survivor=$this->db->fetchAssociative(
+            "SELECT other.id,other.filename,other.size_bytes,other.mtime_epoch," .
+            "d.path AS directory FROM duplicate_group_members m JOIN file_entries other " .
             "ON other.id=m.file_entry_id JOIN directories d ON d.id=other.directory_id " .
             "WHERE m.group_id=? AND other.id<>? AND other.hash_value=? " .
-            "AND other.error_code IS NULL AND d.is_ignored=0 ORDER BY other.id LIMIT 1",
+            "AND other.error_code IS NULL AND d.is_ignored=0 " .
+            "AND other.hash_method='sha256' ORDER BY other.id LIMIT 1",
             [(int)$file['group_id'],$entryId,$file['hash_value']]
         );
         if(!$survivor) throw new \DomainException('No remaining verified duplicate was found.');
+        $linkPath=null;
+        if($action==='link') {
+            $linkPath=$this->fs->checkedPath(
+                (string)$survivor['directory'],(string)$survivor['filename']
+            );
+            $this->fs->checkedStat($linkPath,
+                (int)$survivor['size_bytes'],(int)$survivor['mtime_epoch']);
+        }
         $profileId=(int)$file['profile_id'];
         return $this->db->transactional(function(Connection $db) use (
-            $file,$entryId,$actorId,$source,$targetRoot,$survivor,$profileId
+            $file,$entryId,$actorId,$source,$targetRoot,$survivor,$profileId,$action,$linkPath
         ): int {
             if($db->fetchOne('SELECT id FROM jobs WHERE active_profile_id=? LIMIT 1',[$profileId]))
                 throw new \DomainException('Wait for the current profile job to complete.');
             $now=gmdate('Y-m-d H:i:s');
             $db->insert('file_action_batches',[
                 'actor_id'=>$actorId,'profile_id'=>$profileId,
-                'action_kind'=>'quarantine','state'=>'planned',
+                'action_kind'=>$action,'state'=>'planned',
                 'requested_at'=>$now,'expires_at'=>gmdate('Y-m-d H:i:s',time()+900)
             ]);
             $batchId=(int)$db->lastInsertId();
             $target=$targetRoot.DIRECTORY_SEPARATOR.'.dup-quarantine'.DIRECTORY_SEPARATOR.
                 'batch-'.$batchId.DIRECTORY_SEPARATOR.'entry-'.$entryId.DIRECTORY_SEPARATOR.
                 (string)$file['filename'];
-            $db->insert('file_action_items',[
+            $item=[
                 'batch_id'=>$batchId,'file_entry_id'=>$entryId,
                 'source_path'=>$source,'target_path'=>$target,'state'=>'planned',
                 'expected_size'=>(int)$file['size_bytes'],
                 'expected_mtime'=>(int)$file['mtime_epoch'],
                 'expected_sha256'=>strtolower((string)$file['hash_value']),
-                'survivor_file_entry_id'=>(int)$survivor
-            ]);
-            $this->audit($actorId,'QUARANTINE_PREVIEW',$batchId,'planned',[
+                'survivor_file_entry_id'=>(int)$survivor['id']
+            ];
+            if($action==='link') $item['link_target_path']=$linkPath;
+            $db->insert('file_action_items',$item);
+            $this->audit($actorId,$action==='link'?'LINK_PREVIEW':'QUARANTINE_PREVIEW',
+                $batchId,'planned',[
                 'file_entry_id'=>$entryId,'profile_id'=>$profileId
             ]);
             return $batchId;
@@ -84,7 +99,8 @@ final class FileActionService
                 'JOIN file_entries f ON f.id=i.file_entry_id ' .
                 'WHERE b.id=? AND b.actor_id=?',[$batchId,$actorId]
             );
-            if(!$row || $row['state']!=='planned' || $row['action_kind']!=='quarantine')
+            if(!$row || $row['state']!=='planned' ||
+               !in_array($row['action_kind'],['quarantine','link'],true))
                 throw new \DomainException('This action preview is no longer available.');
             if((string)$row['expires_at']<gmdate('Y-m-d H:i:s'))
                 throw new \DomainException('The 15-minute preview expired. Preview again.');
@@ -93,7 +109,9 @@ final class FileActionService
             if(!$this->latestRun((int)$row['profile_id'],(int)$row['run_id']))
                 throw new \DomainException('A newer scan exists. Preview the current results again.');
             try {
-                $jobId=$this->enqueue($db,'file-action',(int)$row['profile_id'],(int)$row['run_id'],$batchId);
+                $jobId=$this->enqueue($db,
+                    $row['action_kind']==='link'?'file-link':'file-action',
+                    (int)$row['profile_id'],(int)$row['run_id'],$batchId);
             } catch(UniqueConstraintViolationException $ex) {
                 throw new \DomainException('Another job is active for this profile.',0,$ex);
             }
@@ -101,7 +119,9 @@ final class FileActionService
                 "UPDATE file_action_batches SET state='queued',confirmed_at=? " .
                 "WHERE id=? AND state='planned'",[gmdate('Y-m-d H:i:s'),$batchId]
             );
-            $this->audit($actorId,'QUARANTINE_CONFIRMED',$batchId,'queued',['job_id'=>$jobId]);
+            $this->audit($actorId,$row['action_kind']==='link'?
+                'LINK_CONFIRMED':'QUARANTINE_CONFIRMED',
+                $batchId,'queued',['job_id'=>$jobId]);
             return $jobId;
         });
     }
@@ -114,13 +134,15 @@ final class FileActionService
                 'JOIN file_action_items i ON i.batch_id=b.id JOIN file_entries f ON f.id=i.file_entry_id ' .
                 'WHERE b.id=?',[$batchId]
             );
-            if(!$batch || $batch['action_kind']!=='quarantine' ||
+            if(!$batch || !in_array($batch['action_kind'],['quarantine','link'],true) ||
                 $batch['state']!=='completed' || $batch['error_code']!==null)
                 throw new \DomainException('This batch is not a completed quarantine.');
-            if($batch['source_error']!=='QUARANTINED')
+            if($batch['source_error']!==($batch['action_kind']==='link'?'LINKED':'QUARANTINED'))
                 throw new \DomainException('The file is no longer recorded as quarantined.');
             try {
-                $jobId=$this->enqueue($db,'file-restore',(int)$batch['profile_id'],(int)$batch['run_id'],$batchId);
+                $jobId=$this->enqueue($db,
+                    $batch['action_kind']==='link'?'file-unlink':'file-restore',
+                    (int)$batch['profile_id'],(int)$batch['run_id'],$batchId);
             } catch(UniqueConstraintViolationException $ex) {
                 throw new \DomainException('Another job is active for this profile.',0,$ex);
             }
@@ -128,7 +150,9 @@ final class FileActionService
                 "UPDATE file_action_batches SET state='restore_queued' WHERE id=? AND state='completed'",
                 [$batchId]
             );
-            $this->audit($actorId,'RESTORE_REQUESTED',$batchId,'queued',['job_id'=>$jobId]);
+            $this->audit($actorId,$batch['action_kind']==='link'?
+                'LINK_RESTORE_REQUESTED':'RESTORE_REQUESTED',
+                $batchId,'queued',['job_id'=>$jobId]);
             return $jobId;
         });
     }
@@ -157,7 +181,8 @@ final class FileActionService
     {
         return $this->db->fetchAssociative(
             'SELECT b.*,i.file_entry_id,i.source_path,i.target_path,i.state AS item_state,' .
-            'i.expected_size,i.expected_mtime,i.expected_sha256,i.result_code,p.name AS profile_name ' .
+            'i.expected_size,i.expected_mtime,i.expected_sha256,i.link_target_path,' .
+            'i.result_code,p.name AS profile_name ' .
             'FROM file_action_batches b JOIN file_action_items i ON i.batch_id=b.id ' .
             'JOIN scan_profiles p ON p.id=b.profile_id WHERE b.id=?',[$batchId]
         );

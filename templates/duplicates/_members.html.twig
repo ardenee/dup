@@ -21,6 +21,10 @@
         <a class="dup-action-link" href="{{ path('app_file_download',{id:file.file_entry_id}) }}">Download</a>
         <a class="dup-action-link" href="{{ path('app_rename_file',{id:file.file_entry_id}) }}">Rename</a>
         {% if group.rules_version == 1 and group.file_count > 1 %}
+          <form method="post" action="{{ path('app_link_preview',{id:file.file_entry_id}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('preview_link_' ~ file.file_entry_id) }}">
+            <button class="dup-action-link" type="submit">Link</button>
+          </form>
           <form method="post" action="{{ path('app_action_preview',{id:file.file_entry_id}) }}">
             <input type="hidden" name="_token" value="{{ csrf_token('preview_file_' ~ file.file_entry_id) }}">
             <button class="dup-action-link" type="submit">Quarantine</button>

@@ -1,0 +1,58 @@
+{% extends 'base.html.twig' %}
+{% block title %}Move batch #{{ batch.id }}{% endblock %}
+{% block section %}File actions / Move #{{ batch.id }}{% endblock %}
+{% block body %}
+<div class="page-heading">
+ <div><div class="eyebrow">AUDITED FILE MOVE</div><h1>Move batch #{{ batch.id }}</h1>
+ <p class="muted">{{ batch.profile_name }} · {{ batch.items|length }} files · <span class="status">{{ batch.state|replace({'_':' '}) }}</span></p></div>
+ <a class="secondary link-button" href="{{ path('app_actions') }}">File action history</a>
+</div>
+<section class="panel">
+ <div class="panel-heading"><h2>Source and destination</h2><span class="muted">Read-only preview</span></div>
+ <div class="panel-content">
+  <p><strong>Scan folder:</strong> <code>{{ batch.source_root }}</code></p>
+  <p><strong>Destination folder:</strong> <code>{{ batch.move_root }}</code></p>
+  <p class="muted">The original relative folder structure is preserved. No destination file may be overwritten, and moves across filesystems are rejected.</p>
+ </div>
+ <div class="table-wrap"><table>
+  <thead><tr><th>#</th><th>Original file</th><th>New location</th><th>Size</th><th>Status</th></tr></thead>
+  <tbody>{% for file in batch.items %}
+   <tr><td>{{ loop.index }}</td>
+    <td><code>{{ file.source_path }}</code></td>
+    <td><code>{{ file.target_path }}</code></td>
+    <td>{{ file.expected_size|number_format }} bytes</td>
+    <td><span class="status">{{ file.state|replace({'_':' '}) }}</span></td></tr>
+  {% endfor %}</tbody>
+ </table></div>
+</section>
+{% if batch.state == 'planned' %}
+<section class="panel panel-content">
+ <h2>Confirm move</h2>
+ <div class="notice notice-warning">The background worker checks the file size and modified date, calculates a full SHA-256 digest, verifies the configured destination, and performs a same-device rename. It refuses symbolic links and existing destinations. The action is recorded for restoration.</div>
+ <form method="post" action="{{ path('app_move_confirm',{id:batch.id}) }}">
+  <input type="hidden" name="_token" value="{{ csrf_token('confirm_move_' ~ batch.id) }}">
+  <div class="field"><label for="move-confirm">Type MOVE to authorize the file changes</label>
+   <input id="move-confirm" name="confirm" required autocomplete="off" pattern="MOVE"></div>
+  <button type="submit" class="primary">Confirm and queue move</button>
+ </form>
+ <p class="muted">Preview expires: {{ batch.expires_at }} (UTC).</p>
+</section>
+{% elseif batch.state in ['completed','partial'] %}
+<section class="panel panel-content">
+ <h2>Restore files</h2>
+ <p>Restore files moved successfully in this batch. Each file is verified against the recorded SHA-256 digest before it is returned; existing original paths cannot be overwritten.</p>
+ <form method="post" action="{{ path('app_move_restore',{id:batch.id}) }}">
+  <input type="hidden" name="_token" value="{{ csrf_token('restore_move_' ~ batch.id) }}">
+  <div class="field"><label for="restore-confirm">Type RESTORE to return moved files</label>
+   <input id="restore-confirm" name="confirm" autocomplete="off" pattern="RESTORE" required></div>
+  <button class="secondary" type="submit">Queue restore</button>
+ </form>
+</section>
+{% elseif batch.state == 'needs_review' %}
+<div class="notice notice-warning"><strong>Manual recovery needed.</strong> At least one filesystem operation could not be automatically reversed. Verify the paths and audit history before retrying.</div>
+{% else %}
+<section class="panel panel-content">
+ <p>Job status: <strong>{{ batch.state }}</strong>. Check the <a href="{{ path('app_jobs') }}">Job monitor</a> for progress and details.</p>
+</section>
+{% endif %}
+{% endblock %}

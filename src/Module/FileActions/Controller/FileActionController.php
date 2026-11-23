@@ -39,12 +39,29 @@ final class FileActionController extends AbstractController
         }
     }
 
+    #[Route('/actions/link/preview/{id<\\d+>}',name:'app_link_preview',methods:['POST'])]
+    public function previewLink(int $id,Request $request,FileActionService $actions): Response
+    {
+        if(!$this->isCsrfTokenValid('preview_link_'.$id,
+            (string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid CSRF token.');
+        try {
+            $batch=$actions->plan($id,$this->adminId(),'link');
+            return $this->redirectToRoute('app_action_detail',['id'=>$batch]);
+        } catch(\DomainException $ex) {
+            $this->addFlash('warning',$ex->getMessage());
+            return $this->redirectToRoute('app_duplicates');
+        }
+    }
+
     #[Route('/actions/{id<\\d+>}',name:'app_action_detail',methods:['GET'])]
     public function detail(int $id,FileActionService $actions): Response
     {
         $batch=$actions->find($id);
         if(!$batch) throw $this->createNotFoundException();
         if($batch['action_kind']==='rename') return $this->redirectToRoute('app_rename');
+        if($batch['action_kind']==='move')
+            return $this->redirectToRoute('app_move_detail',['id'=>$id]);
         return $this->render('actions/detail.html.twig',['batch'=>$batch]);
     }
 
@@ -54,12 +71,14 @@ final class FileActionController extends AbstractController
         if(!$this->isCsrfTokenValid('confirm_action_'.$id,
             (string)$request->request->get('_token','')))
             throw $this->createAccessDeniedException('Invalid CSRF token.');
-        if($request->request->get('confirm')!=='QUARANTINE')
-            throw $this->createAccessDeniedException('Enter QUARANTINE to authorize this action.');
+        $batch=$actions->find($id);
+        $required=$batch && $batch['action_kind']==='link'?'LINK':'QUARANTINE';
+        if($request->request->get('confirm')!==$required)
+            throw $this->createAccessDeniedException('Enter '.$required.' to authorize this action.');
         try {
             $job=$actions->confirm($id,$this->adminId());
-            $this->addFlash('success','Quarantine queued as job #'.$job.
-                '. The worker will reverify the file and its surviving duplicate.');
+            $this->addFlash('success',($required==='LINK'?'Link':'Quarantine').
+                ' queued as job #'.$job.'. The worker will verify both files before changing them.');
         } catch(\DomainException $ex) {
             $this->addFlash('warning',$ex->getMessage());
         }

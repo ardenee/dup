@@ -14,14 +14,14 @@ DUP is a web-based duplicate-file scanner and manager for Windows, Linux and Syn
 - Supports four matching modes: file size, original CRC32 3 Part (150 KiB at start/middle/end of large files), full CRC32, and streamed SHA-256; size and CRC32 groups are explicitly marked as candidates
 - Retains indexed files from ignored folders so ignore rules can be changed without a full rescan
 - Preserves prior successful scan snapshots if a later scan fails
-- Provides general/duplicate/quarantined-file index searches, duplicate-group browsing with collapsed inline file lists, independent file-list and group pagination, reports, historic runs and CSV exports. Profiles remain for scan configuration and jobs; browse matching files in Duplicates.
+- Provides general/duplicate/moved/linked/quarantined-file index searches, duplicate-group browsing with collapsed inline file lists, independent file-list and group pagination, reports, historic runs and CSV exports. Profiles remain for scan configuration and jobs; browse matching files in Duplicates.
 - Shows worker/queue diagnostics and authenticated system status
-- Supports explicitly confirmed, reversible quarantine and restore with hash verification and an audit history
+- Supports explicitly confirmed, reversible quarantine, folder-preserving same-device file moves, and symbolic-link replacement of fully SHA-256-verified duplicates. The CLI worker verifies file evidence, checks destinations, keeps recovery copies where needed, and records audited actions and restores.
 - Provides filename cleanup previews, selected-file batch renaming directly from duplicate selections (with confirmation), and manual single-file renaming through the audited background-job worker, without overwriting existing paths
 - Includes indexed file viewing, read-only image/PDF/text previews and streamed downloads, rejecting stale scan records and symbolic links
 - Allows administrators to add, edit or remove unused file-type presets without resetting scan history
 
-Permanent deletion is deliberately unavailable pending further safety and recovery testing. General file moves, full legacy moved-file history, symbolic-link actions and inline file previews are not yet restored. The new rename operation supports selected batches of up to 50 files; this is not yet complete parity with every legacy rename option.
+Permanent deletion is deliberately unavailable pending further safety and recovery testing. Reversible moves are limited to 50 selected files per batch on the same filesystem, preserve the original hierarchy, and never overwrite. Symbolic-link replacement is available only for fully SHA-256-verified duplicate groups; the original is retained privately for restoration. Full historical moved-file search across older scans and symlink re-indexing are still outstanding. Rename supports selected batches of up to 50 files; this is not yet parity with every legacy rename option.
 
 ## Requirements
 

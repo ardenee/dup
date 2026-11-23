@@ -16,6 +16,8 @@ $db->executeStatement('CREATE TABLE directories (id INT PRIMARY KEY,run_id INT,p
 $db->executeStatement('CREATE TABLE file_entries (id INT PRIMARY KEY,run_id INT,directory_id INT,filename TEXT,size_bytes INT,mtime_epoch INT,hash_method TEXT,hash_value TEXT,error_code TEXT)');
 $db->executeStatement('CREATE TABLE duplicate_group_members (id INT PRIMARY KEY,group_id INT,file_entry_id INT)');
 $db->executeStatement('CREATE TABLE duplicate_groups (id INT PRIMARY KEY,run_id INT,rules_version INT)');
+$db->executeStatement('CREATE TABLE file_action_batches (id INT PRIMARY KEY,action_kind TEXT)');
+$db->executeStatement('CREATE TABLE file_action_items (id INT PRIMARY KEY,batch_id INT,file_entry_id INT,target_path TEXT,link_target_path TEXT,state TEXT)');
 $db->executeStatement("INSERT INTO scan_profiles VALUES (1,'Music','/media'),(2,'Docs','/docs')");
 $db->executeStatement("INSERT INTO scan_runs VALUES (1,1,'completed'),(2,1,'completed'),(3,2,'completed')");
 $db->executeStatement("INSERT INTO directories VALUES (1,1,'/old',0),(2,2,'/media',0),(3,3,'/docs',0),(4,2,'/media/@eaDir',1)");
@@ -32,6 +34,10 @@ for($i=2;$i<=70;$i++){
 $db->executeStatement("INSERT INTO file_entries VALUES (71,3,3,'document.pdf',5000,1700000001,'sha256','cafe',NULL)");
 $db->executeStatement('INSERT INTO duplicate_groups VALUES (8,2,2)');
 $db->executeStatement('INSERT INTO duplicate_group_members VALUES (1,8,2),(2,8,3)');
+$db->executeStatement("UPDATE file_entries SET error_code='MOVED' WHERE id=6");
+$db->executeStatement("UPDATE file_entries SET error_code='LINKED' WHERE id=7");
+$db->executeStatement("INSERT INTO file_action_batches VALUES (1,'quarantine'),(2,'move'),(3,'link')");
+$db->executeStatement("INSERT INTO file_action_items VALUES (1,1,5,'/quarantine/track005.mp3',NULL,'quarantined'),(2,2,6,'/moves/track006.mp3',NULL,'moved'),(3,3,7,'/quarantine/backup007.mp3','/media/track002.mp3','linked')");
 $search=new SearchRepository($db);
 $all=$search->find('',null,'all',false);
 checkSearch($all['total']===70,'Old scan should not appear (69 current music + 1 doc)');
@@ -46,8 +52,11 @@ $dup=$search->find('',1,'duplicates',false);
 checkSearch($dup['total']===2 && (int)$dup['rows'][0]['group_id']===8,
     'Duplicate scope not preserved');
 $moved=$search->find('',null,'moved',false);
-checkSearch($moved['total']===1 && (int)$moved['rows'][0]['id']===5,
-    'Quarantine search did not filter correctly');
+checkSearch($moved['total']===3 && (int)$moved['rows'][0]['id']===7,
+    'Move, quarantine and link search did not filter correctly');
+checkSearch($moved['rows'][0]['action_target']==='/media/track002.mp3','Link target is missing');
+checkSearch($moved['rows'][1]['action_target']==='/moves/track006.mp3','Moved location is missing');
+checkSearch($moved['rows'][2]['action_target']==='/quarantine/track005.mp3','Quarantine location is missing');
 $caseInsensitive=$search->find('TRACK',1,'all',false);
 checkSearch($caseInsensitive['total']===69,'Case-insensitive search mismatch');
 $caseSensitive=$search->find('TRACK',1,'all',true);

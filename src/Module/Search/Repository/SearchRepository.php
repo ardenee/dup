@@ -67,9 +67,7 @@ final class SearchRepository
                 'JOIN duplicate_groups g ON g.id=m.group_id '.
                 'WHERE m.file_entry_id=f.id AND g.run_id=r.id)';
         } elseif($mode==='moved') {
-            // The new action history currently records quarantined files.
-            // Legacy move-to-folder functionality is not yet implemented.
-            $sql.=" AND f.error_code='QUARANTINED'";
+            $sql.=" AND f.error_code IN ('QUARANTINED','MOVED','LINKED')";
         }
         $total=(int)$this->db->fetchOne('SELECT COUNT(*)'.$sql,$params);
         $paged=$sql;
@@ -84,8 +82,18 @@ final class SearchRepository
         }
         $paged.=' ORDER BY f.id '.($reverse?'ASC':'DESC').
             ' LIMIT '.(self::PAGE+1);
+        $targetSelect=$mode==='moved'?
+            "(SELECT CASE WHEN b.action_kind='link' THEN i.link_target_path ".
+            "ELSE i.target_path END FROM file_action_items i ".
+            "JOIN file_action_batches b ON b.id=i.batch_id ".
+            "WHERE i.file_entry_id=f.id AND ".
+            "((f.error_code='MOVED' AND i.state='moved' AND b.action_kind='move') OR ".
+            "(f.error_code='LINKED' AND i.state='linked' AND b.action_kind='link') OR ".
+            "(f.error_code='QUARANTINED' AND i.state='quarantined' AND b.action_kind='quarantine')) ".
+            "ORDER BY i.id DESC LIMIT 1) AS action_target,":
+            'NULL AS action_target,';
         $rows=$this->db->fetchAllAssociative(
-            'SELECT f.id,f.filename,f.size_bytes,f.mtime_epoch,f.hash_method,'.
+            'SELECT '.$targetSelect.'f.id,f.filename,f.size_bytes,f.mtime_epoch,f.hash_method,'.
             'f.hash_value,f.error_code,d.path AS directory,d.is_ignored,'.
             'p.id AS profile_id,p.name AS profile_name,'.
             '(SELECT MIN(m.group_id) FROM duplicate_group_members m '.

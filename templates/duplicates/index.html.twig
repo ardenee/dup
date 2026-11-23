@@ -22,6 +22,8 @@
   </form>
 </div>
 <section class="panel dup-browser" id="duplicate-groups"
+  data-bulk-move-url="{{ path('app_move_preview') }}"
+  data-bulk-move-token="{{ csrf_token('move_selected') }}"
   data-bulk-rename-url="{{ path('app_rename_selected') }}"
   data-bulk-rename-token="{{ csrf_token('rename_selected') }}">
   <div class="dup-toolbar">
@@ -39,6 +41,7 @@
       <button type="button" data-dup-invert>Invert selection</button>
       <button type="button" data-dup-copy disabled>Copy paths (<span data-dup-selected-count>0</span>)</button>
       <button type="button" data-dup-rename disabled>Rename selected</button>
+      <button type="button" data-dup-move disabled>Move selected</button>
     </div>
   </div>
   {% if groups is empty %}
@@ -99,6 +102,10 @@
                   <a href="{{ path('app_file_download',{id:group.first_file_id}) }}" class="dup-action-link">Download</a>
                   <a href="{{ path('app_rename_file',{id:group.first_file_id}) }}" class="dup-action-link">Rename</a>
                   {% if group.rules_version == 1 and group.file_count > 1 %}
+                    <form method="post" action="{{ path('app_link_preview',{id:group.first_file_id}) }}">
+                      <input type="hidden" name="_token" value="{{ csrf_token('preview_link_' ~ group.first_file_id) }}">
+                      <button type="submit" class="dup-action-link">Link</button>
+                    </form>
                     <form method="post" action="{{ path('app_action_preview',{id:group.first_file_id}) }}">
                       <input type="hidden" name="_token" value="{{ csrf_token('preview_file_' ~ group.first_file_id) }}">
                       <button type="submit" class="dup-action-link">Quarantine</button>
@@ -135,5 +142,5 @@
     <span>Size and CRC32 matches are candidates; file actions require additional verification.</span>
   </div>
 </section>
-<script type="module" src="{{ asset('assets/duplicates.js') }}?v=2"></script>
+<script type="module" src="{{ asset('assets/duplicates.js') }}?v=3"></script>
 {% endblock %}

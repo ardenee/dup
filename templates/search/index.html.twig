@@ -13,7 +13,7 @@
       <select id="search-mode" name="mode">
         <option value="all" {{ mode == 'all' ? 'selected' : '' }}>General — all indexed files</option>
         <option value="duplicates" {{ mode == 'duplicates' ? 'selected' : '' }}>Duplicates — matched groups</option>
-        <option value="moved" {{ mode == 'moved' ? 'selected' : '' }}>Moved — quarantined files</option>
+        <option value="moved" {{ mode == 'moved' ? 'selected' : '' }}>Moved / linked / quarantined files</option>
       </select></div>
     <div class="field"><label for="search-profile">Scope</label>
       <select name="profile" id="search-profile">
@@ -28,7 +28,7 @@
     </div>
   </form>
   {% if mode == 'moved' %}
-  <p class="report-explanation">The current action engine indexes quarantined files. Full legacy move-history searches will be added when move operations are restored.</p>
+  <p class="report-explanation">Shows indexed files currently moved, linked or quarantined. The destination or link target is taken from the audited file-action records.</p>
   {% endif %}
 </section>
 <section class="panel">
@@ -41,7 +41,7 @@
     <div class="empty-state">No indexed files matched this search.</div>
   {% else %}
     <div class="table-wrap"><table>
-      <thead><tr><th>File path</th><th>Profile</th><th>Size</th><th>Modified (Unix time)</th><th>Hash method</th><th>State</th><th>Duplicate group</th><th>Rename</th></tr></thead>
+      <thead><tr><th>File path</th><th>Profile</th><th>Size</th><th>Modified (Unix time)</th><th>Hash method</th><th>State</th><th>Duplicate group</th>{% if mode == 'moved' %}<th>Destination / link target</th>{% endif %}<th>Actions</th></tr></thead>
       <tbody>{% for row in results.rows %}
         <tr><td><code>{{ row.directory }}{{ row.directory ends with '/' or row.directory ends with '\\' ? '' : '/' }}{{ row.filename }}</code></td>
         <td>{{ row.profile_name }}</td>
@@ -52,7 +52,8 @@
         <td>{% if row.group_id %}
           <a class="text-link" href="{{ path('app_duplicate_group',{id:row.group_id}) }}">#{{ row.group_id }}</a>
         {% else %}<span class="muted">—</span>{% endif %}</td>
-        <td>{% if row.error_code is null and not row.is_ignored %}<a class="text-link" href="{{ path('app_rename_file',{id:row.id}) }}">Rename</a>{% else %}<span class="muted">—</span>{% endif %}</td></tr>
+        {% if mode == 'moved' %}<td><code>{{ row.action_target ?? 'No action target recorded' }}</code></td>{% endif %}
+        <td>{% if row.error_code is null and not row.is_ignored %}<a class="text-link" href="{{ path('app_file_view',{id:row.id}) }}">View</a> <a class="text-link" href="{{ path('app_file_download',{id:row.id}) }}">Download</a> <a class="text-link" href="{{ path('app_rename_file',{id:row.id}) }}">Rename</a>{% else %}<span class="muted">See file action history</span>{% endif %}</td></tr>
       {% endfor %}</tbody>
     </table></div>
     <div class="result-toolbar">

@@ -8,6 +8,7 @@ if (browser) {
   const message = browser.querySelector('[data-dup-message]');
   const copyButton = browser.querySelector('[data-dup-copy]');
   const renameButton = browser.querySelector('[data-dup-rename]');
+  const moveButton = browser.querySelector('[data-dup-move]');
   const selectedCount = browser.querySelector('[data-dup-selected-count]');
 
   function tell(text) {
@@ -18,6 +19,7 @@ if (browser) {
     if (selectedCount) selectedCount.textContent = selected.size.toLocaleString();
     if (copyButton) copyButton.disabled = selected.size === 0;
     if (renameButton) renameButton.disabled = selected.size === 0;
+    if (moveButton) moveButton.disabled = selected.size === 0;
   }
 
   function restoreSelections(group) {
@@ -186,6 +188,31 @@ if (browser) {
     token.type = 'hidden';
     token.name = '_token';
     token.value = browser.dataset.bulkRenameToken;
+    form.appendChild(token);
+    for (const id of selected.keys()) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'files[]';
+      input.value = id;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  });
+
+  moveButton?.addEventListener('click', () => {
+    if (!selected.size) return;
+    if (selected.size > 50) {
+      tell('Select at most 50 files for a move batch.');
+      return;
+    }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = browser.dataset.bulkMoveUrl;
+    const token = document.createElement('input');
+    token.type = 'hidden';
+    token.name = '_token';
+    token.value = browser.dataset.bulkMoveToken;
     form.appendChild(token);
     for (const id of selected.keys()) {
       const input = document.createElement('input');
