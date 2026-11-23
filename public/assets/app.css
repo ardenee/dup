@@ -212,3 +212,13 @@ textarea{font:inherit;color:var(--ink)}
 .rename-details dd{min-width:0;overflow-wrap:anywhere}
 .rename-options .field input,.rename-options .field select{min-height:44px}
 @media(max-width:650px){.rename-options{grid-template-columns:minmax(0,1fr);padding:19px}.rename-options-actions{grid-column:1/-1}}
+
+/* Compatibility for the existing DSM template until the private Twig update lands. */
+.main:has(#ignored-folders) .form-panel{width:100%;max-width:none;padding:0}
+.main:has(#ignored-folders) .form-panel>.panel-heading{padding:20px 23px}
+.main:has(#ignored-folders) .form-panel>.panel-content{padding:24px}
+.main:has(#ignored-folders) .form-panel .field-help{max-width:none}
+/* Preserve readable inline commands on older installed job templates. */
+.panel-content p code{display:inline;padding:2px 6px;max-width:none;overflow:visible;vertical-align:baseline;white-space:nowrap}
+.panel-content>code:not(.worker-command){display:block;width:max-content;margin:10px 0 18px;padding:10px 12px;max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:620px){.main:has(#ignored-folders) .form-panel>.panel-content{padding:19px}}
