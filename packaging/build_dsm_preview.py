@@ -53,32 +53,14 @@ require '/var/packages/dupv2/target/app/public/setup.php';
             files["webapp/"+name[len("public/"):]]=data
     files["app/worker-loop.sh"]=(DSM/"worker-loop.sh").read_bytes().replace(b"\r\n",b"\n")
     files["app/misc/nginx_global.mustache"]=(DSM/"misc"/"nginx_global.mustache").read_bytes().replace(b"\r\n",b"\n")
-    # The DSM Main Menu uses separate icon/config assets from Package Center.
-    ui=DSM/"ui"
-    for item in sorted(ui.rglob("*")):
-        if item.is_file():
-            files["app/ui/"+item.relative_to(ui).as_posix()]=item.read_bytes()
+    # DSM desktop launcher files are not activated until the base package
+    # successfully passes Package Center's upload validation.
     return files
 
 def make_inner(files:dict[str,bytes])->bytes:
     data=io.BytesIO()
     with gzip.GzipFile(fileobj=data,filename="",mode="wb",mtime=0,compresslevel=7) as zipbuf:
         with tarfile.open(fileobj=zipbuf,mode="w",format=tarfile.PAX_FORMAT) as tar:
-            # Synology requires the dsmuidir entry to be an actual directory,
-            # not only implicitly created by child file paths.
-            directories=set()
-            for name in files:
-                parent=Path(name).parent
-                while str(parent)!=".":
-                    directories.add(parent.as_posix())
-                    parent=parent.parent
-            for name in sorted(directories,key=lambda s:(s.count("/"),s)):
-                entry=tarfile.TarInfo(name)
-                entry.type=tarfile.DIRTYPE
-                entry.mode=0o755
-                entry.uid=entry.gid=entry.mtime=0
-                entry.uname=entry.gname=""
-                tar.addfile(entry)
             for name,content in sorted(files.items()):
                 member(tar,name,content,0o755 if name=="app/worker-loop.sh" else 0o644)
     return data.getvalue()
@@ -98,9 +80,7 @@ def metadata(version:str,php_backend:int,files:dict[str,bytes])->dict[str,tuple[
     info=(DSM/"INFO").read_text(encoding="utf-8").replace("__VERSION__",version).encode()
     assert b'package="dupv2"' in info and b'adminurl="dup-v2/"' in info
     assert b'adminprotocol="https"' in info and b'adminport="443"' in info
-    assert b'dsmuidir="app/ui"' in info and b'dsmappname="com.arden.DUPv2"' in info
-    launcher=json.loads(files["app/ui/config"])
-    assert launcher[".url"]["com.arden.DUPv2"]["icon"]=="images/icon_{0}.png"
+    assert b'dsmuidir=' not in info and b'dsmappname=' not in info
     members={
         "INFO":(info,0o644),
         "LICENSE":((ROOT/"LICENSE").read_bytes(),0o644),
@@ -128,14 +108,6 @@ def metadata(version:str,php_backend:int,files:dict[str,bytes])->dict[str,tuple[
     assert png_size(members["PACKAGE_ICON_256.PNG"][0]) == (256,256)
     assert png_size((DSM/"PACKAGE_ICON_120.PNG").read_bytes()) == (120,120)
     assert (DSM/"PACKAGE_ICON_120.PNG").read_bytes() == files["webapp/assets/dup.png"]
-    for size in (16,24,32,48,64,72,256):
-        key=f"app/ui/images/icon_{size}.png"
-        assert png_size(files[key])==(size,size), key
-        if size==64:
-            assert files[key]==members["PACKAGE_ICON.PNG"][0]
-        if size==256:
-            assert files[key]==members["PACKAGE_ICON_256.PNG"][0]
-    assert b'window.location.hostname' in files["app/ui/launch.html"]
     assert b"img-src 'self'" in files["app/public/setup.php"]
     return members
 
@@ -148,40 +120,20 @@ def build(output:Path,version:str,php_backend:int)->None:
     members=metadata(version,php_backend,app)
     output.parent.mkdir(parents=True,exist_ok=True)
     with tarfile.open(output,"w",format=tarfile.USTAR_FORMAT) as outer:
-        # DSM package parser is sensitive to entry layout. INFO must be first,
-        # followed by the application payload; do not archive '.' prefixes.
-        for name in ("INFO","package.tgz"):
-            data,mode=members[name]
-            member(outer,name,data,mode)
-        for name in ("scripts","conf"):
-            entry=tarfile.TarInfo(name)
-            entry.type=tarfile.DIRTYPE
-            entry.uid=entry.gid=entry.mtime=0
-            entry.mode=0o755
-            outer.addfile(entry)
-        for name in ("PACKAGE_ICON.PNG","PACKAGE_ICON_256.PNG","LICENSE"):
-            data,mode=members[name]
-            member(outer,name,data,mode)
-        for name in sorted(members):
-            if name in {"INFO","package.tgz","PACKAGE_ICON.PNG","PACKAGE_ICON_256.PNG","LICENSE"}:
-                continue
-            data,mode=members[name]
+        # Match the entry ordering of the previously installed DUP v2 SPK.
+        # INFO is first, with bare (not ./-prefixed) USTAR member paths.
+        for name,(data,mode) in sorted(members.items()):
             member(outer,name,data,mode)
     with tarfile.open(output,"r") as outer:
         actual=outer.getmembers()
-        if [m.name for m in actual[:4]] != ["INFO","package.tgz","scripts","conf"]:
-            raise RuntimeError("Non-standard Synology package header layout")
-        if any(m.name.startswith("./") for m in actual):
-            raise RuntimeError("Invalid SPK member prefix")
+        if not actual or actual[0].name!="INFO" or any(m.name.startswith("./") for m in actual):
+            raise RuntimeError("Invalid DSM package header layout")
         found={m.name:(outer.extractfile(m).read(),m.mode)
                for m in actual if m.isfile()}
     if found!=members:
         raise RuntimeError("Outer SPK differs from staged source")
     with tarfile.open(fileobj=io.BytesIO(found["package.tgz"][0]),mode="r:gz") as inner:
         entries=inner.getmembers()
-        declared_dirs={m.name.rstrip("/") for m in entries if m.isdir()}
-        if not {"app", "app/ui", "app/ui/images", "webapp", "webapp/assets"} <= declared_dirs:
-            raise RuntimeError("Missing real directory entries in Synology application payload")
         rebuilt={m.name:inner.extractfile(m).read()
                  for m in entries if m.isfile()}
     if rebuilt!=app:
@@ -195,8 +147,7 @@ def build(output:Path,version:str,php_backend:int)->None:
         raise RuntimeError("Private source or secrets exposed in DSM web directory")
     if not {"webapp/index.php","webapp/setup.php","webapp/assets/app.css","webapp/assets/folder-picker.js",
             "app/vendor/autoload.php","app/public/setup.php","app/bin/console","app/worker-loop.sh",
-            "app/misc/nginx_global.mustache","app/LICENSE","webapp/license.txt","webapp/assets/license.txt","webapp/assets/dup.png",
-            "app/ui/config","app/ui/launch.html","app/ui/images/icon_16.png","app/ui/images/icon_256.png"} <= rebuilt.keys():
+            "app/misc/nginx_global.mustache","app/LICENSE","webapp/license.txt","webapp/assets/license.txt","webapp/assets/dup.png"} <= rebuilt.keys():
         raise RuntimeError("Preview SPK missing required application runtime files")
     if b"DUP_ALLOWED_SCAN_ROOTS=" not in rebuilt["app/.env"]:
         raise RuntimeError("Missing setup safety default")
@@ -211,5 +162,5 @@ if __name__=="__main__":
         help="Web Station PHP backend ID, default 11 validated for PHP8.2 on the test DSM")
     parser.add_argument("--output",type=Path,default=None)
     args=parser.parse_args()
-    output=args.output or ROOT/"dist"/f"DUP-v2-DSM7-{args.version}-preview.spk"
+    output=args.output or ROOT/"dist"/f"DUP-v2-DSM7-{args.version}-compat.spk"
     build(output,args.version,args.php_backend)
