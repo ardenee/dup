@@ -3,6 +3,7 @@ declare(strict_types=1);
 require dirname(__DIR__).'/vendor/autoload.php';
 use Doctrine\DBAL\DriverManager;
 use App\Module\Files\Service\IndexedFileService;
+use App\Module\Files\Service\ViewerSettings;
 use App\Module\FileActions\Service\SafeFileSystem;
 use App\Module\Profiles\Service\DirectoryBrowser;
 
@@ -17,6 +18,7 @@ try {
     $size=filesize($source);
     $mtime=filemtime($source);
     $db=DriverManager::getConnection(['driver'=>'pdo_sqlite','memory'=>true]);
+    $db->executeStatement('CREATE TABLE viewer_settings (setting_key TEXT PRIMARY KEY,setting_value TEXT,updated_at TEXT)');
     foreach([
         'CREATE TABLE scan_profiles (id INTEGER PRIMARY KEY,source_root TEXT,name TEXT)',
         'CREATE TABLE scan_runs (id INTEGER PRIMARY KEY,profile_id INT,state TEXT)',
@@ -31,7 +33,7 @@ try {
         'size_bytes'=>$size,'mtime_epoch'=>$mtime,'hash_value'=>'abcd',
         'hash_method'=>'crc32_full','error_code'=>null
     ]);
-    $service=new IndexedFileService($db,new SafeFileSystem(new DirectoryBrowser()));
+    $service=new IndexedFileService($db,new SafeFileSystem(new DirectoryBrowser()),new ViewerSettings($db));
     $file=$service->get(1);
     checkFile($file['preview_type']==='text','Text preview missing');
     [$content,$truncated]=$service->textPreview($file);

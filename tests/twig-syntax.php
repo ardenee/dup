@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/vendor/autoload.php';
 $twig = new \Twig\Environment(new \Twig\Loader\FilesystemLoader(dirname(__DIR__).'/templates'));
-foreach (['path','asset','csrf_token','dup_navigation'] as $function) {
+foreach (['path','asset','csrf_token','dup_navigation','is_granted'] as $function) {
     $twig->addFunction(new \Twig\TwigFunction($function,static fn()=>null));
 }
 $files = [
@@ -14,6 +14,8 @@ $files = [
     'rename/selected.html.twig',
     'profiles/types.html.twig',
     'files/view.html.twig',
+    'files/settings.html.twig',
+    'accounts/index.html.twig',
     'jobs/index.html.twig',
     'actions/index.html.twig',
     'actions/detail.html.twig',

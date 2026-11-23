@@ -15,7 +15,7 @@ final class DbalUserProvider implements UserProviderInterface
     public function loadUserByIdentifier(string $identifier): UserInterface
     {
         $row = $this->connection->fetchAssociative(
-            'SELECT id, username, password_hash, roles FROM users WHERE username=:name LIMIT 1',
+            'SELECT id, username, password_hash, roles FROM users WHERE username=:name AND disabled_at IS NULL LIMIT 1',
             ['name'=>$identifier]
         );
         if(!$row) {

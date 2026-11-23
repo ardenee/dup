@@ -37,11 +37,13 @@
     <div class="dup-controls">
       <button type="button" data-dup-expand-all>Expand all</button>
       <button type="button" data-dup-collapse-all>Collapse all</button>
+      {% if is_granted('ROLE_ADMIN') %}
       <span class="dup-control-divider"></span>
       <button type="button" data-dup-invert>Invert selection</button>
       <button type="button" data-dup-copy disabled>Copy paths (<span data-dup-selected-count>0</span>)</button>
       <button type="button" data-dup-rename disabled>Rename selected</button>
       <button type="button" data-dup-move disabled>Move selected</button>
+      {% endif %}
     </div>
   </div>
   {% if groups is empty %}
@@ -73,11 +75,13 @@
               </td>
               <td class="dup-file-id">
                 {% if group.first_file_id %}
+                  {% if is_granted('ROLE_ADMIN') %}
                   <label class="dup-select">
                     <input type="checkbox" data-dup-select value="{{ group.first_file_id }}"
                       data-file-path="{{ group.full_path }}" aria-label="Select {{ group.relative_path }}">
                     <span>{{ group.first_file_id }}</span>
                   </label>
+                  {% else %}<span>{{ group.first_file_id }}</span>{% endif %}
                 {% else %}<span class="muted">—</span>{% endif %}
               </td>
               <td class="dup-file-name">
@@ -100,6 +104,7 @@
                 {% if group.first_file_id and group.first_error_code is null %}
                   <a href="{{ path('app_file_view',{id:group.first_file_id}) }}" class="dup-action-link">View</a>
                   <a href="{{ path('app_file_download',{id:group.first_file_id}) }}" class="dup-action-link">Download</a>
+                  {% if is_granted('ROLE_ADMIN') %}
                   <a href="{{ path('app_rename_file',{id:group.first_file_id}) }}" class="dup-action-link">Rename</a>
                   {% if group.rules_version == 1 and group.file_count > 1 %}
                     <form method="post" action="{{ path('app_link_preview',{id:group.first_file_id}) }}">
@@ -110,6 +115,7 @@
                       <input type="hidden" name="_token" value="{{ csrf_token('preview_file_' ~ group.first_file_id) }}">
                       <button type="submit" class="dup-action-link">Quarantine</button>
                     </form>
+                  {% endif %}
                   {% endif %}
                 {% else %}
                   <span class="muted">{{ group.first_error_code ?? 'Unavailable' }}</span>

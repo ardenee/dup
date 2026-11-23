@@ -230,3 +230,9 @@ textarea{font:inherit;color:var(--ink)}
 .preset-form .form-actions{grid-column:1/-1;display:flex;gap:9px}
 .preset-form p.muted{font-size:12px;line-height:1.55;margin-top:8px}
 @media(max-width:740px){.preset-form{grid-template-columns:minmax(0,1fr)}}
+
+.viewer-settings-form{display:grid;gap:18px;max-width:100%}
+.viewer-settings-form .field{margin:0;min-width:0}
+.viewer-settings-form .field input,.viewer-settings-form .field select{max-width:900px;width:100%;min-height:42px}
+.viewer-settings-form .field p.muted{margin-top:7px;font-size:12px;line-height:1.5}
+.viewer-settings-form .form-actions{display:flex;gap:10px;flex-wrap:wrap}

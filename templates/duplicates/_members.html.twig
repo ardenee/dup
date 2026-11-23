@@ -3,11 +3,13 @@
   <tr class="dup-child" data-dup-child>
     <td class="dup-num dup-child-num">{{ start_number + loop.index0 }}</td>
     <td class="dup-file-id">
+      {% if is_granted('ROLE_ADMIN') %}
       <label class="dup-select">
         <input type="checkbox" data-dup-select value="{{ file.file_entry_id }}"
           data-file-path="{{ file.full_path }}" aria-label="Select {{ file.relative_path }}">
         <span>{{ file.file_entry_id }}</span>
       </label>
+      {% else %}<span>{{ file.file_entry_id }}</span>{% endif %}
     </td>
     <td class="dup-file-name" title="{{ file.full_path }}">
       <span class="dup-child-path">{{ file.relative_path }}</span>
@@ -19,6 +21,7 @@
       {% if file.error_code is null %}
         <a class="dup-action-link" href="{{ path('app_file_view',{id:file.file_entry_id}) }}">View</a>
         <a class="dup-action-link" href="{{ path('app_file_download',{id:file.file_entry_id}) }}">Download</a>
+        {% if is_granted('ROLE_ADMIN') %}
         <a class="dup-action-link" href="{{ path('app_rename_file',{id:file.file_entry_id}) }}">Rename</a>
         {% if group.rules_version == 1 and group.file_count > 1 %}
           <form method="post" action="{{ path('app_link_preview',{id:file.file_entry_id}) }}">
@@ -29,6 +32,7 @@
             <input type="hidden" name="_token" value="{{ csrf_token('preview_file_' ~ file.file_entry_id) }}">
             <button class="dup-action-link" type="submit">Quarantine</button>
           </form>
+        {% endif %}
         {% endif %}
       {% else %}
         <span class="muted">{{ file.error_code }}</span>

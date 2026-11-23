@@ -9,6 +9,7 @@ $twig->addFunction(new \Twig\TwigFunction('path',static function(string $name,ar
 $twig->addFunction(new \Twig\TwigFunction('asset',static fn(string $name)=>'/assets/'.$name));
 $twig->addFunction(new \Twig\TwigFunction('csrf_token',static fn(string $name)=>'test-token-'.$name));
 $twig->addFunction(new \Twig\TwigFunction('dup_navigation',static fn()=>[]));
+$twig->addFunction(new \Twig\TwigFunction('is_granted',static fn()=>true));
 $common=[
     'app'=>[
         'user'=>null,'environment'=>'test','flashes'=>[]

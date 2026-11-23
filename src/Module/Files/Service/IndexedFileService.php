@@ -26,7 +26,8 @@ final class IndexedFileService
 
     public function __construct(
         private readonly Connection $db,
-        private readonly SafeFileSystem $fs
+        private readonly SafeFileSystem $fs,
+        private readonly ViewerSettings $viewer
     ) {}
 
     public function get(int $fileId): array
@@ -59,7 +60,7 @@ final class IndexedFileService
             throw new \DomainException('File is not readable by the web process.');
         $row['absolute_path']=$path;
         $row['extension']=strtolower((string)pathinfo((string)$row['filename'],PATHINFO_EXTENSION));
-        $row['preview_type']=self::previewType($row['extension'],(int)$row['size_bytes']);
+        $row['preview_type']=$this->viewer->previewType($row['extension'],(int)$row['size_bytes']);
         return $row;
     }
 

@@ -24,14 +24,14 @@
       <td><code>{{ file.hash_value ?? 'Not computed' }}</code></td>
       <td>{% if file.error_code is null %}<a class="text-link" href="{{ path('app_file_view',{id:file.file_entry_id}) }}">View</a>
         <a class="text-link" href="{{ path('app_file_download',{id:file.file_entry_id}) }}">Download</a>
-        <a class="text-link" href="{{ path('app_rename_file',{id:file.file_entry_id}) }}">Rename</a> {% endif %}{% if group.rules_version == 1 and group.file_count > 1 and file.error_code is null %}
+        {% if is_granted('ROLE_ADMIN') %}<a class="text-link" href="{{ path('app_rename_file',{id:file.file_entry_id}) }}">Rename</a>{% endif %} {% endif %}{% if is_granted('ROLE_ADMIN') and group.rules_version == 1 and group.file_count > 1 and file.error_code is null %}
         <form method="post" action="{{ path('app_link_preview',{id:file.file_entry_id}) }}">
           <input type="hidden" name="_token" value="{{ csrf_token('preview_link_' ~ file.file_entry_id) }}">
           <button type="submit" class="secondary">Preview link</button></form>
         <form method="post" action="{{ path('app_action_preview',{id:file.file_entry_id}) }}">
         <input type="hidden" name="_token" value="{{ csrf_token('preview_file_' ~ file.file_entry_id) }}">
         <button type="submit" class="secondary">Preview quarantine</button></form>
-        {% else %}<span class="muted">Unavailable</span>{% endif %}</td></tr>
+        {% elseif file.error_code is not null %}<span class="muted">Unavailable</span>{% endif %}</td></tr>
     {% endfor %}</tbody></table></div>
     <div class="result-toolbar"><span class="muted">{{ members|length }} files shown on this page</span>
       <nav aria-label="Group members pagination">

@@ -1,0 +1,73 @@
+{% extends 'base.html.twig' %}
+{% block title %}Accounts{% endblock %}
+{% block section %}Administration / Accounts{% endblock %}
+{% block body %}
+<div class="page-heading">
+ <div><div class="eyebrow">ADMINISTRATION</div><h1>Accounts</h1>
+ <p class="muted">Manage administrator and read-only user accounts. Disabled accounts cannot log in; historical audit records are retained.</p></div>
+ <a class="secondary link-button" href="{{ path('app_accounts') }}">Add account</a>
+</div>
+<section class="panel">
+ <div class="panel-heading"><h2>Accounts</h2><span class="muted">{{ accounts|length }} configured</span></div>
+ <div class="table-wrap"><table>
+   <thead><tr><th>ID</th><th>Username</th><th>Access</th><th>Status</th><th>Created (UTC)</th><th>Actions</th></tr></thead>
+   <tbody>{% for account in accounts %}
+    <tr>
+      <td>{{ account.id }}</td>
+      <td><strong>{{ account.username }}</strong>{% if account.id == self_id %} <span class="muted">(you)</span>{% endif %}</td>
+      <td>{{ 'ROLE_ADMIN' in account.roles ? 'Administrator' : 'Read-only user' }}</td>
+      <td><span class="status">{{ account.disabled_at ? 'Disabled' : 'Active' }}</span></td>
+      <td>{{ account.created_at }}</td>
+      <td><div class="profile-actions">
+         <a class="secondary link-button" href="{{ path('app_accounts',{edit:account.id}) }}">Edit</a>
+         {% if account.disabled_at %}
+         <form action="{{ path('app_accounts_enabled',{id:account.id}) }}" method="post">
+          <input type="hidden" name="_token" value="{{ csrf_token('account_enabled_' ~ account.id) }}">
+          <input type="hidden" name="enabled" value="1"><button class="secondary" type="submit">Enable</button>
+         </form>
+         {% elseif account.id != self_id and account.username != 'admin' %}
+         <form action="{{ path('app_accounts_enabled',{id:account.id}) }}" method="post" onsubmit="return confirm('Disable access for this account? Its audit history will be retained.')">
+          <input type="hidden" name="_token" value="{{ csrf_token('account_enabled_' ~ account.id) }}">
+          <input type="hidden" name="enabled" value="0"><button class="secondary" type="submit">Disable</button>
+         </form>
+         {% endif %}
+      </div></td>
+    </tr>
+   {% else %}
+    <tr><td colspan="6">No accounts found.</td></tr>
+   {% endfor %}</tbody>
+ </table></div>
+</section>
+<section class="panel">
+ <div class="panel-heading"><h2>{{ editing ? 'Edit account' : 'Add account' }}</h2></div>
+ <div class="panel-content">
+  <form method="post" action="{{ path('app_accounts_save') }}" class="viewer-settings-form">
+   <input type="hidden" name="_token" value="{{ csrf_token('account_save') }}">
+   {% if editing %}<input type="hidden" name="id" value="{{ editing.id }}">{% endif %}
+   <div class="field"><label for="account-username">Username</label>
+    <input id="account-username" name="username" type="text" pattern="[a-z0-9._-]{3,64}" maxlength="64" required autocomplete="off" value="{{ editing ? editing.username : '' }}" {{ editing and editing.username == 'admin' ? 'readonly' : '' }}>
+    <p class="muted">3–64 lowercase letters, numbers, dots, underscores or hyphens.</p>
+   </div>
+   <div class="field"><label for="account-role">Access level</label>
+     <select id="account-role" name="role">
+       <option value="ROLE_USER" {{ editing and 'ROLE_ADMIN' not in editing.roles ? 'selected' : '' }}>User — read-only search, duplicates, reports and file viewing</option>
+       <option value="ROLE_ADMIN" {{ editing and 'ROLE_ADMIN' in editing.roles ? 'selected' : '' }}>Administrator — all features and file actions</option>
+     </select>
+   </div>
+   <div class="field"><label for="account-password">{{ editing ? 'New password (optional)' : 'Password' }}</label>
+     <input id="account-password" type="password" name="password" minlength="12" maxlength="72" autocomplete="new-password" {{ editing ? '' : 'required' }}>
+     <p class="muted">12–72 bytes. Leave blank when editing to preserve the existing password.</p>
+   </div>
+   {% if editing and editing.id == self_id %}
+    <div class="field"><label for="account-current-password">Current password (required to change your own password)</label>
+     <input id="account-current-password" type="password" name="current_password" autocomplete="current-password">
+    </div>
+   {% endif %}
+   <div class="form-actions">
+      <button class="primary" type="submit">{{ editing ? 'Save account' : 'Add account' }}</button>
+      {% if editing %}<a class="secondary link-button" href="{{ path('app_accounts') }}">Cancel</a>{% endif %}
+   </div>
+  </form>
+ </div>
+</section>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends 'base.html.twig' %}
+{% block title %}File viewer settings{% endblock %}
+{% block section %}Settings / Viewer{% endblock %}
+{% block body %}
+<div class="page-heading"><div><div class="eyebrow">PREVIEW SETTINGS</div><h1>File viewer</h1>
+ <p class="muted">Control which indexed files may be previewed. Downloads remain separate, and no scan data is changed.</p></div>
+ <a class="secondary link-button" href="{{ path('app_profiles') }}">Profiles</a>
+</div>
+<section class="panel">
+ <div class="panel-heading"><h2>Preview configuration</h2><span class="muted">All scan profiles</span></div>
+ <div class="panel-content">
+ <form method="post" action="{{ path('app_viewer_settings_save') }}" class="viewer-settings-form">
+   <input type="hidden" name="_token" value="{{ csrf_token('viewer_settings') }}">
+   <label class="search-check"><input type="checkbox" id="view-enable" name="view_enable" value="1" {{ settings.view_enable == '1' ? 'checked' : '' }}> Enable file viewer previews</label>
+   <p class="muted">When disabled, file metadata and downloads remain available, but inline previews are suppressed.</p>
+   <div class="field"><label for="image-types">Image preview extensions</label>
+     <input type="text" id="image-types" name="view_image_exts" value="{{ settings.view_image_exts }}" maxlength="2000">
+     <p class="muted">Supported: jpg, jpeg, png, gif, webp, bmp. Leave blank to disable image previews.</p>
+   </div>
+   <div class="field"><label for="text-types">Text preview extensions</label>
+     <input type="text" id="text-types" name="view_text_exts" value="{{ settings.view_text_exts }}" maxlength="2000">
+     <p class="muted">Read-only, HTML-escaped, maximum 1 MiB per preview. Enter comma-separated extensions.</p>
+   </div>
+   <div class="field"><label for="pdf-types">PDF preview extensions</label>
+     <input type="text" id="pdf-types" name="view_pdf_exts" value="{{ settings.view_pdf_exts }}" maxlength="2000">
+     <p class="muted">Only pdf is accepted. Image and PDF inline previews are capped at 40 MiB.</p>
+   </div>
+   <div class="form-actions"><button type="submit" class="primary">Save viewer settings</button></div>
+ </form>
+ </div>
+</section>
+{% endblock %}

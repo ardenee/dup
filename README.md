@@ -20,8 +20,10 @@ DUP is a web-based duplicate-file scanner and manager for Windows, Linux and Syn
 - Provides filename cleanup previews, selected-file batch renaming directly from duplicate selections (with confirmation), and manual single-file renaming through the audited background-job worker, without overwriting existing paths
 - Includes indexed file viewing, read-only image/PDF/text previews and streamed downloads, rejecting stale scan records and symbolic links
 - Allows administrators to add, edit or remove unused file-type presets without resetting scan history
+- Restores account management for administrators and read-only users: add, rename, change access level, reset passwords, disable and re-enable accounts while preserving audit history. Read-only users can search, browse duplicates, view reports and safely view/download indexed files but cannot mutate data or settings.
+- Restores configurable file viewer preferences: enable/disable previews, approved image extensions, HTML-escaped text extensions and PDF inline viewing, without changing downloads or scan data.
 
-Permanent deletion is deliberately unavailable pending further safety and recovery testing. Reversible moves are limited to 50 selected files per batch on the same filesystem, preserve the original hierarchy, and never overwrite. Symbolic-link replacement is available only for fully SHA-256-verified duplicate groups; the original is retained privately for restoration. Full historical moved-file search across older scans and symlink re-indexing are still outstanding. Rename supports selected batches of up to 50 files; this is not yet parity with every legacy rename option.
+Permanent deletion is deliberately unavailable pending further safety and recovery testing. Account removal disables login instead of physically deleting records referenced by audit history. Reversible moves are limited to 50 selected files per batch on the same filesystem, preserve the original hierarchy, and never overwrite. Symbolic-link replacement is available only for fully SHA-256-verified duplicate groups; the original is retained privately for restoration. Full historical moved-file search across older scans and symlink re-indexing are still outstanding. Rename supports selected batches of up to 50 files; this is not yet parity with every legacy rename option.
 
 ## Requirements
 

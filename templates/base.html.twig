@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
   <title>{% block title %}DUP{% endblock %} · Duplicate Manager</title>
-  <link rel="stylesheet" href="{{ asset('assets/app.css') }}?v=0.7.6-compact">
+  <link rel="stylesheet" href="{{ asset('assets/app.css') }}?v=0.7.6-admin">
   {% block page_styles %}{% endblock %}
   <link rel="icon" type="image/png" sizes="120x120" href="{{ asset('assets/dup.png') }}">
 </head>
@@ -17,9 +17,9 @@
       <div class="brand"><img class="brand-logo-original" src="{{ asset('assets/dup.png') }}" width="32" height="32" alt="DUP icon"><div><strong>DUP</strong><small>Duplicate Manager</small></div></div>
       <nav>
       {% for link in dup_navigation() %}
-        <a href="{{ path(link.route) }}" class="nav-link {{ app.request.attributes.get('_route') == link.route ? 'active' : '' }}">
-          {{ link.label }}
-        </a>
+        {% if is_granted('ROLE_ADMIN') or link.route in ['app_dashboard','app_duplicates','app_search','app_reports'] %}
+          <a href="{{ path(link.route) }}" class="nav-link {{ app.request.attributes.get('_route') == link.route ? 'active' : '' }}">{{ link.label }}</a>
+        {% endif %}
       {% endfor %}
       </nav>
       <div class="sidebar-bottom">
