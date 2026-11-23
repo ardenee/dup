@@ -1,10 +1,11 @@
 <?php
+require_once __DIR__ . '/runtime-paths.php';
 //iconv_set_encoding("internal_encoding", "UTF-8");
 //iconv_set_encoding("input_encoding", "UTF-8");
 //iconv_set_encoding("output_encoding", "UTF-8");
 // /usr/syno/etc.defaults/rc.d/S97apache-user.sh restart 
 ini_set("log_errors" , "1");
-ini_set("error_log" , "logs/php_errors.log");
+ini_set("error_log", DupLogDir() . "/php_errors.log");
 ini_set("display_errors" , "0");
 //ini_set("max_input_vars" , "5000");
 
@@ -20,7 +21,7 @@ register_shutdown_function(function()
     if(!in_array($error["type"], $fatalTypes))
         return;
 
-    $logDir = __DIR__ . "/logs";
+    $logDir = DupLogDir() . "";
 
     if(!is_dir($logDir))
         @mkdir($logDir, 0777, true);
@@ -66,7 +67,9 @@ $dbport   = "3306";
 $profile  = 0;  //should be 0 ?
 $start    = 0;
 
-$configLocal = __DIR__ . "/config.local.php";
+$configLocal = DupPrivateDir() . "/config.local.php";
+if(!is_file($configLocal))
+    $configLocal = __DIR__ . "/config.local.php";
 
 if(is_file($configLocal))
     include($configLocal);
@@ -92,8 +95,8 @@ if(isset($argv[2])) // running a scan! locally, can delete in build
 if(isset($_POST["start"]))
 	$start = $_POST["start"];
 	
-if(isset($_POST["dbfile"])) // running a scan! locally, can delete in build
-	$dbfile = $_POST["dbfile"];
+// Database engine is selected only by private server configuration,
+// never by an untrusted HTTP request parameter.
 	
 try
 {
@@ -116,10 +119,10 @@ try
 }
 catch(PDOException $ex)
 {
-    if(!is_dir(__DIR__ . "/logs"))
-        @mkdir(__DIR__ . "/logs", 0777, true);
+    if(!is_dir(DupLogDir() . ""))
+        @mkdir(DupLogDir() . "", 0777, true);
 
-    file_put_contents(__DIR__ . "/logs/db_connect_error.txt", date("Y-m-d H:i:s") . "\n" . print_r($ex, true) . "\n", FILE_APPEND);
+    file_put_contents(DupLogDir() . "/db_connect_error.txt", date("Y-m-d H:i:s") . "\n" . print_r($ex, true) . "\n", FILE_APPEND);
 
     header("Location: setup.php");
     exit;
@@ -306,7 +309,7 @@ function LogStr($str, $type = 0, $file = "", $line = "", $function = "")
     if(!$writeLog)
         return;
 
-    $logDir = __DIR__ . "/logs";
+    $logDir = DupLogDir() . "";
 
     if(!is_dir($logDir))
         @mkdir($logDir, 0777, true);
@@ -939,7 +942,7 @@ function linkFile($file, $new)
 //----------------------------------------------------------------------------
 function LogError($Error)
 {
-    $logDir = __DIR__ . "/logs";
+    $logDir = DupLogDir() . "";
 
     if(!is_dir($logDir))
         @mkdir($logDir, 0777, true);

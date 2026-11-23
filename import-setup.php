@@ -1,10 +1,11 @@
 <?php
+require_once __DIR__ . '/runtime-paths.php';
 
 include("dup.php");
 
 $dup = new dup($profile);
 
-$backupDir = __DIR__ . "/backup";
+$backupDir = DupBackupDir() . "";
 $statusFile = $backupDir . "/backup.data";
 
 $sqlIgnore = ($dbfile == 0) ? "INSERT IGNORE" : "INSERT OR IGNORE";

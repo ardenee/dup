@@ -1,52 +1,61 @@
 # DUP
 
-DUP is a browser-based duplicate-file scanner and file manager. Profiles scan folders, index metadata in a database and group potential duplicates by size or CRC32. The web UI provides searches, per-profile review, logs, and queued rename, move, delete and link operations.
+DUP is a browser-based duplicate-file scanner and file manager. It indexes folders into a database, groups potential duplicates by file size or CRC32, and provides file search, profile review, logs, and queued rename, move, delete and link operations.
 
-## Platforms
+## Runtime requirements
 
-- **Generic PHP web server** (primary distribution): PHP 8.2+, PDO and pdo_mysql, MariaDB 10, and a web server with permission to access the directories being scanned.
-- **Synology DSM 7** (optional generated package): Web Station, PHP 8.2+ and MariaDB 10 installed first; enable **pdo_mysql** in the Web Station PHP profile. The package uses a Web Station service and runs the same PHP source as the generic ZIP.
-- Local DEV lint baseline: PHP 8.5.12. MariaDB is preferred for large libraries. Legacy SQLite support still requires installation/schema and compatibility verification.
+- Generic web server: PHP 8.2+, PDO, `pdo_mysql`, sessions, `mbstring`, and MariaDB 10.
+- Synology DSM 7: Web Station, PHP 8.2+ and MariaDB 10 installed first. Enable `pdo_mysql` in the package's Web Station PHP profile.
+- Permissions to read profile scan folders; write permissions are needed only for actions explicitly requested by the user.
+- PHP CLI must be available for background scanning and file-action jobs.
 
-A working web PHP profile should provide PDO, pdo_mysql, mbstring and sessions. Enable curl, fileinfo and the necessary SQLite extensions if using those capabilities.
+The developer lint baseline is PHP 8.5.12. The current DSM test instance runs PHP 8.2.35. This is a compatibility baseline, not proof that all functions have been fully tested on both versions.
+
+Existing SQLite installations have legacy support in the code, but **new SQLite installation is temporarily disabled** while the schema and runtime paths are modernised. MariaDB is the supported installation choice.
+
+## Private runtime storage
+
+**Do not store database credentials, SQLite data, logs, or backups under an HTTP-accessible directory.**
+
+- On Synology DSM, DUP automatically uses `/var/packages/dup/var` for private data, configuration, logs and backups. The physical path can resolve to `/volume1/@appdata/dup`.
+- On a generic web server, set the `DUP_DATA_DIR` environment variable to a persistent directory **outside all web document roots** with read/write permission for the PHP/CLI user.
+- If no private directory is configured outside DSM, DUP falls back to a uniquely named directory under the system temporary directory; configure a stable `DUP_DATA_DIR` before using the application permanently.
+- The installer writes `config.local.php` inside the private directory, not the web root. A legacy web-root config is still read as a migration fallback until it has been moved.
+
+The generic distribution and SPK intentionally exclude local secrets, SQLite database files, plain SQL downloads, stored logs, old project copies and runtime backups. A PHP-returned SQL schema is used during new MariaDB setup.
 
 ## Features
 
-- Profile-based recursive scans, extension and size filters, and ignored-folder settings
-- File-size, sampled CRC32 and full CRC32 duplicate modes (CRC32 is not a cryptographic hash)
-- Browsing and searching file records, duplicate groups and moved files
-- Queued rename, move, delete and symbolic-link operations
-- Per-profile scan state, operational logs and account-based access
+- Multiple scan profiles with folder and extension filters and ignored-folder settings.
+- File-size, sampled CRC32, and full CRC32 duplicate detection.
+- Search, moved files, duplicate groups, and per-profile file review.
+- Queued file operations, scan status, logging and a built-in interface.
 
-**Important:** A match by size or sampled CRC32 is not proof that two files are identical. Confirm content before deletion or replacement.
-
-## Installation
-
-For a generic web server, extract the web ZIP into a site directory and configure the PHP runtime, MariaDB 10 and filesystem permissions. Open `setup.php` for a **new installation only**. Initial setup recreates the `dup` database, so never run it against a database containing data you intend to retain.
-
-DUP stores local DB configuration in `config.local.php` (ignored by Git); do not commit credentials. The web server needs write permission for `logs/` and `backup/`, and only the file access required for chosen scan folders. Restrict web access to a trusted network while the security modernisation is underway.
-
-The current code uses legacy MD5-derived authentication cookies and ageing JavaScript dependencies. **It is not yet suitable for exposure to the public internet.** Database migrations, sessions/CSRF protection, filesystem authorisation and private storage isolation are on the hardening roadmap.
+**A matching size or CRC32 is not definitive proof that two files are identical.** Confirm files before deleting or replacing them.
 
 ## Building packages
 
-From the repository root, using Python 3.10 or newer:
+Run from the repository root with Python 3.10+:
 
 ```sh
 python packaging/build.py --version 0.7.0
 ```
 
-The script builds and verifies:
+The builder verifies both outputs against the same application files:
 
-- `dist/DUP-Web-0.7.0.zip` — generic PHP web application
-- `dist/DUP-DSM7-0.7.0.spk` — the same application files plus Synology Web Station metadata and package scripts
+- `dist/DUP-Web-0.7.0.zip` — generic PHP web application.
+- `dist/DUP-DSM7-0.7.0.spk` — the same PHP application with Synology Web Station metadata, icons and install scripts.
 
-Builds exclude `config.local.php`, personal databases, logs, backups, the historical `orignal/` reference and other development-only content. This is a **staging build**; SPK installation and upgrade are not yet certified. Do not install it over an existing DSM instance without preserving its live configuration and database first.
+The DSM SPK is a **development candidate**, not a tested upgrade for an existing package. Back up the database and private configuration before installing or replacing anything on DSM. Do not manually run the existing installer against an active database: setup is restricted to first installation, and destructive recreation is blocked once configuration exists.
 
-To regenerate DSM icons from `images/dup.png` (Pillow required), run `python packaging/make_icons.py` before building.
+Regenerate DSM icons, if required, with `python packaging/make_icons.py` (Pillow required).
 
-## Development status
+## Security and development status
 
-The active DEV checkout is `dup/` on branch `main`; `dup2/` is an old reference copy, not the release source. Work is focused on securing authentication and file actions, introducing non-destructive migrations, improving database indexes and worker throughput, simplifying the PHP modules, and replacing outdated interface libraries. Existing scan records and ignored-folder semantics must be preserved through upgrades.
+**Keep DUP on a trusted network. Do not expose it to the public internet yet.** The legacy account login uses an MD5-derived cookie credential, and full session/password/CSRF migration is still needed. File-action path validation and permissions also need a security audit.
+
+Completed baseline: identify the primary DEV/GitHub source, restore the missing action dispatcher, move the DSM configuration/logs/backups outside the HTTP root, remove public legacy copies, protect destructive setup, and establish a common generic-web/DSM package builder.
+
+Remaining work: modern sessions and password hashes, CSRF and filesystem authorisation, non-destructive database migrations, profiling/indexes and lower-cost logging, modular PHP services, asynchronous workers, UI consistency and usability, and full end-to-end regression tests.
 
 Source: https://github.com/ardenee/dup

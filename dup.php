@@ -332,8 +332,13 @@ class dup
 				break;		
 			}	
 
-			if($set==false)
-				SetupDB();
+			if($set == false)
+            {
+                // Never perform implicit schema creation/reset during an ordinary page request.
+                LogError("No settings record found. Use the explicit installer or migration workflow.");
+                header("Location: setup.php");
+                exit;
+            }
 		}
 		catch(PDOException $ex) {
 			LogError(print_r($ex, true));

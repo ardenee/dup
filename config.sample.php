@@ -1,7 +1,8 @@
 <?php
 
-// Copy this file to config.local.php and update the values for your system.
-// config.local.php is intentionally ignored by Git.
+// Reference only. New installs write config.local.php in the private DUP_DATA_DIR.
+// On Synology the private directory is /var/packages/dup/var.
+// Never place a populated credentials file in a public web directory.
 
 $dbuser = "root";
 $dbpass = "";

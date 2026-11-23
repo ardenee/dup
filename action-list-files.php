@@ -193,7 +193,7 @@ try
         throw new Exception("Could not find PHP CLI binary for action-files-thread.php");
 
     $script = __DIR__ . "/action-files-thread.php";
-    $actionLog = __DIR__ . "/logs/action-profile-" . $profileId . "-" . strtolower($action) . "-" . date("Ymd-His") . ".log";
+    $actionLog = DupLogDir() . "/action-profile-" . $profileId . "-" . strtolower($action) . "-" . date("Ymd-His") . ".log";
 
     $cmd = escapeshellarg($phpCli) . " -q " . escapeshellarg($script) . " " . escapeshellarg((string)$profileId) . " " . escapeshellarg($action) . " >> " . escapeshellarg($actionLog) . " 2>&1 &";
 

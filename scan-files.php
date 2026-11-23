@@ -4,8 +4,8 @@ include("dup.php");
 $dup = new dup($profile);
 
 $profileId = intval($profile);
-//$scanLog = __DIR__ . "/logs/scan-profile-" . $profileId . ".log";
-$scanLog = __DIR__ . "/logs/scan-profile-" . $profileId . "-" . date("Ymd-His") . ".log";
+//$scanLog = DupLogDir() . "/scan-profile-" . $profileId . ".log";
+$scanLog = DupLogDir() . "/scan-profile-" . $profileId . "-" . date("Ymd-His") . ".log";
 
 LogStr("Files Scan '" . (isset($dup->Profile["path"]) ? $dup->Profile["path"] : "") . "'", 1, __FILE__, __LINE__, __FUNCTION__);
 

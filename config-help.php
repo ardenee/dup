@@ -109,7 +109,7 @@ echo "<tr><td class=\"infoTableHeader\">dup Database size: </td><td><span title=
 	   <tr class="infoTableSeperator"><td class="infoTableHeader">Backups</td>&nbsp;<td></td></tr>
 	   <tr><td class="infoTableHeader"><td>
 	   <?php
-		$backupDir = __DIR__ . "/backup";
+		$backupDir = DupBackupDir() . "";
 		$impdata = "";
 
 		if(is_dir($backupDir))

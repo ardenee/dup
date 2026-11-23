@@ -35,14 +35,14 @@ function DupLogText($value, $fallback)
     return htmlspecialchars($value != "" ? $value : $fallback, ENT_QUOTES, "UTF-8");
 }
 
-$lastError    = ReadLogTail(__DIR__ . "/logs/last_error.txt");
-$errorHistory = ReadLogTail(__DIR__ . "/logs/error_history.log");
-$phpErrors    = ReadLogTail(__DIR__ . "/logs/php_errors.log");
-$dupLog       = ReadLogTail(__DIR__ . "/logs/dup.log");
-$scanLogs     = glob(__DIR__ . "/logs/scan-profile-*.log");
+$lastError    = ReadLogTail(DupLogDir() . "/last_error.txt");
+$errorHistory = ReadLogTail(DupLogDir() . "/error_history.log");
+$phpErrors    = ReadLogTail(DupLogDir() . "/php_errors.log");
+$dupLog       = ReadLogTail(DupLogDir() . "/dup.log");
+$scanLogs     = glob(DupLogDir() . "/scan-profile-*.log");
 $scanLogText  = "";
 
-$actionLogs = glob(__DIR__ . "/logs/action-profile-*.log");
+$actionLogs = glob(DupLogDir() . "/action-profile-*.log");
 $actionLogText = "";
 
 if($actionLogs)

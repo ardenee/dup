@@ -65,7 +65,7 @@ if(!isset($_GET["confirm"]) || $_GET["confirm"] != "1")
     exit;
 }
 
-$logDir = __DIR__ . "/logs";
+$logDir = DupLogDir() . "";
 
 $filesToClear = array(
     $logDir . "/log.txt",

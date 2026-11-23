@@ -1,4 +1,11 @@
 <?php
+require_once __DIR__ . '/runtime-paths.php';
+if(is_file(DupPrivateDir() . '/config.local.php') || is_file(__DIR__ . '/config.local.php'))
+{
+    // Setup is available only until the initial configuration is created.
+    header('Location: index.php');
+    exit;
+}
 $setupChecks = array();
 
 $setupChecks[] = array(
@@ -52,23 +59,23 @@ $setupChecks[] = array(
 
 $setupChecks[] = array(
     "name" => "logs folder writable",
-    "ok" => is_dir(__DIR__ . "/logs") && is_writable(__DIR__ . "/logs"),
-    "details" => __DIR__ . "/logs",
-    "fix" => "Run: sudo chown -R dup:http /volume1/web_packages/dup/logs && sudo chmod -R 775 /volume1/web_packages/dup/logs"
+    "ok" => is_dir(DupLogDir() . "") && is_writable(DupLogDir() . ""),
+    "details" => DupLogDir() . "",
+    "fix" => "Use a private DUP_DATA_DIR outside the website, writable by the PHP worker."
 );
 
 $setupChecks[] = array(
-    "name" => "db.php writable",
-    "ok" => is_writable(__DIR__ . "/db.php"),
-    "details" => __DIR__ . "/db.php",
-    "fix" => "Run: sudo chown dup:http /volume1/web_packages/dup/db.php && sudo chmod 664 /volume1/web_packages/dup/db.php"
+    "name" => "private data directory writable",
+    "ok" => is_writable(DupPrivateDir()),
+    "details" => DupPrivateDir(),
+    "fix" => "Choose a writable DUP_DATA_DIR outside the public document root."
 );
 
 $setupHasBlockingIssues = false;
 
 foreach($setupChecks as $check)
 {
-    if(!$check["ok"] && ($check["name"] == "PHP version" || $check["name"] == "PDO" || $check["name"] == "pdo_mysql" || $check["name"] == "db.php writable" || $check["name"] == "old mysql extension" || $check["name"] == "mcrypt"))
+    if(!$check["ok"] && ($check["name"] == "PHP version" || $check["name"] == "PDO" || $check["name"] == "pdo_mysql" || $check["name"] == "private data directory writable" || $check["name"] == "old mysql extension" || $check["name"] == "mcrypt"))
         $setupHasBlockingIssues = true;
 }
 ?>

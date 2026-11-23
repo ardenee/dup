@@ -1,8 +1,9 @@
 <?php
+require_once __DIR__ . '/runtime-paths.php';
 
 $refresh = "config-help.php";
 $action = isset($_GET["action"]) ? trim($_GET["action"]) : "";
-$backupDir = __DIR__ . "/backup";
+$backupDir = DupBackupDir() . "";
 $statusFile = $backupDir . "/backup.data";
 
 function BackupSafeName($name)
@@ -68,7 +69,7 @@ if($action == "import")
     $phpCli = BackupFindPhpCli();
     //$script = __DIR__ . "/import.php";
 	$script = __DIR__ . "/import-setup.php";
-    $logFile = __DIR__ . "/logs/backup-import.log";
+    $logFile = DupLogDir() . "/backup-import.log";
 
     if($phpCli != "" && is_file($script))
     {

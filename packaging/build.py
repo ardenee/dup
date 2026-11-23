@@ -17,10 +17,10 @@ SCRIPTS = ("preinst", "postinst", "preuninst", "postuninst",
            "preupgrade", "postupgrade", "start-stop-status")
 ESSENTIAL = {"index.php", "db.php", "dup.php", "action-list-files.php",
              "action-files-thread.php", "scan-files.php", "scan-files-thread.php",
-             "profile-view.php", "setup.php", "setup-save.php", "files/dup.sql"}
+             "profile-view.php", "setup.php", "setup-save.php", "database-schema.php"}
 ASSETS = {".js", ".css", ".png", ".gif", ".jpg", ".jpeg",
           ".svg", ".ico", ".html", ".htm", ".txt"}
-SCHEMA = {"files/dup.sql", "files/update_logs_user_id.sql"}
+SCHEMA = set()  # Raw SQL is never published into the HTTP document root.
 
 def source() -> dict[str, bytes]:
     out = {}
