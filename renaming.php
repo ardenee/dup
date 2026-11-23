@@ -2,6 +2,7 @@
 include("dup.php");
 
 $dup = new dup($profile);
+DupRequireAdmin();
 LogStr("Renaming '" . (isset($dup->Profile['path']) ? $dup->Profile['path'] : "global") . "'", 1, __FILE__, __LINE__, __FUNCTION__);
 
 function DupHtml($value)

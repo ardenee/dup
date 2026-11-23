@@ -10,8 +10,13 @@ if(($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST')
 }
 DupRequirePostCsrf();
 
-$name = strtolower(trim((string)($_POST['user'] ?? '')));
-$password = (string)($_POST['password'] ?? '');
+if(!is_string($_POST['user'] ?? null) || !is_string($_POST['password'] ?? null))
+{
+    http_response_code(400);
+    exit('Invalid login request.');
+}
+$name = strtolower(trim($_POST['user']));
+$password = $_POST['password'];
 $addr = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
 $rateKey = hash('sha256', $addr . ':' . $name);
 $ratePath = DupPrivateSubdir('auth-rate') . '/' . $rateKey . '.json';

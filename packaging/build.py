@@ -17,7 +17,8 @@ SCRIPTS = ("preinst", "postinst", "preuninst", "postuninst",
            "preupgrade", "postupgrade", "start-stop-status")
 ESSENTIAL = {"index.php", "db.php", "dup.php", "action-list-files.php",
              "action-files-thread.php", "scan-files.php", "scan-files-thread.php",
-             "profile-view.php", "setup.php", "setup-save.php", "database-schema.php"}
+             "profile-view.php", "setup.php", "setup-save.php", "database-schema.php",
+             "database-migrations.php", "bin/migrate.php"}
 ASSETS = {".js", ".css", ".png", ".gif", ".jpg", ".jpeg",
           ".svg", ".ico", ".html", ".htm", ".txt"}
 SCHEMA = set()  # Raw SQL is never published into the HTTP document root.
@@ -29,6 +30,10 @@ def source() -> dict[str, bytes]:
             raise RuntimeError(f"Symlink not supported: {entry}")
         if entry.name not in {"dup-test.php", "config.local.php", "db.local.php"}:
             out[entry.name] = entry.read_bytes()
+    for p in sorted((ROOT / "bin").glob("*.php")):
+        if p.is_symlink():
+            raise RuntimeError(f"Symlink not supported: {p}")
+        out[p.relative_to(ROOT).as_posix()] = p.read_bytes()
     for p in (ROOT / ".htaccess",):
         if p.is_file() and not p.is_symlink():
             out[p.name] = p.read_bytes()

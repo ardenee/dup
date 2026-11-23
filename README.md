@@ -46,7 +46,17 @@ The builder verifies both outputs against the same application files:
 - `dist/DUP-Web-0.7.0.zip` — generic PHP web application.
 - `dist/DUP-DSM7-0.7.0.spk` — the same PHP application with Synology Web Station metadata, icons and install scripts.
 
-The DSM SPK is a **development candidate**, not a tested upgrade for an existing package. Back up the database and private configuration before installing or replacing anything on DSM. New installation refuses to overwrite a database containing existing tables and requires a newly chosen administrator password. Existing installations require versioned migrations.
+The DSM SPK is a **development candidate**, not a tested upgrade for an existing package. Back up the database and private configuration before installing or replacing anything on DSM. New installation refuses to overwrite a database containing existing tables and requires a newly chosen administrator password.
+
+For an existing MariaDB installation, run this with a PHP CLI executable after preserving a full database backup, **before deploying the session-authentication update**:
+
+```sh
+php bin/migrate.php --check
+php bin/migrate.php --apply
+php bin/migrate.php --check
+```
+
+The CLI migration is additive and repeatable. It saves an original accounts-table backup in MariaDB, verifies that account records and hashes match, widens the password field to 255 characters if needed, and fills in missing logging columns/indexes. It does not alter existing account passwords or erase scan results. There is **no automatic migration during web requests or DSM SPK upgrades**.
 
 Regenerate DSM icons, if required, with `python packaging/make_icons.py` (Pillow required).
 
@@ -58,6 +68,6 @@ Regenerate DSM icons, if required, with `python packaging/make_icons.py` (Pillow
 
 Completed baseline: reconciled DEV/GitHub/DSM files, restored the missing action dispatcher, moved DSM private runtime data outside the HTTP root, and introduced a verified shared generic-web/DSM package builder. The hardening branch also removes per-request schema changes and late log-attribution updates.
 
-Remaining work: approve and verify the live account-column migration, test browser login and admin account changes on DSM, finish auth/CSRF coverage, review file-action edge cases, build a non-destructive upgrade migration system, profile scans and queries, improve log efficiency, and finish modular architecture/UI improvements.
+Remaining work: approve and verify the live account-column migration, test browser login and admin account changes on DSM, finish auth/CSRF coverage and file-action regression tests, profile scans and queries, improve log efficiency, and finish modular architecture/UI improvements.
 
 Source: https://github.com/ardenee/dup

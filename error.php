@@ -2,6 +2,7 @@
 include("dup.php");
 
 $dup = new dup($profile);
+DupRequireAdmin();
 
 function ReadLogTail($file, $maxBytes = 65536)
 {

@@ -1,6 +1,13 @@
 <?php
 require_once __DIR__ . '/auth.php';
 DupSessionStart();
+// Purge legacy credential cookies even before the first successful session login.
+foreach(['uname', 'password'] as $legacyCookie)
+    setcookie($legacyCookie, '', [
+        'expires' => time() - 3600, 'path' => '/',
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'httponly' => true, 'samesite' => 'Strict',
+    ]);
 ?>
 <!DOCTYPE HTML>
 <HTML>

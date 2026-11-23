@@ -3,6 +3,7 @@
 require_once("dup.php");
 
 $dup = new dup($profile);
+DupRequireAdmin();
 
 $profileId = intval($profile);
 
@@ -13,8 +14,8 @@ $allowedActions = array(
     "Link"   => "files-link.php"
 );
 
-$act = isset($_POST["act"]) ? trim($_POST["act"]) : "";
-$files = isset($_POST["files"]) ? $_POST["files"] : array();
+$act = isset($_POST["act"]) ? trim((string)$_POST["act"]) : (isset($_GET["act"]) ? trim((string)$_GET["act"]) : "");
+$files = isset($_POST["files"]) ? $_POST["files"] : (isset($_GET["files"]) ? $_GET["files"] : array());
 
 LogStr("Action request: " . $act . " profile=" . $profileId, 1, __FILE__, __LINE__, __FUNCTION__);
 

@@ -1,6 +1,7 @@
 <?php
 include("dup.php");
 $dup = new dup($profile);
+DupRequireAdmin();
 LogStr("Profile Settings '" . (isset($dup->Profile['path']) ? $dup->Profile['path'] : "") . "'", 1, __FILE__, __LINE__, __FUNCTION__);
 $set=false;
 

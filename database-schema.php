@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS `accounts` (
 ) ENGINE=MyISAM  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci AUTO_INCREMENT=1 ;
 
 INSERT INTO `accounts` (`id`, `name`, `level`, `password`) VALUES (1, 'admin', 1, '!DISABLED_UNTIL_SETUP!');
--- admin - admin
+-- Administrator password is chosen during first-time setup.
 
 -- --------------------------------------------------------
 
@@ -128,9 +128,11 @@ CREATE TABLE IF NOT EXISTS `logs` (
   `str` text COLLATE utf8_bin NOT NULL,
   `type` int(11) NOT NULL,
   `page` varchar(65) COLLATE utf8_bin NOT NULL,
-  `line` int(11) NOT NULL,
+  `line` int(11) NOT NULL DEFAULT '0',
   `function` text COLLATE utf8_bin NOT NULL,
-  PRIMARY KEY (`id`)
+  `user_id` int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `logs_user_id` (`user_id`)
 ) ENGINE=MyISAM  DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1 ;
 
 -- --------------------------------------------------------

@@ -1,6 +1,7 @@
 <?php
 include("dup.php");
 $dup = new dup($profile);
+DupRequireAdmin();
 LogStr("Help", 1, __FILE__, __LINE__, __FUNCTION__);
 
 function DupHtml($value)
