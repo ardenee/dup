@@ -39,8 +39,15 @@ final class ScanEngine
             $settings=json_decode((string)$settingsRaw,true,512,JSON_THROW_ON_ERROR);
             if(!is_array($settings)) throw new \RuntimeException('Invalid scan settings snapshot.');
             $root=(string)($settings['source_root']??'');
-            if($root==='' || $this->browser->canonicalDirectory($root)!==$root)
-                throw new \RuntimeException('The scan root is no longer allowed or accessible.');
+            // Validate under the CLI worker identity, which may have different
+            // Unix group membership from Web Station's PHP-FPM process.
+            if($root==='' || $this->browser->canonicalDirectory($root)!==$root) {
+                if($root==='' || !@is_dir($root))
+                    throw new \RuntimeException('The saved scan folder is missing or cannot be traversed by the background worker.');
+                if(!@is_readable($root) || !@is_executable($root))
+                    throw new \RuntimeException('The background worker cannot read or traverse the scan folder. On DSM, verify that the package worker has the HTTP shared-folder group permissions.');
+                throw new \RuntimeException('The scan folder is accessible but its resolved path differs from the saved profile path. Review the profile folder setting.');
+            }
             $mode=(string)($settings['hash_mode']??'');
             if(!FileHasher::isSupported($mode))
                 throw new \RuntimeException('Invalid hash strategy in scan snapshot.');
