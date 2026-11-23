@@ -59,7 +59,7 @@ function DupJsString($value)
                 }
             };
         </SCRIPT>
-  <SCRIPT type="text/javascript" src="files/browser2.js"></SCRIPT>
+  <SCRIPT type="text/javascript" src="files/browser.js"></SCRIPT>
   <SCRIPT type=text/javascript>
     <!--
         $(document).ready(function(){ 

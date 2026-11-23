@@ -1,5 +1,7 @@
 <?php
-
+// Directory names can reveal server layout. Restrict the picker to administrators.
+require_once __DIR__ . "/dup.php";
+DupRequireAdmin();
 header("Content-Type: application/json; charset=utf-8");
 
 function GetAllowedRoots()
@@ -104,14 +106,37 @@ function AddPathEntry(&$folders, $path, $name)
     );
 }
 
-$requested = "/volume1";
+$requested = "/";
 
 if(isset($_POST["name"]))
     $requested = $_POST["name"];
 else if(isset($_GET["name"]))
     $requested = $_GET["name"];
 
+if(!is_string($requested) || strlen($requested) > 4096)
+{
+    http_response_code(400);
+    JsonOut(array("paths" => array(), "error" => "Invalid directory request."));
+}
+
 $requested = NormalizePath($requested);
+
+// The original picker started at filesystem root. Keep the root as a virtual
+// volume selector, without exposing unrelated parts of the server filesystem.
+if($requested === "/")
+{
+    $volumes = array("paths" => array(array("path" => "/", "name" => "/")),
+        "current_path" => "/");
+    foreach($allowedRoots as $root)
+    {
+        $realRoot = SafeRealPath($root);
+        if($realRoot !== false && IsAllowedPath($realRoot) &&
+           is_dir($realRoot) && is_readable($realRoot))
+            AddPathEntry($volumes, $realRoot, basename($root));
+    }
+    JsonOut($volumes);
+}
+
 $realDir = SafeRealPath($requested);
 
 if($realDir === false || !is_dir($realDir) || !IsAllowedPath($realDir))
@@ -151,7 +176,7 @@ AddPathEntry($folders, $currentPath, $currentPath);
 
 $parent = dirname($realDir);
 
-if($parent != $realDir && IsAllowedPath($parent))
+if($parent != $realDir && ($parent === "/" || IsAllowedPath($parent)))
     AddPathEntry($folders, $parent, "..");
 
 $items = @scandir($realDir);
@@ -178,10 +203,13 @@ foreach($items as $item)
     if(!is_dir($fullPath))
         continue;
 
-    if(!IsAllowedPath($fullPath))
+    // Resolve links before listing: never navigate through a symlink outside
+    // an authorized volume or open_basedir boundary.
+    $resolved = SafeRealPath($fullPath);
+    if($resolved === false || !IsAllowedPath($resolved) || !is_dir($resolved))
         continue;
 
-    if(!is_readable($fullPath))
+    if(!is_readable($resolved))
         continue;
 
     $dirItems[] = $item;
@@ -191,8 +219,9 @@ natcasesort($dirItems);
 
 foreach($dirItems as $item)
 {
-    $fullPath = NormalizePath($realDir . "/" . $item);
-    AddPathEntry($folders, $fullPath, $item);
+    $fullPath = SafeRealPath(NormalizePath($realDir . "/" . $item));
+    if($fullPath !== false && IsAllowedPath($fullPath))
+        AddPathEntry($folders, $fullPath, $item);
 }
 
 JsonOut($folders);

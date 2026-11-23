@@ -1,172 +1,150 @@
-;
-(function ($) {
-  "use strict";
+/* DUP folder picker, restored from the original jQuery UI browser.
+ * Lists directories on the server only; never exposes file contents. */
+;(function ($) {
+    "use strict";
 
-  $.Browser = {
-    defaults: {
-      title: 'Choose Directory',
-      url: sbRoot + 'browser-files.php',
-      autocompleteURL: sbRoot + 'browser-files.php'
-    }
-  };
-
-  var fileBrowserDialog, currentBrowserPath, currentRequest = null;
-
-  function browse(path, endpoint) {
-    if (currentBrowserPath === path) {return;}
-    currentBrowserPath = path;
-    if (currentRequest) {currentRequest.abort();}
-    fileBrowserDialog.dialog('option', 'dialogClass', 'browserDialog busy');
-
-    currentRequest = $.getJSON(endpoint, {
-      path: path
-    }, function (data) {
-      fileBrowserDialog.empty();
-      var first_val = data[0];
-      var i = 0;
-      var list, link = null;
-      data = $.grep(data, function (value) {
-        return i++ != 0;
-      });
-      $('<h2>').text(first_val.current_path).appendTo(fileBrowserDialog);
-      list = $('<ul>').appendTo(fileBrowserDialog);
-      $.each(data, function (i, entry) {
-        link = $("<a href='javascript:void(0)' />").click(function () {
-          browse(entry.path, endpoint);
-        }).text(entry.name);
-        $('<span class="ui-icon ui-icon-folder-collapsed"></span>').prependTo(link);
-        link.hover(
-        function () {
-          $("span", this).addClass("ui-icon-folder-open");
-        }, function () {
-          $("span", this).removeClass("ui-icon-folder-open");
-        });
-        link.appendTo(list);
-      });
-      $("a", list).wrap('<li class="ui-state-default ui-corner-all">');
-      fileBrowserDialog.dialog('option', 'dialogClass', 'browserDialog');
-    });
-  }
-
-  $.fn.nFileBrowser = function (callback, options) {
-
-    options = $.extend({}, $.Browser.defaults, options);
-
-    // make a fileBrowserDialog object if one doesn't exist already
-    if (!fileBrowserDialog) {    // set up the jquery dialog
-      fileBrowserDialog = $('<div id="fileBrowserDialog" style="display:hidden"></div>').appendTo('body').dialog({
-        dialogClass: 'browserDialog',
-        title: options.title,
-        position: ['center', 40],
-        minWidth: Math.min($(document).width() - 80, 650),
-        height: Math.min($(document).height() - 80, $(window).height() - 80),
-        maxHeight: Math.min($(document).height() - 80, $(window).height() - 80),
-        maxWidth: $(document).width() - 80,
-        modal: true,
-        autoOpen: false,
-        buttons: [{
-          text: "Ok",
-          "class": "btn btn-large",
-          click: function () {
-            // store the browsed path to the associated text field
-            callback(currentBrowserPath, options);
-            fileBrowserDialog.dialog("close");
-          }
-        }, {
-          text: "Cancel",
-          "class": "btn btn-large",
-          click: function () {
-            fileBrowserDialog.dialog("close");
-          }
-        }]
-      });
-    }
-
-    // set up the browser and launch the dialog
-    var initialDir = '';
-    if (options.initialDir) {
-      initialDir = options.initialDir;
-    }
-    browse(initialDir, options.url);
-    fileBrowserDialog.dialog('open');
-
-    return false;
-  };
-
-  $.fn.fileBrowser = function (options) {
-    options = $.extend({}, $.Browser.defaults, options);
-    // text field used for the result
-    options.field = $(this);
-
-    if (options.field.autocomplete && options.autocompleteURL) {
-      var query = '';
-      options.field.autocomplete({
-        source: function (request, response) {
-          //keep track of user submitted search term
-          query = $.ui.autocomplete.escapeRegex(request.term);
-          $.ajax({
-            url: options.autocompleteURL,
-            data: request,
-            dataType: "json",
-            success: function (data, item) {
-              //implement a startsWith filter for the results
-              var matcher = new RegExp("^" + query, "i");
-              var a = $.grep(data, function (item, index) {
-                return matcher.test(item);
-              });
-              response(a);
-            }
-          });
-        },
-        open: function (event, ui) {
-          $(".ui-autocomplete li.ui-menu-item a").removeClass("ui-corner-all");
-          $(".ui-autocomplete li.ui-menu-item:odd a").addClass("ui-menu-item-alternate");
-        }
-      }).data("autocomplete")._renderItem = function (ul, item) {
-        //highlight the matched search term from the item -- note that this is global and will match anywhere
-        var result_item = item.label;
-        var x = new RegExp("(?![^&;]+;)(?!<[^<>]*)(" + query + ")(?![^<>]*>)(?![^&;]+;)", "gi");
-        result_item = result_item.replace(x, function (FullMatch, n) {
-          return '<b>' + FullMatch + '</b>';
-        });
-        return $("<li></li>").data("item.autocomplete", item).append("<a class='nowrap'>" + result_item + "</a>").appendTo(ul);
-      };
-    }
-
-    var initialDir, path, callback, ls = false;
-    // if the text field is empty and we're given a key then populate it with the last browsed value from localStorage
-    try {
-      ls = !! (localStorage.getItem);
-    } catch (e) {}
-    if (ls && options.key) {
-      path = localStorage['fileBrowser-' + options.key];
-    }
-    if (options.key && options.field.val().length === 0 && (path)) {
-      options.field.val(path);
-    }
-
-    callback = function (path, options) {
-      // store the browsed path to the associated text field
-      options.field.val(path);
-
-      // use a localStorage to remember for next time -- no ie6/7
-      if (ls && options.key) {
-        localStorage['fileBrowser-' + options.key] = path;
-      }
-
+    $.Browser = $.Browser || {};
+    $.Browser.defaults = {
+        title: "Choose Directory",
+        url: "browser-files.php"
     };
 
-    initialDir = options.field.val() || (options.key && path) || '';
+    var dialog = null;
+    var pending = null;
+    var selectedPath = "";
+    var canSelect = false;
+    var activeInput = null;
+    var activeOptions = null;
 
-    options = $.extend(options, {
-      initialDir: initialDir
-    });
+    function ensureDialog() {
+        if (dialog) return;
+        dialog = $('<div id="fileBrowserDialog" style="display:none"></div>')
+            .appendTo("body").dialog({
+                dialogClass: "browserDialog",
+                title: "Choose Directory",
+                position: ["center", 40],
+                minWidth: Math.min($(window).width() - 40, 650),
+                width: Math.min($(window).width() - 40, 650),
+                height: Math.min($(window).height() - 40, 550),
+                modal: true,
+                autoOpen: false,
+                close: function () {
+                    if (pending) {
+                        pending.abort();
+                        pending = null;
+                    }
+                },
+                buttons: [{
+                    text: "Select Folder",
+                    "class": "btn btn-large",
+                    click: function () {
+                        if (!canSelect || !activeInput) return;
+                        activeInput.val(selectedPath).trigger("change");
+                        dialog.dialog("close");
+                    }
+                }, {
+                    text: "Cancel",
+                    "class": "btn btn-large",
+                    click: function () { dialog.dialog("close"); }
+                }]
+            });
+    }
 
-    // append the browse button and give it a click behavior
-    return options.field.addClass('fileBrowserField').after($('<input type="button" value="Browse&hellip;" class="btn fileBrowser" />').click(function () {
-      $(this).nFileBrowser(callback, options);
-      return false;
-    }));
-  };
+    function setSelectionAllowed(allowed) {
+        canSelect = allowed;
+        if (dialog) {
+            dialog.dialog("widget").find(".ui-dialog-buttonpane button:first")
+                .button(allowed ? "enable" : "disable");
+        }
+    }
 
+    function showMessage(message) {
+        setSelectionAllowed(false);
+        dialog.empty().append($("<p/>").text(message));
+        dialog.dialog("option", "dialogClass", "browserDialog");
+    }
+
+    function browse(path) {
+        if (pending) {
+            pending.abort();
+            pending = null;
+        }
+        setSelectionAllowed(false);
+        selectedPath = "";
+        dialog.empty().append($("<p/>").text("Loading folders..."));
+        dialog.dialog("option", "dialogClass", "browserDialog busy");
+
+        pending = $.ajax({
+            url: activeOptions.url,
+            type: "GET",
+            data: { name: path || "/" },
+            dataType: "json",
+            cache: false
+        }).done(function (data) {
+            var entries = data && data.paths;
+            if (!$.isArray(entries) || entries.length === 0) {
+                showMessage((data && data.error) || "No accessible folders found.");
+                return;
+            }
+
+            var current = data.current_path || entries[0].current_path || entries[0].path || "/";
+            selectedPath = current;
+            setSelectionAllowed(/^\/volume[0-9]+(?:\/|$)/.test(current) && !data.error);
+
+            dialog.empty().append($("<h2/>").text(current === "/" ? "Available Volumes" : current));
+            if (data.error) {
+                dialog.append($("<p/>").text(data.error));
+            }
+
+            var list = $("<ul/>").appendTo(dialog);
+            $.each(entries.slice(1), function (_, entry) {
+                if (!entry || !entry.path || !entry.name) return;
+
+                var link = $('<a href="#"/>')
+                    .append($('<span class="ui-icon ui-icon-folder-collapsed"/>'))
+                    .append(document.createTextNode(entry.name))
+                    .click(function (event) {
+                        event.preventDefault();
+                        browse(entry.path);
+                    });
+                $("<li/>").addClass("ui-state-default ui-corner-all")
+                    .append(link).appendTo(list);
+            });
+            if (entries.length === 1 && !data.error) {
+                dialog.append($("<p/>").text("No subfolders found. You can select this folder."));
+            }
+            dialog.dialog("option", "dialogClass", "browserDialog");
+        }).fail(function (xhr, status) {
+            if (status !== "abort") {
+                showMessage(xhr.status === 401 || xhr.status === 403 ?
+                    "Your session has expired or this action requires administrator access." :
+                    "Unable to list folders. Check server folder permissions.");
+            }
+        }).always(function () {
+            pending = null;
+        });
+    }
+
+    $.fn.fileBrowser = function (options) {
+        return this.each(function () {
+            var input = $(this);
+            if (input.data("dup-folder-browser")) return;
+            var settings = $.extend({}, $.Browser.defaults, options);
+            input.attr("readonly", "readonly").addClass("fileBrowserField")
+                .data("dup-folder-browser", true);
+            $("<input/>", {
+                type: "button",
+                value: "Browse...",
+                "class": "btn fileBrowser"
+            }).insertAfter(input).click(function () {
+                ensureDialog();
+                activeInput = input;
+                activeOptions = settings;
+                dialog.dialog("option", "title", settings.title);
+                dialog.dialog("open");
+                browse(input.val() || "/");
+                return false;
+            });
+        });
+    };
 })(jQuery);

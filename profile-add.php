@@ -38,7 +38,8 @@ function DupJsString($value)
 		sbRoot = '/'; 
         top_image_html = '<img src="images/top.gif" style="width:31px; height:11px" alt="Jump to top" />'; 
   </SCRIPT>
-  <SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>  
+  <SCRIPT TYPE="text/javascript" SRC="files/jquery.scrolltopcontrol-1.1.js"></SCRIPT>
+  <SCRIPT TYPE="text/javascript" SRC="files/browser.js"></SCRIPT>
   <SCRIPT type="text/javascript">
     <!--
         $(document).ready(function(){ 
