@@ -6,6 +6,7 @@ use App\Module\Jobs\Service\JobStore;
 use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Scans\Service\ScanEngine;
 use App\Module\Duplicates\Service\IgnoreRebuildWorker;
+use App\Module\FileActions\Service\FileActionWorker;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -22,6 +23,7 @@ final class WorkJobsCommand extends Command
         private readonly JobStore $jobs,
         private readonly ScanEngine $scanner,
         private readonly IgnoreRebuildWorker $rebuild,
+        private readonly FileActionWorker $fileActions,
         private readonly Connection $db,
         private readonly WorkerHeartbeat $heartbeat
     ) {parent::__construct();}
@@ -80,6 +82,7 @@ final class WorkJobsCommand extends Command
                     match($job['kind']) {
                         'scan' => $this->scanner->run($job),
                         'rebuild-duplicates' => $this->rebuild->run($job),
+                        'file-action', 'file-restore' => $this->fileActions->run($job),
                         default => throw new \LogicException('Unknown job type.')
                     };
                 } catch(\Throwable $ex) {

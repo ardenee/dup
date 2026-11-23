@@ -108,8 +108,8 @@ final class DuplicatesController extends AbstractController
         } else $order=' ORDER BY m.id ASC';
 
         $members=$db->fetchAllAssociative(
-            'SELECT m.id AS member_id,d.path,f.filename,f.size_bytes,f.mtime_epoch,' .
-            'f.hash_value'.$where.$order.' LIMIT '.(self::PAGE_MEMBERS+1),$params
+            'SELECT m.id AS member_id,f.id AS file_entry_id,d.path,f.filename,f.size_bytes,f.mtime_epoch,' .
+            'f.hash_value,f.error_code'.$where.$order.' LIMIT '.(self::PAGE_MEMBERS+1),$params
         );
         if(count($members)>self::PAGE_MEMBERS) $members=array_slice($members,0,self::PAGE_MEMBERS);
         if($before!==null) $members=array_reverse($members);

@@ -71,7 +71,7 @@ def build(target: Path) -> None:
         raise RuntimeError("Packaged environment contains a secret")
     print(f"PASS {target.name}: {len(files)} application files, {target.stat().st_size:,} bytes")
     print("SHA256 "+hashlib.sha256(target.read_bytes()).hexdigest())
-    print("PREVIEW ONLY: first-run setup included; DSM live integration and file actions pending")
+    print("PREVIEW ONLY: reversible file actions included; DSM live validation and permanent delete pending")
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser()

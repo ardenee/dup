@@ -1,0 +1,52 @@
+{% extends 'base.html.twig' %}
+{% block title %}File action #{{ batch.id }}{% endblock %}
+{% block section %}File actions / #{{ batch.id }}{% endblock %}
+{% block body %}
+<div class="page-heading"><div><div class="eyebrow">CONFIRMATION & AUDIT</div><h1>File action #{{ batch.id }}</h1>
+<p class="muted">{{ batch.profile_name }} · <span class="status">{{ batch.state|replace({'_':' '}) }}</span></p></div>
+<a href="{{ path('app_actions') }}" class="secondary link-button">Action history</a></div>
+<section class="panel panel-content">
+<h2>Read-only action details</h2>
+<dl class="details">
+<div><dt>Action</dt><dd>Reversible quarantine — not permanent deletion</dd></div>
+<div><dt>Source file</dt><dd><code>{{ batch.source_path }}</code></dd></div>
+<div><dt>Private quarantine path</dt><dd><code>{{ batch.target_path }}</code></dd></div>
+<div><dt>Recorded file size</dt><dd>{{ batch.expected_size|number_format }} bytes</dd></div>
+<div><dt>Recorded SHA-256</dt><dd><code>{{ batch.expected_sha256 }}</code></dd></div>
+<div><dt>Requested (UTC)</dt><dd>{{ batch.requested_at }}</dd></div>
+<div><dt>Preview expires (UTC)</dt><dd>{{ batch.expires_at }}</dd></div>
+<div><dt>Current status</dt><dd>{{ batch.state }}</dd></div>
+<div><dt>Result</dt><dd>{{ batch.result_code ?? batch.error_code ?? 'Awaiting confirmation' }}</dd></div>
+</dl>
+{% if batch.state == 'planned' %}
+<div class="notice notice-warning">
+<strong>Confirm before any file changes.</strong> The worker will re-read the selected file and a surviving duplicate,
+check both SHA-256 hashes, file sizes, and modification times, and then attempt an atomic same-filesystem rename.
+It will refuse cross-volume operations, changed files, symbolic links, and existing targets.
+</div>
+<form action="{{ path('app_action_confirm',{id:batch.id}) }}" method="post">
+<input type="hidden" name="_token" value="{{ csrf_token('confirm_action_' ~ batch.id) }}">
+<div class="field"><label for="confirm">Type QUARANTINE to approve this action</label>
+<input id="confirm" name="confirm" required pattern="QUARANTINE" autocomplete="off"></div>
+<button type="submit" class="primary">Confirm quarantine</button>
+</form>
+{% elseif batch.state == 'completed' %}
+<div class="notice">
+<strong>Quarantined.</strong> The original file is stored at the private target path.
+The source scan results are recalculated automatically without rereading other files.
+</div>
+<form action="{{ path('app_action_restore',{id:batch.id}) }}" method="post">
+<input type="hidden" name="_token" value="{{ csrf_token('restore_action_' ~ batch.id) }}">
+<div class="field"><label for="restore-confirm">Type RESTORE to return the original file</label>
+<input id="restore-confirm" name="confirm" required pattern="RESTORE" autocomplete="off"></div>
+<button type="submit" class="secondary">Queue safe restore</button>
+</form>
+{% elseif batch.state == 'needs_review' %}
+<div class="notice notice-warning"><strong>Manual recovery required.</strong>
+The worker stopped during a filesystem action. Inspect both paths and the audit history before restarting a scan or another action.
+Neither path will be automatically overwritten.</div>
+{% else %}
+<p class="muted">This action is {{ batch.state|replace({'_':' '}) }}. Check the <a href="{{ path('app_jobs') }}">Job Monitor</a> for current execution status and event history.</p>
+{% endif %}
+</section>
+{% endblock %}

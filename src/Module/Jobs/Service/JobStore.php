@@ -34,7 +34,7 @@ final class JobStore
             'extensions'=>(string)$profile['extensions'],
             'minimum_bytes'=>(int)$profile['minimum_bytes'],
             'hash_mode'=>(string)$profile['hash_mode'],
-            'ignored_folders'=>array_values(array_unique(array_map('strtolower',$ignore)))
+            'ignored_folders'=>array_values(array_unique([...array_map('strtolower',$ignore),'.dup-quarantine']))
         ];
         if(!in_array($settings['hash_mode'],['size','sha256'],true))
             throw new \DomainException('Unsupported hash mode.');
@@ -65,7 +65,7 @@ final class JobStore
     {
         for($attempt=0;$attempt<5;$attempt++) {
             $id=$this->db->fetchOne(
-                "SELECT id FROM jobs WHERE state='queued' AND kind IN ('scan','rebuild-duplicates')" .
+                "SELECT id FROM jobs WHERE state='queued' AND kind IN ('scan','rebuild-duplicates','file-action','file-restore')" .
                 ($onlyId===null?' ORDER BY id LIMIT 1':' AND id=? LIMIT 1'),
                 $onlyId===null?[]:[$onlyId]
             );
@@ -128,12 +128,19 @@ final class JobStore
                 "active_profile_id=NULL WHERE id=? AND state='queued'",[$now,$id]
             );
             if($queued===1) {
-                $job=$db->fetchAssociative('SELECT run_id,kind FROM jobs WHERE id=?',[$id]);
+                $job=$db->fetchAssociative('SELECT run_id,kind,file_action_batch_id FROM jobs WHERE id=?',[$id]);
+                if($job['kind']==='file-action')
+                    $db->executeStatement("UPDATE file_action_batches SET state='cancelled' WHERE id=? AND state='queued'",[$job['file_action_batch_id']]);
+                if($job['kind']==='file-restore')
+                    $db->executeStatement("UPDATE file_action_batches SET state='completed' WHERE id=? AND state='restore_queued'",[$job['file_action_batch_id']]);
                 if($job['kind']==='scan')
                     $db->executeStatement("UPDATE scan_runs SET state='cancelled',finished_at=? WHERE id=?",[$now,$job['run_id']]);
                 $this->event($id,'warning','SCAN_CANCELLED_QUEUED');
                 return true;
             }
+            $kind=$db->fetchOne('SELECT kind FROM jobs WHERE id=?',[$id]);
+            if(in_array($kind,['file-action','file-restore'],true))
+                return false; // Once claimed, irreversible filesystem stages cannot be cancelled.
             $running=$db->executeStatement(
                 "UPDATE jobs SET state='cancelling' WHERE id=? AND state='running'",[$id]
             );
@@ -218,7 +225,7 @@ final class JobStore
     {
         $cutoff=gmdate('Y-m-d H:i:s',time()-max(30,$seconds));
         $rows=$this->db->fetchAllAssociative(
-            "SELECT id,run_id,kind FROM jobs WHERE state IN ('running','cancelling') " .
+            "SELECT id,run_id,kind,file_action_batch_id FROM jobs WHERE state IN ('running','cancelling') " .
             "AND (heartbeat_at IS NULL OR heartbeat_at<?)",[$cutoff]
         );
         $count=0;
@@ -235,6 +242,12 @@ final class JobStore
                 $this->db->executeStatement(
                     "UPDATE scan_runs SET state='failed',finished_at=?,error_count=error_count+1 WHERE id=?",
                     [gmdate('Y-m-d H:i:s'),(int)$row['run_id']]
+                );
+            if(in_array($row['kind'],['file-action','file-restore'],true))
+                $this->db->executeStatement(
+                    "UPDATE file_action_batches SET state='needs_review',error_code='WORKER_STALLED' " .
+                    "WHERE id=? AND state IN ('queued','executing','restore_queued','restore_executing')",
+                    [(int)$row['file_action_batch_id']]
                 );
             $this->event($id,'error','WORKER_STALLED');
             $count++;

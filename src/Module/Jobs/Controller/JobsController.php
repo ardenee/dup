@@ -60,7 +60,7 @@ final class JobsController extends AbstractController
         $changed=$store->requestCancel($id);
         $this->addFlash($changed?'success':'warning',$changed?
             'Cancellation requested. Running scans stop at a safe checkpoint.':
-            'The job has already finished or was not found.');
+            'Cancellation is unavailable: the job has finished, is missing, or a file action is already executing.');
         return $this->redirectToRoute('app_jobs');
     }
 }

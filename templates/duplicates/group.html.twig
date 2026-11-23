@@ -12,16 +12,21 @@
   <div class="stat"><span>Potential reclaimable bytes</span><strong>{{ group.reclaimable_bytes|number_format }}</strong></div>
 </div>
 <section class="panel">
-  <div class="panel-heading"><h2>File members</h2><span class="muted">Read-only — file actions are not yet enabled</span></div>
+  <div class="panel-heading"><h2>File members</h2><span class="muted">Quarantine is reversible and always requires confirmation</span></div>
   {% if members is empty %}
     <div class="empty-state">No file records in this group.</div>
   {% else %}
-    <div class="table-wrap"><table><thead><tr><th>File path</th><th>Size (bytes)</th><th>Modified (Unix time)</th><th>Hash</th></tr></thead>
+    <div class="table-wrap"><table><thead><tr><th>File path</th><th>Size (bytes)</th><th>Modified (Unix time)</th><th>Hash</th><th>Actions</th></tr></thead>
     <tbody>{% for file in members %}
       <tr><td><code>{{ file.path }}{{ file.path ends with '/' or file.path ends with '\\' ? '' : '/' }}{{ file.filename }}</code></td>
       <td class="group-size">{{ file.size_bytes|number_format }}</td>
       <td>{{ file.mtime_epoch }}</td>
-      <td><code>{{ file.hash_value ?? 'Not computed' }}</code></td></tr>
+      <td><code>{{ file.hash_value ?? 'Not computed' }}</code></td>
+      <td>{% if group.rules_version == 1 and group.file_count > 1 and file.error_code is null %}
+        <form method="post" action="{{ path('app_action_preview',{id:file.file_entry_id}) }}">
+        <input type="hidden" name="_token" value="{{ csrf_token('preview_file_' ~ file.file_entry_id) }}">
+        <button type="submit" class="secondary">Preview quarantine</button></form>
+        {% else %}<span class="muted">Unavailable</span>{% endif %}</td></tr>
     {% endfor %}</tbody></table></div>
     <div class="result-toolbar"><span class="muted">{{ members|length }} files shown on this page</span>
       <nav aria-label="Group members pagination">

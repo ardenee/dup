@@ -12,10 +12,13 @@ DUP is a PHP duplicate-file scanner and manager for **Windows web servers, Linux
 - Streamed SHA-256 duplicate verification; size-only matching explicitly marked *unverified*
 - Indexed files from ignored directories retained; changing ignore rules regenerates duplicate groups without rescanning
 - Snapshot preservation: a failed scan or recalculation never destroys the last completed results
-- Read-only duplicate browser with indexed keyset pagination, job history, events and system diagnostics
+- Duplicate browser with indexed keyset pagination, job history, events and system diagnostics
+- Explicitly confirmed **reversible quarantine and restore** via the same CLI job queue, with SHA-256 re-verification of both the selected file and another surviving copy, before any move
+- Same-volume rename only (no copy/delete fallback), unique private quarantine directories, collision protection and audit history
+- Automatic duplicate-group regeneration after quarantine or restoration, without rescanning NAS, Linux or Windows source files
 - Private, one-time pairing-code setup with PHP extension, storage, database and admin checks
 
-**Not implemented:** file actions, a complete report/export workspace, automatic upgrades and validated installation on an actual Linux/DSM host. Do not replace a production DUP installation yet.
+**Not implemented:** permanent deletion, a complete report/export workspace, automatic upgrades and validated installation on an actual Linux/DSM host. Permanent deletion is intentionally disabled until further safety and recovery testing. Do not replace a production DUP installation yet.
 
 ## Deployment — all platforms
 
@@ -75,6 +78,10 @@ php bin/console dup:jobs:cancel 1
 php bin/console dup:jobs:recover --after=120
 php bin/console dup:settings:ignore --names="@eaDir,#recycle"
 ```
+
+Open **Duplicates → a verified group → Preview quarantine** to plan a reversible action. Only a separate, explicit confirmation queues it. The CLI worker then verifies both the selected file and another surviving copy before a same-volume rename. Every quarantined file may be restored from **File actions**, unless the original path has become occupied.
+
+Quarantined files live beneath the profile's private `.dup-quarantine` folder, which is always excluded from duplicate matching. Hard delete and cross-filesystem copy-and-delete are intentionally unavailable. The action history and audit records work across Windows, Linux and DSM.
 
 `/system` reports the operating-system family and recent worker heartbeats, without coupling to an OS service API. `/health` exposes only a redacted ready/setup-required status.
 

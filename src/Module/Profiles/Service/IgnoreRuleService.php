@@ -99,6 +99,7 @@ final class IgnoreRuleService
         );
         $names=[];
         foreach($rows as $name) $names[mb_strtolower((string)$name)]=(string)$name;
+        $names['.dup-quarantine']='.dup-quarantine'; // Reserved internal safety exclusion.
         return array_values($names);
     }
 }

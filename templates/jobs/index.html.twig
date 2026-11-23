@@ -3,11 +3,11 @@
 {% block section %}Jobs{% endblock %}
 {% block body %}
 <div class="page-heading"><div><div class="eyebrow">OPERATIONS</div><h1>Job monitor</h1>
-  <p class="muted">Queued scans, current phases, heartbeat, cancellation and recovery. This page refreshes job statuses automatically.</p></div>
+  <p class="muted">Queued scans, duplicate recalculations, reversible file actions, current phases, heartbeat, cancellation and recovery. This page refreshes job statuses automatically.</p></div>
   <a class="secondary link-button" href="{{ path('app_profiles') }}">Manage profiles</a>
 </div>
 <section class="panel">
-<div class="panel-heading"><h2>Scan jobs</h2><span class="muted">{{ jobs|length }} recent</span></div>
+<div class="panel-heading"><h2>Background jobs</h2><span class="muted">{{ jobs|length }} recent</span></div>
 {% if jobs is empty %}
   <div class="empty-state">No scan jobs have been queued yet. <a href="{{ path('app_profiles') }}">Choose a profile</a>.</div>
 {% else %}

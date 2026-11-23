@@ -33,7 +33,7 @@
   <div class="content-wrap {{ app.user ? '' : 'guest' }}">
     <header class="topbar">
       <span class="topbar-name">DUP <span class="topbar-muted">/ {% block section %}Overview{% endblock %}</span></span>
-      <span class="environment">DEVELOPMENT</span>
+      <span class="environment">{{ app.environment|upper }}</span>
     </header>
     <main class="main" id="content">
       {% for label, messages in app.flashes %}
@@ -43,7 +43,7 @@
       {% endfor %}
       {% block body %}{% endblock %}
     </main>
-    <footer class="app-footer">DUP v2 development foundation · No filesystem changes without a confirmed operation</footer>
+    <footer class="app-footer">DUP v2 · Audited filesystem actions require explicit approval</footer>
   </div>
   </div>
 </body>
