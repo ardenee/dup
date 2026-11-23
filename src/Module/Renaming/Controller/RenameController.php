@@ -87,7 +87,7 @@ final class RenameController extends AbstractController
     }
 
     #[Route('/rename/file/{id<\\d+>}',name:'app_rename_file',methods:['GET','POST'])]
-    public function file(int $id,Request $request,RenameService $renames): Response
+    public function renameFile(int $id,Request $request,RenameService $renames): Response
     {
         $file=$renames->file($id);
         if(!$file || $file['error_code']!==null)
