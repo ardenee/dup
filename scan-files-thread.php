@@ -577,6 +577,7 @@ function FinishScan($dups)
         SET dups=:dups,
             scan=0,
             runs=runs+1,
+            lastrun=CURRENT_TIMESTAMP,
             files=(SELECT COUNT(id) FROM files WHERE files.profile=:profile_count)
         WHERE id=:profile;
     ";
