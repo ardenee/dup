@@ -1,0 +1,103 @@
+{% extends 'base.html.twig' %}
+{% block title %}Reports{% endblock %}
+{% block section %}Reports{% endblock %}
+{% block body %}
+<div class="page-heading"><div>
+  <div class="eyebrow">STORAGE & SCAN ANALYTICS</div>
+  <h1>Reports</h1>
+  <p class="muted">Current results use only each profile's latest completed scan. Previous scans remain available below. Overlapping profile roots may count the same files more than once.</p>
+</div><a class="secondary link-button" href="{{ path('app_system') }}">System health</a></div>
+
+<section class="panel">
+  <div class="panel-heading"><h2>Profile filter</h2></div>
+  <form method="get" action="{{ path('app_reports') }}" class="report-filter">
+    <label for="profile">View reports for</label>
+    <select id="profile" name="profile">
+      <option value="">All profiles</option>
+      {% for profile in profiles %}
+        <option value="{{ profile.id }}" {{ selected_profile == profile.id ? 'selected' : '' }}>{{ profile.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="secondary">Apply</button>
+  </form>
+</section>
+
+<div class="stats-grid">
+  <div class="stat"><span>Profiles with completed scans</span><strong>{{ totals.completed_profiles|number_format }} / {{ totals.profiles|number_format }}</strong></div>
+  <div class="stat"><span>Indexed files</span><strong>{{ totals.files_indexed|number_format }}</strong></div>
+  <div class="stat"><span>Indexed bytes</span><strong>{{ totals.bytes_indexed|number_format }}</strong></div>
+  <div class="stat"><span>Verified duplicate groups</span><strong>{{ totals.verified_groups|number_format }}</strong></div>
+  <div class="stat"><span>Potential verified recovery</span><strong>{{ totals.verified_bytes|number_format }} <small>bytes</small></strong></div>
+  <div class="stat"><span>Unverified size candidates</span><strong>{{ totals.candidate_groups|number_format }}</strong><small>{{ totals.candidate_bytes|number_format }} candidate bytes — not confirmed savings</small></div>
+</div>
+
+<section class="panel">
+  <div class="panel-heading"><div><h2>Current profile snapshots</h2>
+    <p class="muted">Possible recovery is not disk space already freed. Each group retains one copy. Totals are per profile and are not de-duplicated across overlapping roots.</p></div>
+  </div>
+  {% if snapshots is empty %}
+    <div class="empty-state">No profiles match this filter. <a href="{{ path('app_profiles') }}">Create a profile</a>.</div>
+  {% else %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Profile</th><th>Latest completed</th><th>Files indexed</th><th>Duplicate groups</th><th>Verified potential savings</th><th>Size-only candidates</th></tr></thead>
+      <tbody>{% for profile in snapshots %}
+        <tr><td><strong>{{ profile.profile_name }}</strong></td>
+          {% if profile.run_id is null %}
+            <td colspan="5" class="muted">No completed scan yet</td>
+          {% else %}
+            <td><a href="{{ path('app_report_run',{id:profile.run_id}) }}">Run #{{ profile.run_id }}</a>
+              <div class="muted">{{ profile.finished_at }} UTC</div></td>
+            <td class="group-size">{{ profile.files_indexed|number_format }}</td>
+            <td class="group-size">{{ profile.duplicate_groups|number_format }}</td>
+            <td class="group-size">{{ profile.verified_bytes|number_format }} bytes
+              <div class="muted">{{ profile.verified_groups|number_format }} verified groups</div></td>
+            <td class="group-size">{{ profile.candidate_bytes|number_format }} bytes
+              <div class="muted">{{ profile.candidate_groups|number_format }} unverified groups</div></td>
+          {% endif %}
+        </tr>
+      {% endfor %}</tbody></table></div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-heading"><div><h2>Scan history</h2>
+    <p class="muted">Completed, failed, cancelled and queued runs. 25 runs per page, newest first.</p></div>
+    <span class="muted">{{ history|length }} shown on this page</span>
+  </div>
+  {% if history is empty %}
+    <div class="empty-state">No scan history for this selection.</div>
+  {% else %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Run / profile</th><th>State</th><th>Indexed files</th><th>Duplicate groups</th><th>Started</th><th>Finished / error</th></tr></thead>
+      <tbody>{% for run in history %}
+        <tr>
+          <td><a href="{{ path('app_report_run',{id:run.id}) }}"><strong>#{{ run.id }}</strong></a>
+            <div class="muted">{{ run.profile_name }}</div></td>
+          <td><span class="status">{{ run.state }}</span></td>
+          <td class="group-size">{{ run.files_indexed|number_format }}</td>
+          <td class="group-size">{{ run.duplicate_groups|number_format }}</td>
+          <td>{{ run.started_at ?? 'Not started' }}</td>
+          <td>{{ run.finished_at ?? '—' }}
+            {% if run.job_error %}<div class="report-error">{{ run.job_error }}</div>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}</tbody></table></div>
+    <div class="result-toolbar">
+      <span class="muted">Navigating by scan ID avoids slow large offsets.</span>
+      <nav aria-label="Scan history pagination">
+        {% if previous %}<a href="{{ path('app_reports',selected_profile ? {profile:selected_profile,after:previous} : {after:previous}) }}">Newer</a>{% endif %}
+        {% if next %}<a href="{{ path('app_reports',selected_profile ? {profile:selected_profile,before:next} : {before:next}) }}">Older</a>{% endif %}
+      </nav>
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel panel-content">
+  <h2>Recent operational status</h2>
+  <p class="muted">Jobs created in the past 24 hours: {{ recent_failures.failed_jobs|number_format }} failed;
+    {{ recent_failures.queued_jobs|number_format }} queued;
+    {{ recent_failures.running_jobs|number_format }} running.</p>
+  <p>For live progress and failure details, use the <a href="{{ path('app_jobs') }}">Job Monitor</a>.
+    To download files, duplicate memberships or recorded file states as CSV, open a scan run.</p>
+</section>
+{% endblock %}

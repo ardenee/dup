@@ -1,0 +1,85 @@
+{% extends 'base.html.twig' %}
+{% block title %}Scan #{{ run.id }}{% endblock %}
+{% block section %}Reports / Scan #{{ run.id }}{% endblock %}
+{% block body %}
+<div class="page-heading"><div>
+  <div class="eyebrow">HISTORICAL SCAN REPORT</div>
+  <h1>Run #{{ run.id }}</h1>
+  <p class="muted">{{ run.profile_name }} · <span class="status">{{ run.state }}</span> · {{ run.started_at ?? 'Not started' }} UTC</p>
+</div><a class="secondary link-button" href="{{ path('app_reports',{profile:run.profile_id}) }}">Back to reports</a></div>
+
+{% if run.state != 'completed' %}
+  <div class="notice notice-warning"><strong>Incomplete scan:</strong> these figures may be partial. DUP only includes completed runs in current storage summaries.</div>
+{% endif %}
+
+<div class="stats-grid">
+  <div class="stat"><span>Files encountered</span><strong>{{ run.files_seen|number_format }}</strong></div>
+  <div class="stat"><span>Files indexed</span><strong>{{ run.files_indexed|number_format }}</strong></div>
+  <div class="stat"><span>Indexed bytes</span><strong>{{ run.bytes_indexed|number_format }}</strong></div>
+  <div class="stat"><span>Directories excluded from matching (files)</span><strong>{{ run.files.ignored_files|number_format }}</strong></div>
+  <div class="stat"><span>SHA-256 hashes stored</span><strong>{{ run.files.hashed_files|number_format }}</strong></div>
+  <div class="stat"><span>Current quarantined file records</span><strong>{{ run.files.quarantined_files|number_format }}</strong></div>
+</div>
+
+<section class="panel">
+  <div class="panel-heading"><h2>Duplicate classification</h2></div>
+  <dl class="details">
+    <div><dt>Total duplicate groups</dt><dd>{{ run.groups.groups|number_format }}</dd></div>
+    <div><dt>Verified SHA-256 groups</dt><dd>{{ run.groups.verified_groups|number_format }}</dd></div>
+    <div><dt>Potential recoverable bytes — verified</dt><dd>{{ run.groups.verified_bytes|number_format }} bytes</dd></div>
+    <div><dt>Size-only groups — not verified</dt><dd>{{ run.groups.candidate_groups|number_format }}</dd></div>
+    <div><dt>Potential bytes — unverified candidates</dt><dd>{{ run.groups.candidate_bytes|number_format }} bytes</dd></div>
+    <div><dt>Run-level errors reported</dt><dd>{{ run.error_count|number_format }}</dd></div>
+    <div><dt>File records with non-quarantine states</dt><dd>{{ run.files.flagged_files|number_format }}</dd></div>
+    <div><dt>Worker result</dt><dd>{{ run.job_state ?? 'Not started' }} {% if run.job_error %}· {{ run.job_error }}{% endif %}</dd></div>
+    <div><dt>Finished</dt><dd>{{ run.finished_at ?? 'Not finished' }} UTC</dd></div>
+  </dl>
+  <div class="report-explanation">Verified recoverable bytes represent the potential space from keeping one copy per duplicate group—not space already reclaimed. Size-only matches are candidates, never confirmed duplicates. Changes to ignore rules or reversible file actions may update groups within the latest completed run; indexed file history is retained.</div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading"><div><h2>Download scan data</h2><p class="muted">CSV exports stream records; no filesystem rescan is performed.</p></div></div>
+  <div class="report-downloads">
+    <a class="secondary link-button" href="{{ path('app_report_csv',{id:run.id,kind:'files'}) }}">All indexed files CSV</a>
+    <a class="secondary link-button" href="{{ path('app_report_csv',{id:run.id,kind:'duplicates'}) }}">Duplicate memberships CSV</a>
+    <a class="secondary link-button" href="{{ path('app_report_csv',{id:run.id,kind:'states'}) }}">File states CSV</a>
+    <a class="secondary link-button" href="{{ path('app_report_csv',{id:run.id,kind:'events'}) }}">Job event log CSV</a>
+  </div>
+  <p class="muted report-explanation">The files export includes ignored-folder entries; the duplicate export contains only currently matched group members. Failure details from a scan that aborts before indexing are recorded in the job event log, not as per-file status rows.</p>
+</section>
+
+<section class="panel">
+  <div class="panel-heading"><div><h2>File status records</h2><p class="muted">Quarantined files, failed file actions and any other indexed file states — up to 50 per page.</p></div></div>
+  {% if flagged is empty %}
+    <div class="empty-state">No flagged indexed files on this page. For scan-level errors, inspect the job events below.</div>
+  {% else %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>File</th><th>Status</th><th>Size</th><th>Ignored folder</th></tr></thead>
+      <tbody>{% for file in flagged %}
+      <tr><td><code>{{ file.directory }}{{ file.directory ends with '/' or file.directory ends with '\\' ? '' : '/' }}{{ file.filename }}</code></td>
+      <td><span class="status">{{ file.error_code }}</span></td>
+      <td class="group-size">{{ file.size_bytes|number_format }} bytes</td>
+      <td>{{ file.is_ignored ? 'Yes' : 'No' }}</td></tr>
+      {% endfor %}</tbody></table></div>
+    <div class="result-toolbar"><span class="muted">{{ flagged|length }} records shown</span>
+      <nav aria-label="File states pagination">
+        {% if next %}<a href="{{ path('app_report_run',{id:run.id,after:next}) }}">Next 50</a>{% endif %}
+      </nav>
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-heading"><div><h2>Warning and error events</h2><p class="muted">Most recent 40 events for this run and its jobs. Export all events above.</p></div></div>
+  {% if warnings is empty %}
+    <div class="empty-state">No warning or error events recorded for this run.</div>
+  {% else %}
+    <div class="table-wrap"><table><thead><tr><th>When (UTC)</th><th>Job</th><th>Severity</th><th>Code / detail</th></tr></thead>
+    <tbody>{% for event in warnings %}<tr>
+      <td>{{ event.created_at }}</td><td>#{{ event.job_id }}</td>
+      <td><span class="status">{{ event.severity }}</span></td>
+      <td><strong>{{ event.code }}</strong><div><code>{{ event.context }}</code></div></td>
+    </tr>{% endfor %}</tbody></table></div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -3,13 +3,15 @@
 {% block section %}Dashboard{% endblock %}
 {% block body %}
 <div class="page-heading"><div><div class="eyebrow">OVERVIEW</div><h1>Dashboard</h1>
-  <p class="muted">Scan activity, duplicate matches and background work across your configured profiles.</p></div>
-  <a class="primary link-button" href="{{ path('app_profile_new') }}">New profile</a></div>
+  <p class="muted">Current successful snapshots, verified recovery estimates and background work across your configured profiles.</p></div>
+  <div class="report-downloads"><a class="secondary link-button" href="{{ path('app_reports') }}">View reports</a>
+    <a class="primary link-button" href="{{ path('app_profile_new') }}">New profile</a></div></div>
 <div class="stats-grid">
   <div class="stat"><span>Profiles</span><strong>{{ metrics.profiles|number_format }}</strong></div>
   <div class="stat"><span>Completed runs</span><strong>{{ metrics.completed_scans|number_format }}</strong></div>
   <div class="stat"><span>Indexed files</span><strong>{{ metrics.files|number_format }}</strong></div>
   <div class="stat"><span>Duplicate groups</span><strong>{{ metrics.duplicate_groups|number_format }}</strong></div>
+  <div class="stat"><span>Potential verified recovery</span><strong>{{ metrics.verified_potential_bytes|number_format }} <small>bytes</small></strong></div>
   <div class="stat"><span>Active jobs</span><strong>{{ metrics.active_jobs|number_format }}</strong></div>
 </div>
 <section class="panel">

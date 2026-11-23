@@ -26,12 +26,21 @@ final class HealthService
             'worker_processes' => 0,
             'worker_last_heartbeat' => null,
             'host_os' => PHP_OS_FAMILY,
+            'queued_jobs'=>0,
+            'running_jobs'=>0,
+            'failed_jobs_24h'=>0,
+            'oldest_queued_at'=>null,
+            'needs_review_actions'=>0,
+            'stalled_jobs'=>0,
+            'recent_failures'=>[],
         ];
         try {
             $this->connection->executeQuery('SELECT 1')->fetchOne();
             $checks['database'] = 'connected';
             $installed = $this->connection->createSchemaManager()->tablesExist(
-                ['users','profile_types','scan_profiles','scan_runs','file_entries','jobs','worker_heartbeats']
+                ['users','profile_types','scan_profiles','scan_runs','file_entries','jobs',
+                    'job_events','duplicate_groups','file_action_batches','audit_events',
+                    'worker_heartbeats']
             );
             $checks['schema'] = $installed ? 'installed' : 'not_installed';
             if($installed) {
@@ -53,7 +62,24 @@ final class HealthService
                     "SELECT COUNT(*) FROM jobs WHERE state IN ('running','cancelling') " .
                     'AND (heartbeat_at IS NULL OR heartbeat_at<?)',[$cutoff]
                 );
+                $checks['stalled_jobs']=$stalled;
                 if($stalled>0) $checks['worker']='stalled';
+                $checks['queued_jobs']=(int)$state['queued'];
+                $checks['running_jobs']=(int)$state['active'];
+                $checks['oldest_queued_at']=$this->connection->fetchOne(
+                    "SELECT MIN(created_at) FROM jobs WHERE state='queued'"
+                ) ?: null;
+                $checks['failed_jobs_24h']=(int)$this->connection->fetchOne(
+                    "SELECT COUNT(*) FROM jobs WHERE state='failed' AND finished_at>=?",
+                    [gmdate('Y-m-d H:i:s',time()-86400)]
+                );
+                $checks['needs_review_actions']=(int)$this->connection->fetchOne(
+                    "SELECT COUNT(*) FROM file_action_batches WHERE state='needs_review'"
+                );
+                $checks['recent_failures']=$this->connection->fetchAllAssociative(
+                    "SELECT id,kind,error_code,finished_at FROM jobs WHERE state='failed' " .
+                    "ORDER BY id DESC LIMIT 5"
+                );
             }
         } catch(\Throwable $ex) {
             $checks['database'] = 'unreachable';

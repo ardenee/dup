@@ -18,6 +18,15 @@ final class SystemController extends AbstractController
         return new JsonResponse(['status'=>$report['status']],$report['ready']?200:503);
     }
 
+    #[Route('/api/system/status',name:'app_system_status',methods:['GET'])]
+    public function details(HealthService $health): JsonResponse
+    {
+        return new JsonResponse($health->report(),200,[
+            'Cache-Control'=>'private, no-store, max-age=0',
+            'X-Content-Type-Options'=>'nosniff'
+        ]);
+    }
+
     #[Route('/system',name:'app_system',methods:['GET'])]
     public function index(HealthService $health): Response
     {

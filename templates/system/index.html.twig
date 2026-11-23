@@ -2,19 +2,65 @@
 {% block title %}System{% endblock %}
 {% block section %}System{% endblock %}
 {% block body %}
-<div class="page-heading"><div><div class="eyebrow">DIAGNOSTICS</div><h1>System health</h1>
-<p class="muted">Runtime configuration, database readiness and worker status.</p></div></div>
-<div class="panel">
-  <div class="panel-heading"><h2>Readiness</h2><span class="status">{{ health.status }}</span></div>
+<div class="page-heading"><div><div class="eyebrow">DIAGNOSTICS</div>
+  <h1>System health</h1>
+  <p class="muted">Platform-independent PHP, database, queue and worker status. Live status refreshes every 15 seconds.</p>
+</div><a class="secondary link-button" href="{{ path('app_reports') }}">Reports</a></div>
+
+<div data-system-endpoint="{{ path('app_system_status') }}">
+<section class="panel">
+  <div class="panel-heading"><h2>Readiness</h2><span class="status" data-system-status>{{ health.status }}</span></div>
   <dl class="details">
     <div><dt>PHP version</dt><dd>{{ health.checks.php }}</dd></div>
-    <div><dt>Database</dt><dd>{{ health.checks.database }}</dd></div>
-    <div><dt>Database schema</dt><dd>{{ health.checks.schema }}</dd></div>
-    <div><dt>Background worker</dt><dd>{{ health.checks.worker }}</dd></div>
-    <div><dt>Active worker processes</dt><dd>{{ health.checks.worker_processes }}</dd></div>
-    <div><dt>Last worker heartbeat</dt><dd>{{ health.checks.worker_last_heartbeat ?? 'Never' }} UTC</dd></div>
-    <div><dt>Host operating system</dt><dd>{{ health.checks.host_os }}</dd></div>
+    <div><dt>Operating system</dt><dd>{{ health.checks.host_os }}</dd></div>
+    <div><dt>Database</dt><dd data-system-field="database">{{ health.checks.database }}</dd></div>
+    <div><dt>Schema</dt><dd data-system-field="schema">{{ health.checks.schema }}</dd></div>
     <div><dt>Missing PHP extensions</dt><dd>{{ health.checks.required_extensions is empty ? 'None' : health.checks.required_extensions|join(', ') }}</dd></div>
   </dl>
+</section>
+
+<div class="stats-grid">
+  <div class="stat"><span>Queued jobs</span><strong data-system-field="queued_jobs">{{ health.checks.queued_jobs }}</strong></div>
+  <div class="stat"><span>Running / cancelling jobs</span><strong data-system-field="running_jobs">{{ health.checks.running_jobs }}</strong></div>
+  <div class="stat"><span>Stalled jobs</span><strong data-system-field="stalled_jobs">{{ health.checks.stalled_jobs }}</strong></div>
+  <div class="stat"><span>Failed jobs (24 hours)</span><strong data-system-field="failed_jobs_24h">{{ health.checks.failed_jobs_24h }}</strong></div>
+  <div class="stat"><span>File actions needing manual review</span><strong data-system-field="needs_review_actions">{{ health.checks.needs_review_actions }}</strong></div>
 </div>
+
+{% if health.checks.needs_review_actions > 0 %}
+<div class="notice notice-warning"><strong>Attention required:</strong> one or more filesystem operations stopped in an uncertain state. Review their original and quarantine paths before running another operation. <a href="{{ path('app_actions') }}">Review file actions</a>.</div>
+{% endif %}
+
+<section class="panel">
+  <div class="panel-heading"><h2>Background worker</h2><a class="text-link" href="{{ path('app_jobs') }}">Job Monitor</a></div>
+  <dl class="details">
+    <div><dt>Worker state</dt><dd data-system-field="worker">{{ health.checks.worker }}</dd></div>
+    <div><dt>Recent worker processes</dt><dd data-system-field="worker_processes">{{ health.checks.worker_processes }}</dd></div>
+    <div><dt>Last worker heartbeat (UTC)</dt><dd><span data-system-field="worker_last_heartbeat">{{ health.checks.worker_last_heartbeat ?? 'Never' }}</span></dd></div>
+    <div><dt>Oldest queued job (UTC)</dt><dd data-system-field="oldest_queued_at">{{ health.checks.oldest_queued_at ?? 'None' }}</dd></div>
+  </dl>
+  <div class="panel-content"><p class="muted">The shared PHP CLI worker works on Windows, Linux, and DSM. Use your platform's service manager or task scheduler; the application does not require DSM APIs or systemd.</p>
+    <code>php bin/console dup:jobs:work --loop --idle-sleep=5 --max-jobs=1 --env=prod</code>
+  </div>
+</section>
+</div>
+
+<section class="panel">
+  <div class="panel-heading"><h2>Recent failed jobs</h2>
+    <span class="muted">Most recent five · refresh the page for updated history</span></div>
+  {% if health.checks.recent_failures is empty %}
+    <div class="empty-state">No failed jobs have been recorded.</div>
+  {% else %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Job</th><th>Type</th><th>Code</th><th>Finished (UTC)</th></tr></thead>
+      <tbody>{% for job in health.checks.recent_failures %}
+        <tr><td>#{{ job.id }}</td><td>{{ job.kind }}</td>
+          <td><span class="status">{{ job.error_code ?? 'Unknown' }}</span></td>
+          <td>{{ job.finished_at ?? 'Not finished' }}</td></tr>
+      {% endfor %}</tbody></table></div>
+  {% endif %}
+</section>
+
+<p class="muted">The public <code>/health</code> endpoint only reports readiness. Detailed diagnostics at <code>/api/system/status</code> require administrator authentication.</p>
+<script type="module" src="{{ asset('assets/system.js') }}"></script>
 {% endblock %}

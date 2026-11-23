@@ -123,3 +123,16 @@ button.secondary:disabled{opacity:.55;cursor:not-allowed}
 textarea{font:inherit;color:var(--ink)}
 .field textarea{width:100%;border:1px solid #bdcad7;border-radius:8px;padding:12px;resize:vertical;min-height:120px}
 .field textarea:focus{outline:3px solid #0a8f9930;border-color:var(--primary)}
+
+/* Report and diagnostic panels use the common DUP layout system. */
+.report-filter{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:17px 23px}
+.report-filter label{font-weight:650;font-size:13px}
+.report-filter select{min-width:210px;max-width:100%;padding:9px 12px;border:1px solid #bdcad7;border-radius:8px;background:white}
+.report-downloads{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:16px 20px}
+.page-heading .report-downloads{padding:0}
+.report-explanation{padding:16px 23px;color:var(--muted);font-size:13px;line-height:1.6}
+.report-error{color:#982f30;margin-top:3px;font-weight:650}
+.stat strong{overflow-wrap:anywhere;line-height:1.2}
+.stat strong small{font-size:12px;font-weight:600;color:var(--muted)}
+.stat>small{display:block;margin-top:7px;color:var(--muted);font-size:12px}
+@media(max-width:650px){.report-filter{display:grid}.report-downloads{justify-content:flex-start}}

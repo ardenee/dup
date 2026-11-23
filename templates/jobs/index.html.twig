@@ -46,7 +46,7 @@
 <section class="panel">
   <div class="panel-heading"><h2>Worker execution</h2></div>
   <div class="panel-content">
-    <p>The job queue is persistent. A CLI worker must be scheduled separately by cron or a DSM package service.</p>
+    <p>The job queue is persistent. Run the shared CLI worker using Windows Task Scheduler, cron, Linux systemd, a generic service manager, or the DSM package service.</p>
     <code>php bin/console dup:jobs:work --max-jobs=1</code>
     <p class="muted">If the worker stops unexpectedly, use <code>dup:jobs:recover</code> to mark jobs with expired heartbeats as failed. Successful snapshots are preserved.</p>
   </div>

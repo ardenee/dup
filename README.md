@@ -13,12 +13,15 @@ DUP is a PHP duplicate-file scanner and manager for **Windows web servers, Linux
 - Indexed files from ignored directories retained; changing ignore rules regenerates duplicate groups without rescanning
 - Snapshot preservation: a failed scan or recalculation never destroys the last completed results
 - Duplicate browser with indexed keyset pagination, job history, events and system diagnostics
+- Reports workspace: per-profile latest successful snapshots, historical run navigation, stored file states, scan warning/error events and potential duplicate savings
+- Streamed UTF-8 CSV exports (all indexed files, duplicate memberships, file states and job events) with spreadsheet formula-injection protection
+- Authenticated /api/system/status diagnostics and 15-second live-refreshing System page for worker heartbeats, backlogs, failures and manual-recovery flags
 - Explicitly confirmed **reversible quarantine and restore** via the same CLI job queue, with SHA-256 re-verification of both the selected file and another surviving copy, before any move
 - Same-volume rename only (no copy/delete fallback), unique private quarantine directories, collision protection and audit history
 - Automatic duplicate-group regeneration after quarantine or restoration, without rescanning NAS, Linux or Windows source files
 - Private, one-time pairing-code setup with PHP extension, storage, database and admin checks
 
-**Not implemented:** permanent deletion, a complete report/export workspace, automatic upgrades and validated installation on an actual Linux/DSM host. Permanent deletion is intentionally disabled until further safety and recovery testing. Do not replace a production DUP installation yet.
+**Not implemented:** permanent deletion, scheduled report delivery, automatic upgrades and validated installation on an actual Linux/DSM host. Permanent deletion is intentionally disabled until further safety and recovery testing. Do not replace a production DUP installation yet.
 
 ## Deployment — all platforms
 
@@ -82,6 +85,10 @@ php bin/console dup:settings:ignore --names="@eaDir,#recycle"
 Open **Duplicates → a verified group → Preview quarantine** to plan a reversible action. Only a separate, explicit confirmation queues it. The CLI worker then verifies both the selected file and another surviving copy before a same-volume rename. Every quarantined file may be restored from **File actions**, unless the original path has become occupied.
 
 Quarantined files live beneath the profile's private `.dup-quarantine` folder, which is always excluded from duplicate matching. Hard delete and cross-filesystem copy-and-delete are intentionally unavailable. The action history and audit records work across Windows, Linux and DSM.
+
+Open **Reports** for latest-successful-scan storage totals, historical scans (25 per page, bidirectional cursor pagination), and per-run diagnostics. Reported potential recoverable bytes are NOT space already freed. SHA-256 verified groups and unverified size-only candidates are reported separately. Per-profile totals can double-count files if profile roots overlap. CSV exports read only stored database metadata; scans are not rerun. Ignored-folder file rows remain exportable for later policy changes. Scan failures can be found in the job events export even when a scan aborted before indexing a file.
+
+The authenticated **System** page refreshes queue and worker counters every 15 seconds and reports stalled jobs and file actions requiring manual review. `/api/system/status` is administrator-only; public `/health` returns a redacted readiness status.
 
 `/system` reports the operating-system family and recent worker heartbeats, without coupling to an OS service API. `/health` exposes only a redacted ready/setup-required status.
 
