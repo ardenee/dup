@@ -18,8 +18,6 @@
           "open_basedir": "/var/services/web_packages/dup:/var/packages/dup/var:/volume1:/volume2:/volume3:/volume4:/tmp:/var/services/tmp",
           "extensions": [
             "pdo_mysql",
-            "pdo_sqlite",
-            "sqlite3",
             "mbstring",
             "curl",
             "fileinfo"
