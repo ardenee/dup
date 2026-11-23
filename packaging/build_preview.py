@@ -71,7 +71,7 @@ def build(target: Path) -> None:
         raise RuntimeError("Packaged environment contains a secret")
     print(f"PASS {target.name}: {len(files)} application files, {target.stat().st_size:,} bytes")
     print("SHA256 "+hashlib.sha256(target.read_bytes()).hexdigest())
-    print("PREVIEW ONLY: reports and reversible actions included; MySQL, Linux and DSM live validation pending")
+    print("PREVIEW ONLY: Windows/Ubuntu MariaDB passed; DSM Web Station and production web-server acceptance pending")
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser()

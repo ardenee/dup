@@ -4,7 +4,7 @@ const inputs = [...document.querySelectorAll("[data-directory-input]")];
 if (endpoint && inputs.length) {
   const dialog = document.createElement("dialog");
   dialog.className = "folder-dialog";
-  dialog.setAttribute("aria-label", "Select a NAS folder");
+  dialog.setAttribute("aria-label", "Select a server folder");
   dialog.innerHTML = `
     <div class="folder-dialog-heading"><h2>Select a folder</h2>
       <button type="button" class="secondary" data-close>Close</button></div>

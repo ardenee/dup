@@ -6,7 +6,7 @@ namespace App\Module\Reports\Repository;
 use Doctrine\DBAL\Connection;
 
 /**
- * Read-only reporting over immutable scan runs. Never opens NAS/Windows/Linux
+ * Read-only reporting over immutable scan runs. Never opens server
  * filesystem paths and never aggregates all historical snapshots as if they
  * were current storage.
  */

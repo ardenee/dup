@@ -18,16 +18,16 @@ DUP is a PHP duplicate-file scanner and manager for **Windows web servers, Linux
 - Authenticated /api/system/status diagnostics and 15-second live-refreshing System page for worker heartbeats, backlogs, failures and manual-recovery flags
 - Explicitly confirmed **reversible quarantine and restore** via the same CLI job queue, with SHA-256 re-verification of both the selected file and another surviving copy, before any move
 - Same-volume rename only (no copy/delete fallback), unique private quarantine directories, collision protection and audit history
-- Automatic duplicate-group regeneration after quarantine or restoration, without rescanning NAS, Linux or Windows source files
+- Automatic duplicate-group regeneration after quarantine or restoration, without rescanning source files
 - Private, one-time pairing-code setup with PHP extension, storage, database and admin checks
 
-**Not implemented:** permanent deletion, scheduled report delivery, automatic upgrades and validated installation on an actual Linux/DSM host. Permanent deletion is intentionally disabled until further safety and recovery testing. Do not replace a production DUP installation yet.
+**Not implemented:** permanent deletion, scheduled report delivery, automatic upgrades and validated production deployment under Linux Apache/Nginx or Synology DSM. Permanent deletion is intentionally disabled until further safety and recovery testing. Do not replace a production DUP installation yet.
 
 ## Deployment — all platforms
 
-The **generic web ZIP is the primary application**. It contains all PHP dependencies. Composer, Node.js, Docker, systemd, Task Scheduler and Synology packages are **not required by the application itself**.
+The **generic web ZIP is the primary application**. It contains all PHP dependencies. The core reads configuration from the web server or private `.env.local`; database URLs preserve encoded credentials on all platforms. Composer, Node.js, Docker, systemd, Task Scheduler and Synology packages are **not required by the application itself**.
 
-Requirements: PHP **8.2+** with `pdo`, `mbstring`, `intl`, `openssl`, `xml`, `ctype`, `iconv` and `json`. Enable `pdo_mysql` for MariaDB/MySQL (recommended) or `pdo_sqlite` for a small local/test database. MySQL 8/MariaDB 10 are supported targets; production database integration testing is still pending.
+Requirements: PHP **8.2+** with `pdo`, `mbstring`, `intl`, `openssl`, `xml`, `ctype`, `iconv` and `json`. Enable `pdo_mysql` for MariaDB/MySQL (recommended) or `pdo_sqlite` for a small local/test database. MySQL 8/MariaDB 10 are supported targets. Disposable database and browser integration tests have passed with MariaDB 10.11 on Windows PHP 8.5 and Ubuntu PHP 8.3. Production server integration remains to be verified.
 
 1. Unpack the generic ZIP to a **private application directory** on the web server. Create a dedicated, initially empty database and database user with schema creation permissions. The application will not overwrite populated databases.
 2. Point the web server's **document root to the application's `public/` directory**. Never expose `vendor/`, `src/`, `migrations/`, `config/`, `var/` or `.env.local` over HTTP.
@@ -45,11 +45,11 @@ Only a fresh installation accepts setup. Setup requires HTTPS for non-local requ
 
 ### Windows web servers
 
-Use PHP 8.2+ with IIS/FastCGI and URL Rewrite, or Apache. Set the site document root to `C:\\Sites\\dup-v2\\public` (or your chosen private path). The ZIP includes `public/web.config` for IIS and `public/.htaccess` for Apache. Configure the web server to serve PHP and give the application identity write permission to `var/`.
+Use PHP 8.2+ with IIS/FastCGI and URL Rewrite, or Apache. Generic ZIP first-run MariaDB installation, scanning and reports have been tested with Windows PHP 8.5; IIS and Apache deployment still need live validation. Set the site document root to `C:\\Sites\\dup-v2\\public` (or your chosen private path). The ZIP includes `public/web.config` for IIS and `public/.htaccess` for Apache. Configure the web server to serve PHP and give the application identity write permission to `var/`.
 
 ### Linux web servers
 
-Use Apache/mod_rewrite or Nginx/PHP-FPM and a private install such as `/srv/dup-v2`. Set document root to `/srv/dup-v2/public`. A sample Nginx configuration is at `packaging/platform/linux-nginx.conf.example`. Give the PHP worker read access only to selected scan roots and writable access to the private runtime directory.
+Use Apache/mod_rewrite or Nginx/PHP-FPM and a private install such as `/srv/dup-v2`. The generic ZIP has passed fresh MariaDB installation and application tests on Ubuntu 24.04 with PHP 8.3; Nginx/Apache and a production service manager still need validation. Set document root to `/srv/dup-v2/public`. A sample Nginx configuration is at `packaging/platform/linux-nginx.conf.example`. Give the PHP worker read access only to selected scan roots and writable access to the private runtime directory.
 
 ### Synology DSM 7 (optional)
 

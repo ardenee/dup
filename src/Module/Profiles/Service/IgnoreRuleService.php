@@ -40,7 +40,7 @@ final class IgnoreRuleService
         return array_values($names);
     }
 
-    /** Recalculation is queued and does not read or rescan NAS files. */
+    /** Recalculation uses only stored metadata; no server files are read. */
     public function save(string $text,?int $actorId=null): int
     {
         $names=$this->validate($text);
