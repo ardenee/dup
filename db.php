@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/runtime-paths.php';
+require_once __DIR__ . '/auth.php';
 //iconv_set_encoding("internal_encoding", "UTF-8");
 //iconv_set_encoding("input_encoding", "UTF-8");
 //iconv_set_encoding("output_encoding", "UTF-8");
@@ -128,8 +129,7 @@ catch(PDOException $ex)
     exit;
 }
 
-try	{$sdt = $dblink->query("ALTER TABLE logs ADD line INT NOT NULL;");}
-catch(PDOException $ex) {} // required for db update, can be ignored afterwards.	
+// Schema alterations are handled by explicit migrations, never on each request.
 
 $runtime = GetRuntime();
 $level = -1;
@@ -141,41 +141,26 @@ $level = CheckLogin();
 function CheckLogin()
 {
     global $dblink;
+    global $dupCurrentAccount;
 
-    if(!isset($_SERVER['REMOTE_ADDR']) || strlen($_SERVER['REMOTE_ADDR']) == 0)
+    // Worker processes do not have browser sessions.
+    if(!DupWebRequest())
         return 0;
 
-    $user = isset($_COOKIE["uname"]) ? $_COOKIE["uname"] : "";
-    $pass = isset($_COOKIE["password"]) ? $_COOKIE["password"] : "";
+    try {
+        $dupCurrentAccount = DupSessionIdentity($dblink);
+    } catch(Throwable $ex) {
+        error_log('DUP session verification failed: ' . get_class($ex));
+        http_response_code(503);
+        exit('Authentication service unavailable.');
+    }
 
-    if(strlen($user) == 0 || strlen($pass) == 0)
+    if($dupCurrentAccount === null)
     {
-        header("Location: accounts-login.php");
+        header('Location: accounts-login.php');
         exit;
     }
-
-    try
-    {
-        $query = "SELECT level FROM accounts WHERE name = :user AND password = :pass LIMIT 1;";
-        $sdt = $dblink->prepare($query);
-        $sdt->bindValue(":user", $user, PDO::PARAM_STR);
-        $sdt->bindValue(":pass", $pass, PDO::PARAM_STR);
-        $sdt->execute();
-
-        $row = $sdt->fetch(PDO::FETCH_ASSOC);
-        $sdt->closeCursor();
-
-        if($row)
-            return intval($row["level"]);
-    }
-    catch(PDOException $ex) {
-        LogError(print_r($ex, true));
-        header("Location: error.php");
-        exit;
-    }
-
-    header("Location: accounts-login.php");
-    exit;
+    return $dupCurrentAccount['level'];
 }
 //-------------------------------------------------------------------------------
 function GetRuntime()
@@ -340,7 +325,7 @@ function LogStr($str, $type = 0, $file = "", $line = "", $function = "")
     {
         try
         {
-            $query = "INSERT INTO logs (stamp, type, str, function, page, line) VALUES (:stamp, :type, :str, :function, :page, :line);";
+            $query = "INSERT INTO logs (stamp, type, str, function, page, line, user_id) VALUES (:stamp, :type, :str, :function, :page, :line, :user_id);";
 
             $sdt = $dblink->prepare($query);
             $sdt->bindValue(":stamp", date("Y-m-d H:i:s"), PDO::PARAM_STR);
@@ -349,6 +334,7 @@ function LogStr($str, $type = 0, $file = "", $line = "", $function = "")
             $sdt->bindValue(":function", (string)$function, PDO::PARAM_STR);
             $sdt->bindValue(":page", $displayFile, PDO::PARAM_STR);
             $sdt->bindValue(":line", intval($line), PDO::PARAM_INT);
+            $sdt->bindValue(":user_id", (int)($_SESSION["account_id"] ?? 0), PDO::PARAM_INT);
             $sdt->execute();
             $sdt->closeCursor();
         }
@@ -359,32 +345,7 @@ function LogStr($str, $type = 0, $file = "", $line = "", $function = "")
     }
 }
 //-------------------------------------------------------------------------------
-function SetupDB()
-{
-	global $dblink;
-	global $dbfile;
-	
-	if($dbfile==0)
-		$SQLData = file_get_contents("files/dup.sql");
-	else
-		$SQLData = file_get_contents("files/dup.sqlite");
-	
-	$SQLArrayData = explode("--------------------------------------------------------------------------", $SQLData);
-	
-	foreach($SQLArrayData as $key => $value)
-	{
-		try	{		
-			$sdt = $dblink->query($value);			
-		}
-		catch(PDOException $ex) {
-			LogError(print_r($ex, true));
-			header("Location: error.php");	
-			Exit;
-		}
-	}
-	
-	$sdt->closeCursor();
-}
+// Database initialization is performed only by the controlled installer.
 //-------------------------------------------------------------------------------
 function GetStat($Profile)
 {
@@ -950,7 +911,7 @@ function LogError($Error)
     $requestUri = isset($_SERVER["REQUEST_URI"]) ? $_SERVER["REQUEST_URI"] : "";
     $remoteAddr = isset($_SERVER["REMOTE_ADDR"]) ? $_SERVER["REMOTE_ADDR"] : "CLI";
     $scriptName = isset($_SERVER["SCRIPT_NAME"]) ? $_SERVER["SCRIPT_NAME"] : "";
-    $user = isset($_COOKIE["uname"]) ? $_COOKIE["uname"] : "";
+     $user = (string)($_SESSION["account_id"] ?? "");
     $lastPhpError = error_get_last();
 
     $report = array(

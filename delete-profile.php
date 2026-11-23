@@ -2,6 +2,8 @@
 include("dup.php");
 
 $dup = new dup($profile);
+DupRequireAdmin();
+DupRequirePostCsrf();
 
 $profileId = isset($_POST["profile"]) ? intval($_POST["profile"]) : intval($profile);
 

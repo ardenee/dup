@@ -85,6 +85,7 @@ function DupJsString($value)
 <div id="config-content">
 
 <form id="configForm" action="update-profile.php" method="post">
+<input type="hidden" name="csrf" value="<?php echo htmlspecialchars(DupCsrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
 <input type="hidden" name="profile" value="<?php echo $profileId; ?>">
 
 <div id="config-components">
@@ -264,6 +265,11 @@ function DeleteProfile(id, act, title)
             input.value = id;
 
             form.appendChild(input);
+            var csrf = document.createElement("input");
+            csrf.type = "hidden";
+            csrf.name = "csrf";
+            csrf.value = <?php echo json_encode(DupCsrfToken()); ?>;
+            form.appendChild(csrf);
             document.body.appendChild(form);
             form.submit();
         }

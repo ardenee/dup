@@ -1,8 +1,11 @@
 <?php
 
 require_once("dup.php");
+require_once __DIR__ . "/file-access.php";
 
 $dup = new dup($profile);
+DupRequireAdmin();
+DupRequirePostCsrf();
 
 $profileId = intval($profile);
 $allowedActions = array("Delete", "Rename", "Move", "Link");
@@ -75,6 +78,21 @@ function UpdateProfileStatus($value, $data)
 
 function QueueActionFile($table, $file, $new)
 {
+    global $dup;
+    global $profileId;
+    global $dblink;
+
+    $action = ucfirst(substr($table, strlen("files_")));
+    if(!DupValidateActionPath($action, $file, $new, $dup->Profile))
+        throw new InvalidArgumentException("File action is outside the configured profile or uses an invalid name.");
+
+    // The client may only select files already indexed by this profile.
+    $check = $dblink->prepare("SELECT id FROM files WHERE file=:file AND profile=:profile LIMIT 1");
+    $check->execute([":file" => $file, ":profile" => $profileId]);
+    $indexed = $check->fetchColumn();
+    $check->closeCursor();
+    if($indexed === false)
+        throw new InvalidArgumentException("File action requires a scanned profile file.");
     global $dblink;
     global $profileId;
     global $dbfile;
@@ -132,7 +150,7 @@ if(!$canStart)
 
 try
 {
-    if(!isset($_POST["oldname"]) || !is_array($_POST["oldname"]) || count($_POST["oldname"]) == 0)
+    if(!isset($_POST["oldname"]) || !is_array($_POST["oldname"]) || count($_POST["oldname"]) == 0 || count($_POST["oldname"]) > 1000)
     {
         LogError("No files were submitted for action: " . $action);
         header("Location: profile-view.php?profile=" . $profileId);

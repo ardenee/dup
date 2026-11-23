@@ -561,6 +561,11 @@ function DeleteProfile(id, act, title)
             input.value = id;
 
             form.appendChild(input);
+            var csrf = document.createElement("input");
+            csrf.type = "hidden";
+            csrf.name = "csrf";
+            csrf.value = <?php echo json_encode(DupCsrfToken()); ?>;
+            form.appendChild(csrf);
             document.body.appendChild(form);
             form.submit();
         }
@@ -574,7 +579,23 @@ function ScanProfile(id, act, title)
     if(act == 'Scan')
     {
         if(confirm("Are you sure you want to '" + act + "' profile \n\n'" + title + "' ?\n\nThis may take some time but will run in the background."))
-            window.open('scan-files.php?profile=' + id, '_self');
+        {
+            var form = document.createElement("form");
+            form.method = "POST";
+            form.action = "scan-files.php";
+            var profileField = document.createElement("input");
+            profileField.type = "hidden";
+            profileField.name = "profile";
+            profileField.value = id;
+            form.appendChild(profileField);
+            var csrf = document.createElement("input");
+            csrf.type = "hidden";
+            csrf.name = "csrf";
+            csrf.value = <?php echo json_encode(DupCsrfToken()); ?>;
+            form.appendChild(csrf);
+            document.body.appendChild(form);
+            form.submit();
+        }
     }
 }
 

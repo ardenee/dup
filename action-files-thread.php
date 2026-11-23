@@ -1,5 +1,12 @@
 <?php
 
+if(PHP_SAPI !== "cli")
+{
+    http_response_code(404);
+    exit;
+}
+require_once __DIR__ . "/file-access.php";
+
 if(PHP_SAPI == "cli")
 {
     $cliProfile = isset($argv[1]) ? intval($argv[1]) : 0;
@@ -88,6 +95,14 @@ foreach($FilesToAction as $key => $row)
     $result = false;
     $source = isset($row['file']) ? $row['file'] : "";
     $target = isset($row['new']) ? $row['new'] : "";
+
+    if(!DupValidateActionPath($action, (string)$source, (string)$target, $dup->Profile))
+    {
+        LogError("Blocked queued action outside profile: " . $action);
+        $failCount++;
+        $num++;
+        continue;
+    }
 
     switch($action)
     {

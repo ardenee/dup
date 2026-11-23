@@ -2,11 +2,18 @@
 include("dup.php");
 
 $dup = new dup($profile);
+DupRequireAdmin();
+DupRequirePostCsrf();
 
 LogStr("Add Account", 1, __FILE__, __LINE__, __FUNCTION__);
 
 $uname = isset($_POST["uname"]) ? strtolower(trim($_POST["uname"])) : "";
-$pass = isset($_POST["pass"]) ? $_POST["pass"] : "";
+$pass = isset($_POST["pass"]) && is_string($_POST["pass"]) ? $_POST["pass"] : "";
+if($pass !== "" && (strlen($pass) < 12 || strlen($pass) > 72))
+{
+    header("Location: accounts.php?error=password_length");
+    exit;
+}
 
 if($uname == "" || $pass == "")
 {
@@ -24,9 +31,9 @@ if(!preg_match('/^[a-z0-9._-]{3,64}$/', $uname))
 
 try
 {
-    $hash = md5("sault**" . $pass);
+    $hash = DupHashNewPassword((string)$pass);
 
-    $query = "INSERT INTO accounts (name, level, password) VALUES (:name, 1, :password)";
+    $query = "INSERT INTO accounts (name, level, password) VALUES (:name, 0, :password)";
     LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);
 
     $sdt = $dblink->prepare($query);

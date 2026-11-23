@@ -23,17 +23,16 @@ SET time_zone = "+00:00";
 -- Table structure for table `accounts`
 --
 
-DROP TABLE IF EXISTS `accounts`;
 CREATE TABLE IF NOT EXISTS `accounts` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(50) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `level` int(11) NOT NULL DEFAULT '0',
-  `password` varchar(50) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `password` varchar(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `name` (`name`)
 ) ENGINE=MyISAM  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci AUTO_INCREMENT=1 ;
 
-INSERT INTO `accounts` (`id`, `name`, `level`, `password`) VALUES (1, 'admin', 1, 'afb7127bdf13d61f0cfd4819a0faf804');
+INSERT INTO `accounts` (`id`, `name`, `level`, `password`) VALUES (1, 'admin', 1, '!DISABLED_UNTIL_SETUP!');
 -- admin - admin
 
 -- --------------------------------------------------------
@@ -42,7 +41,6 @@ INSERT INTO `accounts` (`id`, `name`, `level`, `password`) VALUES (1, 'admin', 1
 -- Table structure for table `files`
 --
 
-DROP TABLE IF EXISTS `files`;
 CREATE TABLE IF NOT EXISTS `files` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `file` text CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
@@ -64,7 +62,6 @@ CREATE TABLE IF NOT EXISTS `files` (
 -- Table structure for table `files_delete`
 --
 
-DROP TABLE IF EXISTS `files_delete`;
 CREATE TABLE IF NOT EXISTS `files_delete` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `file` text COLLATE utf8_bin NOT NULL,
@@ -80,7 +77,6 @@ CREATE TABLE IF NOT EXISTS `files_delete` (
 -- Table structure for table `files_link`
 --
 
-DROP TABLE IF EXISTS `files_link`;
 CREATE TABLE IF NOT EXISTS `files_link` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `file` text COLLATE utf8_bin NOT NULL,
@@ -96,7 +92,6 @@ CREATE TABLE IF NOT EXISTS `files_link` (
 -- Table structure for table `files_move`
 --
 
-DROP TABLE IF EXISTS `files_move`;
 CREATE TABLE IF NOT EXISTS `files_move` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `file` text COLLATE utf8_bin NOT NULL,
@@ -112,7 +107,6 @@ CREATE TABLE IF NOT EXISTS `files_move` (
 -- Table structure for table `files_rename`
 --
 
-DROP TABLE IF EXISTS `files_rename`;
 CREATE TABLE IF NOT EXISTS `files_rename` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `file` text COLLATE utf8_bin NOT NULL,
@@ -128,7 +122,6 @@ CREATE TABLE IF NOT EXISTS `files_rename` (
 -- Table structure for table `logs`
 --
 
-DROP TABLE IF EXISTS `logs`;
 CREATE TABLE IF NOT EXISTS `logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `stamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -146,7 +139,6 @@ CREATE TABLE IF NOT EXISTS `logs` (
 -- Table structure for table `msg`
 --
 
-DROP TABLE IF EXISTS `msg`;
 CREATE TABLE IF NOT EXISTS `msg` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `message` text COLLATE utf8_bin NOT NULL,
@@ -161,7 +153,6 @@ INSERT INTO `msg` (`id`, `message`) VALUES (1, '');
 -- Table structure for table `profiles`
 --
 
-DROP TABLE IF EXISTS `profiles`;
 CREATE TABLE IF NOT EXISTS `profiles` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `msize` int(11) NOT NULL,
@@ -184,7 +175,6 @@ CREATE TABLE IF NOT EXISTS `profiles` (
 -- Table structure for table `profiletypes`
 --
 
-DROP TABLE IF EXISTS `profiletypes`;
 CREATE TABLE IF NOT EXISTS `profiletypes` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `exts` text COLLATE utf8_bin NOT NULL,
@@ -211,7 +201,6 @@ INSERT INTO `profiletypes` (`id`, `exts`, `name`) VALUES
 -- Table structure for table `settings`
 --
 
-DROP TABLE IF EXISTS `settings`;
 CREATE TABLE IF NOT EXISTS `settings` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `renametype` int(11) NOT NULL DEFAULT '0',
@@ -242,7 +231,6 @@ INSERT INTO `settings` (`id`, `renametype`, `namecleanup`, `cleanupfilter`, `dot
 -- Table structure for table `status`
 --
 
-DROP TABLE IF EXISTS `status`;
 CREATE TABLE IF NOT EXISTS `status` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `value` text COLLATE utf8_bin NOT NULL,
@@ -258,7 +246,6 @@ CREATE TABLE IF NOT EXISTS `status` (
 -- Table structure for table `viewpages`
 --
 
-DROP TABLE IF EXISTS `viewpages`;
 CREATE TABLE IF NOT EXISTS `viewpages` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `data` text COLLATE utf8_bin NOT NULL,

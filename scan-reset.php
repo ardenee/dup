@@ -3,6 +3,8 @@
 include("dup.php");
 
 $dup = new dup($profile);
+DupRequireAdmin();
+DupRequirePostCsrf();
 
 $profileId = intval($profile);
 $profilePath = isset($dup->Profile["path"]) ? $dup->Profile["path"] : "";

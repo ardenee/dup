@@ -1,6 +1,6 @@
 <?php
 include("db.php");
-include_once("db-log-user.php");
+// Account attribution is now handled at insertion time by db.php.
 
 class dup
 {		

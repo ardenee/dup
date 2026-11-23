@@ -46,16 +46,18 @@ The builder verifies both outputs against the same application files:
 - `dist/DUP-Web-0.7.0.zip` — generic PHP web application.
 - `dist/DUP-DSM7-0.7.0.spk` — the same PHP application with Synology Web Station metadata, icons and install scripts.
 
-The DSM SPK is a **development candidate**, not a tested upgrade for an existing package. Back up the database and private configuration before installing or replacing anything on DSM. Do not manually run the existing installer against an active database: setup is restricted to first installation, and destructive recreation is blocked once configuration exists.
+The DSM SPK is a **development candidate**, not a tested upgrade for an existing package. Back up the database and private configuration before installing or replacing anything on DSM. New installation refuses to overwrite a database containing existing tables and requires a newly chosen administrator password. Existing installations require versioned migrations.
 
 Regenerate DSM icons, if required, with `python packaging/make_icons.py` (Pillow required).
 
 ## Security and development status
 
-**Keep DUP on a trusted network. Do not expose it to the public internet yet.** The legacy account login uses an MD5-derived cookie credential, and full session/password/CSRF migration is still needed. File-action path validation and permissions also need a security audit.
+**Keep DUP on a trusted network. Do not expose it to the public internet yet.** Session authentication, legacy-hash upgrade-on-login, login throttling, CSRF and administrator checks, path restrictions for file actions, and CLI-only worker entry points have been implemented in DEV and passed synthetic PHP/HTTP tests.
 
-Completed baseline: identify the primary DEV/GitHub source, restore the missing action dispatcher, move the DSM configuration/logs/backups outside the HTTP root, remove public legacy copies, protect destructive setup, and establish a common generic-web/DSM package builder.
+**Deployment status:** These authentication changes are staged on the security development branch, **not yet installed on DSM**. The existing DSM database's password column is `VARCHAR(50)`; it must first be backed up and migrated to `VARCHAR(255)`. Until that migration and live login verification complete, DSM still uses the old cookie login. Do not copy this branch to a live server or install its ZIP/SPK over an existing installation.
 
-Remaining work: modern sessions and password hashes, CSRF and filesystem authorisation, non-destructive database migrations, profiling/indexes and lower-cost logging, modular PHP services, asynchronous workers, UI consistency and usability, and full end-to-end regression tests.
+Completed baseline: reconciled DEV/GitHub/DSM files, restored the missing action dispatcher, moved DSM private runtime data outside the HTTP root, and introduced a verified shared generic-web/DSM package builder. The hardening branch also removes per-request schema changes and late log-attribution updates.
+
+Remaining work: approve and verify the live account-column migration, test browser login and admin account changes on DSM, finish auth/CSRF coverage, review file-action edge cases, build a non-destructive upgrade migration system, profile scans and queries, improve log efficiency, and finish modular architecture/UI improvements.
 
 Source: https://github.com/ardenee/dup

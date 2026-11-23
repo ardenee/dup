@@ -1,4 +1,10 @@
 <?php
+// The background scanner must never be invoked through an HTTP request.
+if(PHP_SAPI !== "cli")
+{
+    http_response_code(404);
+    exit;
+}
 
 if(PHP_SAPI == "cli")
 {

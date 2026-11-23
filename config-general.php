@@ -95,6 +95,7 @@ function DupSettingStr($key, $default = "")
 <div id="config">
  <div id="config-content">
   <form id="configForm" action="update-config.php" method="post">
+<input type="hidden" name="csrf" value="<?php echo htmlspecialchars(DupCsrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
    <div id="config-components">
     <div id="core-component-group1" class="component-group clearfix">
     <div class="component-group-desc">

@@ -1,8 +1,13 @@
 <?php
 require_once __DIR__ . '/runtime-paths.php';
+require_once __DIR__ . '/dup.php';
+$dup = new dup($profile);
+DupRequireAdmin();
 
 $refresh = "config-help.php";
-$action = isset($_GET["action"]) ? trim($_GET["action"]) : "";
+$action = isset($_POST["action"]) && is_string($_POST["action"]) ? trim($_POST["action"]) : "";
+if($action !== "")
+    DupRequirePostCsrf();
 $backupDir = DupBackupDir() . "";
 $statusFile = $backupDir . "/backup.data";
 
@@ -48,7 +53,7 @@ if(!is_dir($backupDir))
 
 if($action == "delete")
 {
-    $file = isset($_GET["file"]) ? BackupSafeName($_GET["file"]) : "";
+    $file = isset($_POST["file"]) ? BackupSafeName($_POST["file"]) : "";
 
     if($file != "")
     {

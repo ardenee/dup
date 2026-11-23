@@ -130,7 +130,7 @@ echo "<tr><td class=\"infoTableHeader\">dup Database size: </td><td><span title=
 					echo "(<a href=\"javascript:DeleteBackup(" . DupJs($safeName) . ");\">Delete</a>)<BR>";
 
 					//$impdata = "<BR><a href=\"backup.php?action=import\">Import Above Files</a>\n";
-					$impdata = "<BR><a href=\"setup-backup.php?action=import\">Import Above Files</a>\n";
+					$impdata = '<BR><form method="post" action="setup-backup.php" style="display:inline"><input type="hidden" name="action" value="import"><input type="hidden" name="csrf" value="' . DupHtml(DupCsrfToken()) . '"><button type="submit" class="btn">Import Above Files</button></form>';
 				}
 
 				$dir->close();
@@ -163,7 +163,19 @@ function DeleteBackup(file)
     var answer = confirm("Are you sure you want to delete this backup file?\n'" + file + "'");
 
     if(answer == true)
-        window.open("setup-backup.php?action=delete&file=" + encodeURIComponent(file), "_self");
+    {
+        var form = document.createElement("form");
+        form.method = "post";
+        form.action = "setup-backup.php";
+        for(var name in {action: "delete", file: file, csrf: <?php echo json_encode(DupCsrfToken()); ?>})
+        {
+            var value = {action: "delete", file: file, csrf: <?php echo json_encode(DupCsrfToken()); ?>}[name];
+            var field = document.createElement("input");
+            field.type = "hidden"; field.name = name; field.value = value;
+            form.appendChild(field);
+        }
+        document.body.appendChild(form); form.submit();
+    }
 }
 </script>
 

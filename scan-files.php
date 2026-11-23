@@ -2,6 +2,8 @@
 include("dup.php");
 
 $dup = new dup($profile);
+DupRequireAdmin();
+DupRequirePostCsrf();
 
 $profileId = intval($profile);
 //$scanLog = DupLogDir() . "/scan-profile-" . $profileId . ".log";

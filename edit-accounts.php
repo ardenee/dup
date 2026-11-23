@@ -2,11 +2,18 @@
 include("dup.php");
 
 $dup = new dup($profile);
+DupRequireAdmin();
+DupRequirePostCsrf();
 $currentLevel = isset($level) ? intval($level) : 0;
 
 $aid = isset($_POST["id"]) ? intval($_POST["id"]) : 0;
 $uname = isset($_POST["uname"]) ? strtolower(trim($_POST["uname"])) : "";
-$pass = isset($_POST["pass"]) ? $_POST["pass"] : "";
+$pass = isset($_POST["pass"]) && is_string($_POST["pass"]) ? $_POST["pass"] : "";
+if($pass !== "" && (strlen($pass) < 12 || strlen($pass) > 72))
+{
+    header("Location: accounts.php?error=password_length");
+    exit;
+}
 
 LogStr("Edit Account '$aid'", 1, __FILE__, __LINE__, __FUNCTION__);
 
@@ -45,7 +52,7 @@ try
 {
     if($pass !== "")
     {
-        $hash = md5("sault**" . $pass);
+        $hash = DupHashNewPassword((string)$pass);
 
         $query = "UPDATE accounts SET name=:name, password=:password WHERE id=:id;";
         LogStr("MySQL/SQLite: $query", 3, __FILE__, __LINE__, __FUNCTION__);

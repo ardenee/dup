@@ -4,6 +4,8 @@ require_once __DIR__ . '/runtime-paths.php';
 include("dup.php");
 
 $dup = new dup($profile);
+DupRequireAdmin();
+DupRequirePostCsrf();
 
 $backupDir = DupBackupDir() . "";
 $statusFile = $backupDir . "/backup.data";

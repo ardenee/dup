@@ -2,6 +2,8 @@
 include("dup.php");
 
 $dup = new dup($profile);
+DupRequireAdmin();
+DupRequirePostCsrf();
 
 LogStr("Save Profile Settings '$profile'", 1, __FILE__, __LINE__, __FUNCTION__);
 

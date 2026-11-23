@@ -91,6 +91,7 @@ function DupJsString($value)
   <div id="config">
    <div id="config-content">
     <form id="configForm" action="update-config-profiletypes.php" method="post">
+<input type="hidden" name="csrf" value="<?php echo htmlspecialchars(DupCsrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
      <input type="hidden" name="profile" value="<?php echo intval($profile); ?>">
      <div id="config-components">
       <div id="core-component-group1" class="component-group clearfix">

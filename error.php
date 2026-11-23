@@ -153,7 +153,7 @@ $(document).ready(function(){
 <?php echo PageHeader(); ?>
 
 <DIV id=SubMenu>
-<SPAN><A href="clear-logs.php?confirm=1" onclick="return confirm('Clear all DUP logs and error reports? This cannot be undone.');">Clear Logs</A></SPAN>
+<SPAN><form action="clear-logs.php" method="post" style="display:inline" onsubmit="return confirm('Clear all DUP logs and error reports? This cannot be undone.');"><input type="hidden" name="csrf" value="<?php echo htmlspecialchars(DupCsrfToken(), ENT_QUOTES, 'UTF-8'); ?>"><input type="hidden" name="confirm" value="1"><button type="submit" class="btn btn-danger">Clear Logs</button></form></SPAN>
     <SPAN><A href="logs.php">View DUP Logs</A></SPAN>
     <SPAN><A href="index.php">Back to DUP</A></SPAN>
 </DIV>
@@ -207,7 +207,7 @@ $(document).ready(function(){
 </div>
 
 <div class="component-group-save">
-<a class="btn btn-danger" href="clear-logs.php?confirm=1" onclick="return confirm('Clear all DUP logs and error reports? This cannot be undone.');">Clear Logs</a>
+<form action="clear-logs.php" method="post" style="display:inline" onsubmit="return confirm('Clear all DUP logs and error reports? This cannot be undone.');"><input type="hidden" name="csrf" value="<?php echo htmlspecialchars(DupCsrfToken(), ENT_QUOTES, 'UTF-8'); ?>"><input type="hidden" name="confirm" value="1"><button type="submit" class="btn btn-danger">Clear Logs</button></form>
 <a class="btn" href="logs.php">View DUP Logs</a>
 <a class="btn" href="index.php">Back to DUP</a>
 </div>

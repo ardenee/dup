@@ -2,6 +2,8 @@
 include("dup.php");
 
 $dup = new dup($profile);
+DupRequireAdmin();
+DupRequirePostCsrf();
 
 LogStr("Update Exts '" . (isset($dup->Profile["path"]) ? $dup->Profile["path"] : "") . "'", 1, __FILE__, __LINE__, __FUNCTION__);
 

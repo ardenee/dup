@@ -100,6 +100,7 @@ if(count($extSel) == 0)
     <div id="config">
      <div id="config-content">
       <form id="configForm" action="add-profile.php" method="post">
+<input type="hidden" name="csrf" value="<?php echo htmlspecialchars(DupCsrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
        <div id="config-components">
         <div id="core-component-group1" class="component-group clearfix">
 

@@ -1,8 +1,9 @@
 <?php
 include("dup.php");
 $dup = new dup($profile);
+DupRequireAdmin();
 
-if(!isset($_GET["confirm"]) || $_GET["confirm"] != "1")
+if(!isset($_POST["confirm"]) || $_POST["confirm"] != "1")
 {
     ?>
     <!DOCTYPE HTML>
@@ -47,7 +48,7 @@ if(!isset($_GET["confirm"]) || $_GET["confirm"] != "1")
                         </div>
 
                         <div class="component-group-save">
-                            <a class="btn btn-danger" href="clear-logs.php?confirm=1" onclick="return confirm('Clear all DUP logs and error reports? This cannot be undone.');">Clear Logs</a>
+                            <form action="clear-logs.php" method="post" style="display:inline" onsubmit="return confirm('Clear all DUP logs and error reports? This cannot be undone.');"><input type="hidden" name="csrf" value="<?php echo htmlspecialchars(DupCsrfToken(), ENT_QUOTES, 'UTF-8'); ?>"><input type="hidden" name="confirm" value="1"><button type="submit" class="btn btn-danger">Clear Logs</button></form>
                             <a class="btn" href="error.php">Cancel</a>
                         </div>
                     </div>
@@ -64,6 +65,8 @@ if(!isset($_GET["confirm"]) || $_GET["confirm"] != "1")
     <?php
     exit;
 }
+
+DupRequirePostCsrf();
 
 $logDir = DupLogDir() . "";
 

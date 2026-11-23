@@ -1,6 +1,7 @@
 <?php
 include("dup.php");
 $dup      = new dup($profile);
+DupRequireAdmin();
 $Accounts = $dup->GetAccounts(); 
 LogStr("Home", 1, __FILE__, __LINE__, __FUNCTION__);
 ?>
@@ -93,6 +94,7 @@ LogStr("Home", 1, __FILE__, __LINE__, __FUNCTION__);
   <DIV id=contentWrapper>
    <DIV id=content>
     <H1 class=title>Accounts</H1>
+    <p>New passwords must be between 12 and 72 bytes. Account changes require administrator access.</p>
     <TABLE id=showListTable class=tablesorter border=0 cellSpacing=1 cellPadding=0>
      <THEAD>
       <TR>
@@ -152,12 +154,29 @@ foreach($Accounts as $key => $value)
   </DIV><!-- /contentWrapper -->
   
 <?php echo PageFooter(); ?>
- <script type="text/javascript">
+ <dialog id="accountDialog" style="border:1px solid #bbb;border-radius:6px;max-width:440px;width:90%;padding:22px;box-shadow:0 8px 36px #0005;">
+    <form method="post" id="accountForm">
+        <h3 id="accountDialogTitle">Account</h3>
+        <input type="hidden" id="accountId" name="id" value="">
+        <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(DupCsrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
+        <label for="accountUsername">Username</label>
+        <input type="text" id="accountUsername" name="uname" required minlength="3" maxlength="64" pattern="[a-z0-9._-]+" autocomplete="off" style="display:block;width:95%;margin-bottom:12px;">
+        <label for="accountPassword">Password</label>
+        <input type="password" id="accountPassword" name="pass" minlength="12" maxlength="72" autocomplete="new-password" style="display:block;width:95%;">
+        <p id="passwordHelp" style="margin-top:6px;color:#666;"></p>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+            <button type="button" class="btn" onclick="document.getElementById('accountDialog').close()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save account</button>
+        </div>
+    </form>
+</dialog>
+<script type="text/javascript">
 function postAccountAction(action, fields)
 {
     var form = document.createElement("form");
     form.method = "POST";
     form.action = action;
+    fields.csrf = <?php echo json_encode(DupCsrfToken()); ?>;
 
     for(var key in fields)
     {
@@ -183,41 +202,31 @@ function DeleteAccount(id, account)
         postAccountAction("delete-accounts.php", { id: id });
 }
 
+function ShowAccountDialog(id, username)
+{
+    var dialog = document.getElementById("accountDialog");
+    var form = document.getElementById("accountForm");
+    var adding = (id === null);
+
+    form.action = adding ? "add-accounts.php" : "edit-accounts.php";
+    document.getElementById("accountDialogTitle").textContent = adding ? "Add Account" : "Edit Account";
+    document.getElementById("accountId").value = adding ? "" : id;
+    document.getElementById("accountUsername").value = adding ? "" : username;
+    document.getElementById("accountPassword").value = "";
+    document.getElementById("accountPassword").required = adding;
+    document.getElementById("passwordHelp").textContent = adding
+        ? "Required: enter a unique password of 12 to 72 bytes."
+        : "Leave blank to keep the existing password; otherwise use 12 to 72 bytes.";
+    dialog.showModal();
+    document.getElementById("accountUsername").focus();
+}
 function AddAccount()
 {
-    var uname = prompt("Enter account name", "newuser");
-
-    if(uname == null || uname == "")
-        return;
-
-    var pass = prompt("Enter account password", "");
-
-    if(pass == null || pass == "")
-        return;
-
-    postAccountAction("add-accounts.php", {
-        uname: uname,
-        pass: pass
-    });
+    ShowAccountDialog(null, "");
 }
-
 function EditAccount(id, currentName)
 {
-    var uname = prompt("Enter new account name", currentName);
-
-    if(uname == null || uname == "")
-        return;
-
-    var pass = prompt("Enter new account password. Leave blank to keep the current password.", "");
-
-    if(pass == null)
-        return;
-
-    postAccountAction("edit-accounts.php", {
-        id: id,
-        uname: uname,
-        pass: pass
-    });
+    ShowAccountDialog(id, currentName);
 }
 </script>
   

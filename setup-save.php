@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/runtime-paths.php';
+require_once __DIR__ . '/auth.php';
 // Installation is a one-time destructive operation. Never reset a configured instance.
 if(($_SERVER["REQUEST_METHOD"] ?? "GET") !== "POST" && PHP_SAPI !== "cli")
 {
@@ -13,6 +14,8 @@ if(is_file(DupPrivateDir() . "/config.local.php") || is_file(__DIR__ . "/config.
     http_response_code(403);
     exit("DUP is already configured. Back up and use a migration procedure instead of resetting the database.");
 }
+
+DupRequirePostCsrf();
 
 ini_set("log_errors", "1");
 ini_set("error_log", DupLogDir() . "/php_errors.log");
@@ -322,7 +325,7 @@ function ConnectMariaDb($dbUser, $password, &$dbHost, &$dbPort)
 		"1. MariaDB 10 is installed and running.\n" .
 		"2. pdo_mysql is enabled in the Web Station PHP profile used by DUP.\n" .
 		"3. The MariaDB username and password are correct.\n" .
-		"4. The MariaDB user can create/drop the dup database.\n" .
+		"4. The MariaDB user can create the dup database.\n" .
 		"5. MariaDB 10 is listening on TCP 3306 or 3307.\n\n" .
         $errors
     );
@@ -330,43 +333,45 @@ function ConnectMariaDb($dbUser, $password, &$dbHost, &$dbPort)
 
 ValidateSetupEnvironment();
 
+$adminPassword = isset($_POST['admin_password']) && is_string($_POST['admin_password'])
+    ? $_POST['admin_password'] : '';
+$adminConfirm = isset($_POST['admin_password_confirm']) && is_string($_POST['admin_password_confirm'])
+    ? $_POST['admin_password_confirm'] : '';
+if($adminPassword !== $adminConfirm || strlen($adminPassword) < 12 || strlen($adminPassword) > 72)
+    SetupFail('Choose and confirm a DUP administrator password between 12 and 72 bytes.');
+
 $dbUser = CleanDbUser(isset($_POST["db_user"]) ? $_POST["db_user"] : (isset($_POST["user"]) ? $_POST["user"] : "root"));
 $password = isset($_POST["password"]) ? $_POST["password"] : "";
 $dbDir = isset($_POST["db_dir"]) && strlen($_POST["db_dir"]) > 0 ? $_POST["db_dir"] : __DIR__;
 $dbFile = isset($_POST["filebd"]) ? 1 : 0;
 
 if($dbFile == 1)
-{
     SetupFail("New SQLite installations are not currently supported. Use MariaDB 10.");
-    WriteDbConfig($dbUser, $password, $dbDir, 1, "localhost", "");
-
-    $src = __DIR__ . "/files/dup.db";
-    $dst = $dbDir . "/dup.db";
-
-    if(is_file($dst) && !@unlink($dst))
-        SetupFail("Could not remove old SQLite DB: " . $dst);
-
-    if(!copy($src, $dst))
-        SetupFail("Could not copy SQLite DB from " . $src . " to " . $dst);
-
-    header("Location: index.php");
-    exit;
-}
 
 $dbHost = "localhost";
 $dbPort = "";
 $pdo = ConnectMariaDb($dbUser, $password, $dbHost, $dbPort);
 
 try {
-    $pdo->exec("DROP DATABASE IF EXISTS dup");
-    $pdo->exec("CREATE DATABASE dup CHARACTER SET utf8 COLLATE utf8_unicode_ci");
+    // Never destroy an existing database, even if the web config was lost.
+    $existing = $pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='dup'");
+    if((int)$existing->fetchColumn() > 0)
+        SetupFail("The dup database already contains tables. Setup will not overwrite any existing data. Use a migration.");
+    $existing->closeCursor();
+
+    $pdo->exec("CREATE DATABASE IF NOT EXISTS dup CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
     $pdo->exec("USE dup");
 }
 catch(PDOException $ex) {
-    SetupFail("Could not reset/create dup database", $ex);
+    SetupFail("Could not create a new dup database", $ex);
 }
 
 RunSqlText($pdo, require __DIR__ . "/database-schema.php");
+$adminHash = DupHashNewPassword($adminPassword);
+$adminUpdate = $pdo->prepare("UPDATE accounts SET password=:hash WHERE name='admin'");
+$adminUpdate->execute([':hash' => $adminHash]);
+if($adminUpdate->rowCount() !== 1)
+    SetupFail('Could not initialise the administrator account.');
 ValidateDatabaseImport($pdo);
 
 WriteDbConfig($dbUser, $password, $dbDir, 0, $dbHost, $dbPort);
@@ -374,10 +379,10 @@ WriteDbConfig($dbUser, $password, $dbDir, 0, $dbHost, $dbPort);
 ShowSetupResultPage(
     "DUP setup completed successfully",
     array(
-        "MariaDB database was created/reset.",
+        "A new MariaDB database was initialised without overwriting existing tables.",
         "Required tables were imported and validated.",
         "config.local.php was updated with the working database username, host, and port.",
-        "Default admin account: admin / admin"
+        "Administrator account: admin (using the password chosen during setup)"
     ),
     array(
         "Database user" => $dbUser,

@@ -64,6 +64,7 @@ $(document).ready(function(){
   <form id="link" name="link" method="POST" action="action-list-files.php">
 <input type="hidden" name="profile" value="<?php echo intval($profile); ?>">
    <input type="hidden" name="action" value="Link">
+   <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(DupCsrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
 <TABLE id=showListTable class=tablesorter border=0 cellSpacing=1 cellPadding=0>
 <THEAD>

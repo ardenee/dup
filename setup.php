@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/runtime-paths.php';
+require_once __DIR__ . '/auth.php';
 if(is_file(DupPrivateDir() . '/config.local.php') || is_file(__DIR__ . '/config.local.php'))
 {
     // Setup is available only until the initial configuration is created.
@@ -124,7 +125,7 @@ foreach($setupChecks as $check)
 function handleClick()
 {
     var answer = confirm(
-        "DUP setup will connect to MariaDB 10, recreate the dup database, import the required tables, and write the database settings.\n\n" +
+        "DUP setup will initialise a new MariaDB database and save its connection settings. Existing tables will not be overwritten.\n\n" +
         "Before continuing, make sure:\n" +
         "- Web Station is installed and running\n" +
         "- PHP 8.2 or higher is selected for DUP\n" +
@@ -132,7 +133,7 @@ function handleClick()
         "- MariaDB 10 is installed and running\n" +
         "- The configured MariaDB user/password is correct\n" +
         "- The configured MariaDB user can create/drop the dup database\n\n" +
-        "This will reset the dup database unless an upgrade/import path is being used.\n\n" +
+        "Only use this for a new installation. Existing accounts, profiles and scans require migrations.\n\n" +
         "Continue?"
     );
 
@@ -261,6 +262,7 @@ function handleClick()
   <div id="config">
    <div id="config-content">
     <form id="configForm" action="setup-save.php" method="post">
+     <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(DupCsrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
      <div id="config-components">
       <div id="core-component-group" class="component-group clearfix">
        <div class="component-group-desc">
@@ -272,7 +274,7 @@ function handleClick()
          <label class="nocheck clearfix" for="db_user">
           <span class="component-title">MySQL User</span>
           <input type="text" name="db_user" id="db_user" value="root" size="35" maxlength="64" autocomplete="username" required>
-          <span class="component-desc">MariaDB user with permission to create/drop the dup database. Default: root.</span>
+          <span class="component-desc">MariaDB user with permission to create the dup database. Default: root.</span>
          </label>
         </div>
         <div class="field-pair">
@@ -282,12 +284,19 @@ function handleClick()
          </label>
         </div>
         <div class="field-pair">
-         <input type="checkbox" name="upgrade" id="upgrade"/>
-         <label class="clearfix" for="upgrade">
-          <span class="component-title">Keep Old Data</span>
-          <span class="component-desc">Exports and then Imports your old data to the new DB Structure (v0.6 onwards only!) May take some time!!</span>
+         <label class="nocheck clearfix" for="admin_password">
+          <span class="component-title">DUP Admin Password</span>
+          <input type="password" id="admin_password" name="admin_password" minlength="12" maxlength="72" size="35" autocomplete="new-password" required>
+          <span class="component-desc">Choose a unique 12-72 byte administrator password. DUP will not use a default admin password.</span>
          </label>
         </div>
+        <div class="field-pair">
+         <label class="nocheck clearfix" for="admin_password_confirm">
+          <span class="component-title">Confirm Admin Password</span>
+          <input type="password" id="admin_password_confirm" name="admin_password_confirm" minlength="12" maxlength="72" size="35" autocomplete="new-password" required>
+         </label>
+        </div>
+
        </fieldset>
 
        <div class="field-pair">

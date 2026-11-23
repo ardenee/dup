@@ -1,3 +1,7 @@
+<?php
+require_once __DIR__ . '/auth.php';
+DupSessionStart();
+?>
 <!DOCTYPE HTML>
 <HTML>
  <HEAD>
@@ -119,7 +123,9 @@
   <div id="config">
    <div id="config-content">
     <form id="configForm" action="login-accounts.php" method="post">
+     <input type="hidden" name="csrf" value="<?php echo htmlspecialchars(DupCsrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
      <div id="config-components">
+<?php if(isset($_GET["error"])) { ?><div class="alert alert-error">Login failed. Check your credentials and try again.</div><?php } ?>
       <div id="core-component-group" class="component-group clearfix">
 	  
        <div class="component-group-desc">
@@ -141,7 +147,7 @@
 		</label>
 		<label class="nocheck clearfix">
 		<span class="component-title">&nbsp;</span>
-		<span class="component-desc">Default admin password is <b>admin</b></span>
+		<span class="component-desc">For security, use a unique password and an HTTPS connection.</span>
 		</label>
 		</div>		 
 		 

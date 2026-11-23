@@ -60,6 +60,11 @@ function PostProfileAction(url, id)
     input.value = id;
 
     form.appendChild(input);
+    var csrf = document.createElement("input");
+    csrf.type = "hidden";
+    csrf.name = "csrf";
+    csrf.value = <?php echo json_encode(DupCsrfToken()); ?>;
+    form.appendChild(csrf);
     document.body.appendChild(form);
     form.submit();
 }
