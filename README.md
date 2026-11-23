@@ -2,6 +2,10 @@
 
 DUP is a browser-based duplicate-file scanner and file manager. It indexes folders into a database, groups potential duplicates by file size or CRC32, and provides file search, profile review, logs, and queued rename, move, delete and link operations.
 
+## Licence
+
+DUP is distributed under the [MIT License](LICENSE). Third-party components retain their own licences.
+
 ## Runtime requirements
 
 - Generic web server: PHP 8.2+, PDO, `pdo_mysql`, sessions, `mbstring`, and MariaDB 10.
