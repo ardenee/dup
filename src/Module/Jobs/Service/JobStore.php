@@ -65,7 +65,7 @@ final class JobStore
     {
         for($attempt=0;$attempt<5;$attempt++) {
             $id=$this->db->fetchOne(
-                "SELECT id FROM jobs WHERE state='queued' AND kind IN ('scan','rebuild-duplicates','file-action','file-restore')" .
+                "SELECT id FROM jobs WHERE state='queued' AND kind IN ('scan','rebuild-duplicates','file-action','file-restore','file-rename')" .
                 ($onlyId===null?' ORDER BY id LIMIT 1':' AND id=? LIMIT 1'),
                 $onlyId===null?[]:[$onlyId]
             );
@@ -133,13 +133,15 @@ final class JobStore
                     $db->executeStatement("UPDATE file_action_batches SET state='cancelled' WHERE id=? AND state='queued'",[$job['file_action_batch_id']]);
                 if($job['kind']==='file-restore')
                     $db->executeStatement("UPDATE file_action_batches SET state='completed' WHERE id=? AND state='restore_queued'",[$job['file_action_batch_id']]);
+                if($job['kind']==='file-rename')
+                    $db->executeStatement("UPDATE file_action_batches SET state='cancelled' WHERE id=? AND action_kind='rename' AND state='queued'",[$job['file_action_batch_id']]);
                 if($job['kind']==='scan')
                     $db->executeStatement("UPDATE scan_runs SET state='cancelled',finished_at=? WHERE id=?",[$now,$job['run_id']]);
                 $this->event($id,'warning','SCAN_CANCELLED_QUEUED');
                 return true;
             }
             $kind=$db->fetchOne('SELECT kind FROM jobs WHERE id=?',[$id]);
-            if(in_array($kind,['file-action','file-restore'],true))
+            if(in_array($kind,['file-action','file-restore','file-rename'],true))
                 return false; // Once claimed, irreversible filesystem stages cannot be cancelled.
             $running=$db->executeStatement(
                 "UPDATE jobs SET state='cancelling' WHERE id=? AND state='running'",[$id]
@@ -243,7 +245,7 @@ final class JobStore
                     "UPDATE scan_runs SET state='failed',finished_at=?,error_count=error_count+1 WHERE id=?",
                     [gmdate('Y-m-d H:i:s'),(int)$row['run_id']]
                 );
-            if(in_array($row['kind'],['file-action','file-restore'],true))
+            if(in_array($row['kind'],['file-action','file-restore','file-rename'],true))
                 $this->db->executeStatement(
                     "UPDATE file_action_batches SET state='needs_review',error_code='WORKER_STALLED' " .
                     "WHERE id=? AND state IN ('queued','executing','restore_queued','restore_executing')",

@@ -172,3 +172,43 @@ textarea{font:inherit;color:var(--ink)}
 .profile-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:260px}
 .profile-actions form{display:inline-flex;margin:0}
 .profile-actions .link-button{font-size:12px;padding:6px 10px}
+
+/* Search: consistent card gutters, aligned controls and usable filter grid. */
+.search-form{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(200px,1fr) minmax(200px,1fr);column-gap:18px;row-gap:14px;padding:24px}
+.search-form>.field{margin:0;min-width:0}
+.search-form .search-term{grid-column:1/-1}
+.search-form .field input,.search-form .field select{min-height:44px}
+.search-form .search-actions{display:flex;align-items:center;gap:18px;flex-wrap:wrap;grid-column:1/-1;margin-top:4px}
+.search-form .search-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer}
+.search-form .search-check input{width:16px;height:16px;margin:0;accent-color:var(--primary)}
+.search-form .search-actions button{min-width:110px}
+.search-form+.report-explanation{padding-top:0}
+/* Settings cards should follow the same full-width layout as other sections. */
+.ignored-folder-panel{width:100%;max-width:none}
+.ignored-folder-panel .panel-content{padding:24px}
+.ignored-folder-panel textarea{min-height:210px;line-height:1.55}
+.ignored-folder-panel .notice{margin:20px 0}
+.ignored-folder-panel .form-actions{margin-top:22px;flex-wrap:wrap}
+.ignored-folder-panel .field-help{max-width:none}
+/* Worker status: concise guidance, no oversized inline command fragments. */
+.worker-summary{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.worker-summary p{margin:0}
+.worker-note{font-size:13px;color:var(--muted);line-height:1.6;margin:12px 0 0}
+.worker-command{display:block;margin:12px 0 0;padding:12px 14px;border-radius:8px;background:#f1f5f9;overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}
+@media(max-width:900px){.search-form{grid-template-columns:repeat(2,minmax(0,1fr))}.search-form .field:nth-of-type(3){grid-column:1/-1}}
+@media(max-width:620px){.search-form{grid-template-columns:minmax(0,1fr);padding:19px}.search-form .field:nth-of-type(3){grid-column:auto}.search-form .search-term,.search-form .search-actions{grid-column:auto}.ignored-folder-panel .panel-content{padding:19px}}
+
+.rename-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px 20px;padding:24px}
+.rename-options .field{margin:0}
+.rename-options-actions{display:flex;align-items:center;gap:18px;flex-wrap:wrap;grid-column:1/-1;margin-top:6px}
+.rename-options .search-check{display:inline-flex;align-items:center;gap:7px;font-size:13px;cursor:pointer}
+.rename-options input[type=checkbox]{width:16px;height:16px;accent-color:var(--primary)}
+.rename-options-actions .primary{min-width:130px}
+.rename-batch-actions{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.rename-table td code{overflow-wrap:anywhere}
+.rename-single-form{margin:25px 0 0;max-width:700px}
+.rename-details{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.rename-details>div{padding:13px 16px}
+.rename-details dd{min-width:0;overflow-wrap:anywhere}
+.rename-options .field input,.rename-options .field select{min-height:44px}
+@media(max-width:650px){.rename-options{grid-template-columns:minmax(0,1fr);padding:19px}.rename-options-actions{grid-column:1/-1}}

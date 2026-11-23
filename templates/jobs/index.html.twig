@@ -44,11 +44,25 @@
 {% endif %}
 </section>
 <section class="panel">
-  <div class="panel-heading"><h2>Worker execution</h2></div>
+  <div class="panel-heading"><h2>Background worker</h2>
+    <span class="status">{{ worker.active > 0 ? 'Running' : 'Not responding' }}</span>
+  </div>
   <div class="panel-content">
-    <p>The job queue is persistent. Run the shared CLI worker using Windows Task Scheduler, cron, Linux systemd, a generic service manager, or the DSM package service.</p>
-    <code>php bin/console dup:jobs:work --max-jobs=1</code>
-    <p class="muted">If the worker stops unexpectedly, use <code>dup:jobs:recover</code> to mark jobs with expired heartbeats as failed. Successful snapshots are preserved.</p>
+    <div class="worker-summary">
+      <p>{{ worker.active|number_format }} active worker{{ worker.active == 1 ? '' : 's' }}</p>
+      <span class="muted">Last heartbeat: {{ worker.last_heartbeat ? worker.last_heartbeat ~ ' UTC' : 'None recorded' }}</span>
+    </div>
+    {% if is_dsm %}
+      <p class="worker-note">Synology DSM starts and manages this worker through the DUP package service. No manual command is needed.</p>
+      {% if worker.active == 0 %}
+        <div class="notice notice-warning">The background worker is not reporting. Check the DUP service in DSM Package Center and review System health before starting new scans.</div>
+      {% endif %}
+    {% else %}
+      <p class="worker-note">On Windows or Linux, run the worker with your service manager, Task Scheduler or cron. The persistent job queue survives restarts.</p>
+      <code class="worker-command">php bin/console dup:jobs:work --loop</code>
+      <p class="worker-note">Recovery command for expired jobs:</p>
+      <code class="worker-command">php bin/console dup:jobs:recover</code>
+    {% endif %}
   </div>
 </section>
 <script type="module" src="{{ asset('assets/jobs.js') }}"></script>

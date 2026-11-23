@@ -1,0 +1,27 @@
+{% extends 'base.html.twig' %}
+{% block title %}Rename file{% endblock %}
+{% block section %}Files / Rename{% endblock %}
+{% block body %}
+<div class="page-heading"><div><div class="eyebrow">FILE MANAGEMENT</div><h1>Rename a file</h1>
+<p class="muted">Enter the new filename. The extension may be changed, but the directory stays the same.</p></div>
+<a class="secondary link-button" href="{{ path('app_rename',{profile:file.profile_id}) }}">Back to rename list</a></div>
+<section class="panel">
+<div class="panel-heading"><h2>{{ file.profile_name }}</h2></div>
+<div class="panel-content">
+<dl class="details rename-details">
+  <div><dt>Directory</dt><dd><code>{{ file.directory }}</code></dd></div>
+  <div><dt>Current filename</dt><dd><code>{{ file.filename }}</code></dd></div>
+  <div><dt>Size</dt><dd>{{ file.size_bytes|number_format }} bytes</dd></div>
+</dl>
+{% if error %}<div class="notice notice-error" role="alert">{{ error }}</div>{% endif %}
+<form method="post" action="{{ path('app_rename_file',{id:file.id}) }}" class="rename-single-form">
+  <input type="hidden" name="_token" value="{{ csrf_token('rename_file_' ~ file.id) }}">
+  <div class="field"><label for="new-filename">New filename</label>
+    <input type="text" name="new_filename" id="new-filename" maxlength="255" required value="{{ app.request.request.get('new_filename',file.filename) }}"></div>
+  <p class="muted">This queues a background rename with file-change and collision checks. Existing files will not be overwritten.</p>
+  <div class="form-actions"><button class="primary" type="submit">Queue rename</button>
+  <a class="secondary link-button" href="{{ path('app_search',{q:file.filename}) }}">Cancel</a></div>
+</form>
+</div>
+</section>
+{% endblock %}

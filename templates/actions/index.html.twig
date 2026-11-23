@@ -3,7 +3,7 @@
 {% block section %}File actions{% endblock %}
 {% block body %}
 <div class="page-heading"><div><div class="eyebrow">SAFE FILE OPERATIONS</div><h1>File action history</h1>
-<p class="muted">Reversible, verified quarantine and restore operations. Permanent deletion is not enabled.</p></div>
+<p class="muted">Recorded quarantine, restore and rename operations. Permanent deletion is not enabled.</p></div>
 <a href="{{ path('app_duplicates') }}" class="secondary link-button">Browse duplicates</a></div>
 <section class="panel">
 <div class="panel-heading"><h2>Recent action batches</h2><span class="muted">Last {{ batches|length }}</span></div>
@@ -13,7 +13,7 @@
 <div class="table-wrap"><table><thead><tr>
 <th>Batch</th><th>Profile / file</th><th>Status</th><th>Requested (UTC)</th><th>Result</th></tr></thead>
 <tbody>{% for batch in batches %}<tr>
-<td><a href="{{ path('app_action_detail',{id:batch.id}) }}">#{{ batch.id }}</a></td>
+<td>{% if batch.action_kind == 'rename' %}<a href="{{ path('app_rename') }}">#{{ batch.id }} · Rename</a>{% else %}<a href="{{ path('app_action_detail',{id:batch.id}) }}">#{{ batch.id }}</a>{% endif %}</td>
 <td><strong>{{ batch.profile_name }}</strong><div><code>{{ batch.source_path }}</code></div></td>
 <td><span class="status">{{ batch.state|replace({'_':' '}) }}</span></td>
 <td>{{ batch.requested_at }}</td>

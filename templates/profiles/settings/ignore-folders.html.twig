@@ -6,7 +6,7 @@
   <div class="eyebrow">DUP SETTINGS</div><h1>Ignored folder names</h1>
   <p class="muted">Exclude selected directory names from duplicate matches, without losing indexed file information.</p>
 </div></div>
-<section class="panel form-panel">
+<section class="panel ignored-folder-panel">
   <div class="panel-heading"><h2>Global exclusions</h2></div>
   <form action="{{ path('app_ignore_folders_save') }}" method="post" class="panel-content">
     <input type="hidden" name="_token" value="{{ csrf_token('ignore_rules') }}">

@@ -7,6 +7,7 @@ use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Scans\Service\ScanEngine;
 use App\Module\Duplicates\Service\IgnoreRebuildWorker;
 use App\Module\FileActions\Service\FileActionWorker;
+use App\Module\Renaming\Service\RenameWorker;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -24,6 +25,7 @@ final class WorkJobsCommand extends Command
         private readonly ScanEngine $scanner,
         private readonly IgnoreRebuildWorker $rebuild,
         private readonly FileActionWorker $fileActions,
+        private readonly RenameWorker $renames,
         private readonly Connection $db,
         private readonly WorkerHeartbeat $heartbeat
     ) {parent::__construct();}
@@ -83,6 +85,7 @@ final class WorkJobsCommand extends Command
                         'scan' => $this->scanner->run($job),
                         'rebuild-duplicates' => $this->rebuild->run($job),
                         'file-action', 'file-restore' => $this->fileActions->run($job),
+                        'file-rename' => $this->renames->run($job),
                         default => throw new \LogicException('Unknown job type.')
                     };
                 } catch(\Throwable $ex) {

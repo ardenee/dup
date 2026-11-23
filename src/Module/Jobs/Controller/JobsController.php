@@ -13,9 +13,11 @@ use Symfony\Component\Routing\Attribute\Route;
 final class JobsController extends AbstractController
 {
     #[Route('/jobs',name:'app_jobs',methods:['GET'])]
-    public function index(Connection $db): Response
+    public function index(Connection $db,\App\Module\Jobs\Service\WorkerHeartbeat $heartbeat): Response
     {
         return $this->render('jobs/index.html.twig',[
+            'is_dsm'=>\App\Core\Setup\HostEnvironment::isSynology(dirname(__DIR__,4)),
+            'worker'=>$heartbeat->report(),
             'jobs'=>$db->fetchAllAssociative(
                 'SELECT j.id,j.kind,j.phase,j.state,j.progress_current,j.progress_total,' .
                 'j.created_at,j.started_at,j.finished_at,j.heartbeat_at,j.error_code,' .
