@@ -1,0 +1,21 @@
+{% extends 'base.html.twig' %}
+{% block title %}Sign in{% endblock %}
+{% block section %}Sign in{% endblock %}
+{% block body %}
+<div class="login-layout">
+  <section class="panel login-panel">
+    <div class="eyebrow">DUP v2</div>
+    <h1>Sign in</h1>
+    <p class="muted">Access scanning, duplicate results and system diagnostics.</p>
+    {% if error %}<div class="notice notice-error" role="alert">Invalid username or password.</div>{% endif %}
+    <form method="post" action="{{ path('app_login') }}">
+      <div class="field"><label for="username">Username</label>
+        <input id="username" name="_username" type="text" value="{{ last_username }}" autocomplete="username" required autofocus></div>
+      <div class="field"><label for="password">Password</label>
+        <input id="password" name="_password" type="password" autocomplete="current-password" required></div>
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+      <button type="submit" class="primary">Sign in</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

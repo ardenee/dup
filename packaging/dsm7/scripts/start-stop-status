@@ -1,4 +1,0 @@
-#!/bin/sh
-set -eu
-# On-demand PHP web/CLI workers; no persistent process to start or stop.
-case "${1:-}" in start|stop|status|prestart|prestop) exit 0 ;; *) exit 1 ;; esac

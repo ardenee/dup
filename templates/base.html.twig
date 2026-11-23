@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>{% block title %}DUP{% endblock %} · Duplicate Manager</title>
+  <link rel="stylesheet" href="{{ asset('assets/app.css') }}">
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <div class="app-shell">
+  {% if app.user %}
+    <aside class="sidebar" aria-label="Application navigation">
+      <div class="brand"><span class="brand-mark">D</span><div><strong>DUP</strong><small>Duplicate Manager</small></div></div>
+      <nav>
+      {% for link in dup_navigation() %}
+        <a href="{{ path(link.route) }}" class="nav-link {{ app.request.attributes.get('_route') == link.route ? 'active' : '' }}">
+          {{ link.label }}
+        </a>
+      {% endfor %}
+      </nav>
+      <div class="sidebar-bottom">
+        <span class="account-name">{{ app.user.userIdentifier }}</span>
+        <form method="post" action="{{ path('app_logout') }}">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
+          <button class="signout" type="submit">Sign out</button>
+        </form>
+        <span class="version">v2 · Development preview</span>
+      </div>
+    </aside>
+  {% endif %}
+  <div class="content-wrap {{ app.user ? '' : 'guest' }}">
+    <header class="topbar">
+      <span class="topbar-name">DUP <span class="topbar-muted">/ {% block section %}Overview{% endblock %}</span></span>
+      <span class="environment">DEVELOPMENT</span>
+    </header>
+    <main class="main" id="content">
+      {% for label, messages in app.flashes %}
+        {% for message in messages %}
+          <div class="notice notice-{{ label }}" role="status">{{ message }}</div>
+        {% endfor %}
+      {% endfor %}
+      {% block body %}{% endblock %}
+    </main>
+    <footer class="app-footer">DUP v2 development foundation · No filesystem changes without a confirmed operation</footer>
+  </div>
+  </div>
+</body>
+</html>

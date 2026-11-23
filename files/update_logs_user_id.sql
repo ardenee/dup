@@ -1,2 +1,0 @@
-ALTER TABLE logs ADD user_id INT NOT NULL DEFAULT 0;
-CREATE INDEX logs_user_id ON logs (user_id);

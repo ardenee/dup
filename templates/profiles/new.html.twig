@@ -1,0 +1,31 @@
+{% extends 'base.html.twig' %}
+{% block title %}New profile{% endblock %}
+{% block section %}Profiles / New{% endblock %}
+{% block body %}
+<div class="page-heading"><div><div class="eyebrow">SCANNING</div><h1>New profile</h1>
+<p class="muted">Add a scan definition. This foundation version saves settings only; the new worker will be connected after job verification.</p></div>
+<a class="secondary link-button" href="{{ path('app_profiles') }}">Back to profiles</a></div>
+<section class="panel form-panel">
+  {% if errors is not empty %}<div class="notice notice-error" role="alert"><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
+  <form method="post" action="{{ path('app_profile_new') }}">
+  <input type="hidden" name="_token" value="{{ csrf_token('create_profile') }}">
+  <div class="field"><label for="name">Profile name</label>
+    <input id="name" name="name" maxlength="140" required value="{{ app.request.request.get('name', '') }}" placeholder="e.g. Music library"></div>
+  <div class="field"><label for="source">Source folder on the server</label>
+    <input id="source" name="source_root" required value="{{ app.request.request.get('source_root', '') }}" placeholder="/volume1/Music"></div>
+  <div class="field"><label for="move">Move folder on the server</label>
+    <input id="move" name="move_root" required value="{{ app.request.request.get('move_root', '') }}" placeholder="/volume1/Archive"></div>
+  <div class="field"><label for="type">File-type preset</label>
+    <select name="profile_type_id" id="type">{% for item in types %}
+      <option value="{{ item.id }}" {{ app.request.request.get('profile_type_id') == item.id ? 'selected' : '' }}>{{ item.name }}</option>
+    {% endfor %}</select></div>
+  <div class="field"><label for="mode">Duplicate matching</label>
+    <select id="mode" name="hash_mode"><option value="sha256">Exact SHA-256 (planned)</option>
+      <option value="size">Size candidates only (planned)</option></select></div>
+  <div class="field"><label for="minimum">Minimum file size (bytes)</label>
+    <input id="minimum" name="minimum_bytes" type="number" min="0" step="1" value="{{ app.request.request.get('minimum_bytes','0') }}" required></div>
+  <div class="form-actions"><button class="primary" type="submit">Save profile</button>
+    <a class="secondary link-button" href="{{ path('app_profiles') }}">Cancel</a></div>
+  </form>
+</section>
+{% endblock %}

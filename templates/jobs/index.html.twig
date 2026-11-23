@@ -1,0 +1,20 @@
+{% extends 'base.html.twig' %}
+{% block title %}Jobs{% endblock %}
+{% block section %}Jobs{% endblock %}
+{% block body %}
+<div class="page-heading"><div><div class="eyebrow">OPERATIONS</div><h1>Job monitor</h1>
+<p class="muted">Durable jobs will track progress, heartbeat, errors and retries.</p></div></div>
+<section class="panel">
+<div class="panel-heading"><h2>Job history</h2><span class="muted">{{ jobs|length }} recent</span></div>
+{% if jobs is empty %}
+<div class="empty-state">No jobs in the new database. The scan worker is not enabled yet.</div>
+{% else %}
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Type</th><th>Phase</th><th>State</th><th>Progress</th><th>Last heartbeat</th><th>Error code</th></tr></thead>
+<tbody>{% for job in jobs %}<tr><td>#{{ job.id }}</td><td>{{ job.kind }}</td><td>{{ job.phase }}</td>
+<td><span class="status">{{ job.state }}</span></td>
+<td>{{ job.progress_current }}{% if job.progress_total is not null %} / {{ job.progress_total }}{% endif %}</td>
+<td>{{ job.heartbeat_at ?? '—' }}</td><td>{{ job.error_code ?? '—' }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endif %}
+</section>
+{% endblock %}

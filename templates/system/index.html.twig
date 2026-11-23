@@ -1,0 +1,17 @@
+{% extends 'base.html.twig' %}
+{% block title %}System{% endblock %}
+{% block section %}System{% endblock %}
+{% block body %}
+<div class="page-heading"><div><div class="eyebrow">DIAGNOSTICS</div><h1>System health</h1>
+<p class="muted">Runtime configuration, database readiness and worker status.</p></div></div>
+<div class="panel">
+  <div class="panel-heading"><h2>Readiness</h2><span class="status">{{ health.status }}</span></div>
+  <dl class="details">
+    <div><dt>PHP version</dt><dd>{{ health.checks.php }}</dd></div>
+    <div><dt>Database</dt><dd>{{ health.checks.database }}</dd></div>
+    <div><dt>Database schema</dt><dd>{{ health.checks.schema }}</dd></div>
+    <div><dt>Background worker</dt><dd>{{ health.checks.worker }}</dd></div>
+    <div><dt>Missing PHP extensions</dt><dd>{{ health.checks.required_extensions is empty ? 'None' : health.checks.required_extensions|join(', ') }}</dd></div>
+  </dl>
+</div>
+{% endblock %}

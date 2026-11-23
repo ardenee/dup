@@ -1,0 +1,10 @@
+parameters:
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+    _instanceof:
+        App\Core\Module\ModuleInterface:
+            tags: ['dup.module']
+    App\:
+        resource: '../src/'

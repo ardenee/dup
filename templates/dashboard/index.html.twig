@@ -1,0 +1,27 @@
+{% extends 'base.html.twig' %}
+{% block title %}Dashboard{% endblock %}
+{% block section %}Dashboard{% endblock %}
+{% block body %}
+<div class="page-heading"><div><div class="eyebrow">OVERVIEW</div><h1>Dashboard</h1>
+  <p class="muted">Scan activity, duplicate matches and background work across your configured profiles.</p></div>
+  <a class="primary link-button" href="{{ path('app_profile_new') }}">New profile</a></div>
+<div class="stats-grid">
+  <div class="stat"><span>Profiles</span><strong>{{ metrics.profiles|number_format }}</strong></div>
+  <div class="stat"><span>Completed runs</span><strong>{{ metrics.completed_scans|number_format }}</strong></div>
+  <div class="stat"><span>Indexed files</span><strong>{{ metrics.files|number_format }}</strong></div>
+  <div class="stat"><span>Duplicate groups</span><strong>{{ metrics.duplicate_groups|number_format }}</strong></div>
+  <div class="stat"><span>Active jobs</span><strong>{{ metrics.active_jobs|number_format }}</strong></div>
+</div>
+<section class="panel">
+  <div class="panel-heading"><div><h2>Recent jobs</h2><p class="muted">Worker progress and errors will appear here.</p></div>
+    <a class="text-link" href="{{ path('app_jobs') }}">View all jobs</a></div>
+  {% if jobs is empty %}
+    <div class="empty-state">No jobs yet. Set up a profile to begin.</div>
+  {% else %}
+    <div class="table-wrap"><table><thead><tr><th>Job</th><th>Type</th><th>Stage</th><th>Status</th><th>Progress</th></tr></thead>
+    <tbody>{% for job in jobs %}<tr><td>#{{ job.id }}</td><td>{{ job.kind }}</td><td>{{ job.phase }}</td>
+    <td><span class="status">{{ job.state }}</span></td>
+    <td>{{ job.progress_current }}{% if job.progress_total is not null %} / {{ job.progress_total }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+  {% endif %}
+</section>
+{% endblock %}
