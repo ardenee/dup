@@ -30,22 +30,11 @@ def member(tar:tarfile.TarFile,name:str,data:bytes,mode:int=0o644)->None:
 def package_contents() -> dict[str,bytes]:
     source=payload()
     files={"app/"+name:data for name,data in source.items()}
-    front=b"""<?php
-declare(strict_types=1);
-// The DSM portal must direct an unconfigured installation to the setup
-// wizard before Symfony requires database credentials or sessions.
-if (!is_file('/var/packages/dup/var/runtime/setup.complete')) {
-    header('Location: /dup/setup.php', true, 302);
-    header('Cache-Control: no-store');
-    exit;
-}
-require '/var/packages/dup/target/app/public/index.php';
-"""
-    files["webapp/index.php"]=front
-    files["webapp/setup.php"]=b"""<?php
-// One-time bootstrap remains implemented in the platform-neutral private app.
-require '/var/packages/dup/target/app/public/setup.php';
-"""
+    # Portal wrappers are source-controlled copies of the verified live DSM
+    # endpoints. Keep them in Git so an upgrade cannot regress login/session
+    # handling or the setup completion screen.
+    files["webapp/index.php"]=(DSM/"webapp"/"index.php").read_bytes().replace(b"\r\n",b"\n")
+    files["webapp/setup.php"]=(DSM/"webapp"/"setup.php").read_bytes().replace(b"\r\n",b"\n")
     for name,data in source.items():
         if name.startswith("public/") and name not in {
             "public/index.php","public/setup.php","public/.htaccess","public/web.config"
