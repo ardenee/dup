@@ -3,7 +3,7 @@
     "services": [
       {
         "service": "dup",
-        "display_name": "DUP 0.7.4 Preview",
+        "display_name": "DUP 0.7.5 Preview",
         "support_alias": true,
         "support_server": false,
         "type": "nginx_php",
@@ -16,7 +16,7 @@
           "profile_name": "DUP PHP",
           "profile_desc": "DUP PHP profile",
           "backend": __PHP_BACKEND__,
-          "open_basedir": "/var/services/web_packages/dup:/var/packages/dup/target/app:/var/packages/dup/var:/volume1:/volume2:/volume3:/volume4:/tmp:/var/services/tmp",
+          "open_basedir": "/var/services/web_packages/dup:/var/packages/dup/target/app:/var/packages/dup/var:/volume1:/volume2:/volume3:/volume4:/run/mysqld:/tmp:/var/services/tmp",
           "extensions": ["pdo_mysql", "mbstring", "intl", "iconv", "openssl", "fileinfo", "xml"],
           "user": "dup",
           "group": "http"
@@ -30,7 +30,7 @@
       {
         "service": "dup",
         "name": "dup",
-        "display_name": "DUP 0.7.4 Preview",
+        "display_name": "DUP 0.7.5 Preview",
         "type": "alias",
         "alias": "dup"
       }

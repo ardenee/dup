@@ -45,7 +45,8 @@ def payload() -> dict[str,bytes]:
     if not any(f.startswith("vendor/symfony/framework-bundle/") for f in result):
         raise RuntimeError("Symfony vendor dependencies are not installed")
     required=("public/index.php","bin/console","config/services.yaml",
-              "src/Kernel.php","migrations/Version20261123000100.php")
+              "src/Kernel.php","migrations/Version20261123000100.php",
+              "src/Core/Setup/HostEnvironment.php","src/Core/Setup/DatabaseDiagnostic.php")
     if not all(k in result for k in required):
         raise RuntimeError("Missing mandatory DUP foundation files")
     # A fresh installation needs only database and administrator credentials.
@@ -87,6 +88,6 @@ def build(target: Path) -> None:
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
-    parser.add_argument("--output",type=Path,default=ROOT/"dist"/"DUP-Web-0.7.4-Preview.zip")
+    parser.add_argument("--output",type=Path,default=ROOT/"dist"/"DUP-Web-0.7.5-Preview.zip")
     args=parser.parse_args()
     build(args.output)

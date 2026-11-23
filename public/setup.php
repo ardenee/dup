@@ -55,7 +55,7 @@ if(!$installed && !$existing && !$errors && ($_SERVER['REQUEST_METHOD']??'GET')=
     } else {
         $_SESSION['dup_setup_attempts']=$attempts+1;
         $fields=['driver','db_host','db_port','db_name','db_user','db_password',
-                 'admin_user','admin_password','confirm_password','roots'];
+                 'admin_user','admin_password','confirm_password'];
         $input=[];
         foreach($fields as $field) {
             $value=$_POST[$field]??'';
@@ -92,7 +92,7 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>DUP 0.7.4 · First-run setup</title>
+  <title>DUP 0.7.5 · First-run setup</title>
   <link rel="stylesheet" href="assets/app.css">
   <link rel="icon" type="image/png" sizes="120x120" href="assets/dup.png">
 </head>
@@ -119,14 +119,17 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
   <?php endforeach; ?>
   <section class="panel panel-content">
     <h2>1. Server readiness</h2>
-    <p>PHP <?= show($preflight['php']??PHP_VERSION) ?> · <?= show($preflight['os']??PHP_OS_FAMILY) ?>.
+    <p>PHP <?= show($preflight['php']??PHP_VERSION) ?> · <?= show($preflight['platform']??PHP_OS_FAMILY) ?>.
     <?= $https?'Secure HTTPS connection':'Localhost development connection' ?>.</p>
     <?php if(!empty($preflight['missing'])): ?>
       <div class="notice notice-error">Missing required PHP extensions: <?= show(implode(', ',$preflight['missing'])) ?>.</div>
     <?php endif; ?>
-    <p class="muted">MariaDB/MySQL: <?= !empty($preflight['mysql'])?'Available':'pdo_mysql missing' ?>;
-    SQLite: <?= !empty($preflight['sqlite'])?'Available':'pdo_sqlite missing' ?>.
-    Private storage: <?= !empty($preflight['private_storage'])?'Writable':'Not writable' ?>.</p>
+    <p class="muted">MariaDB/MySQL: <?= !empty($preflight['mysql'])?'Driver available':'pdo_mysql missing' ?>;
+    SQLite (optional): <?= !empty($preflight['sqlite'])?'Driver available':'Not installed' ?>.
+    Private storage: <?= !empty($preflight['private_storage'])?'Writable':'Not writable' ?>.
+    <?php if(!empty($preflight['synology'])): ?>
+      MariaDB 10 local socket: <?= !empty($preflight['synology_socket'])?'Accessible to PHP':'Not accessible to PHP' ?>.
+    <?php endif; ?></p>
   </section>
   <form class="panel panel-content" method="post" autocomplete="off">
     <input type="hidden" name="_csrf" value="<?= show($_SESSION['dup_setup_csrf']) ?>">
@@ -141,7 +144,10 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
       <div class="field"><label for="db_host">Database host</label>
         <input id="db_host" name="db_host" value="<?= show($old('db_host','127.0.0.1')) ?>" maxlength="255"></div>
       <div class="field"><label for="db_port">Port</label>
-        <input id="db_port" name="db_port" inputmode="numeric" value="<?= show($old('db_port','3306')) ?>" maxlength="5"></div>
+        <input id="db_port" name="db_port" inputmode="numeric" value="<?= show($old('db_port',(string)($preflight['mysql_port']??3306))) ?>" maxlength="5"></div>
+      <?php if(!empty($preflight['synology'])): ?>
+        <p class="muted setup-db-help">Synology MariaDB 10 normally uses port <strong>3307</strong>, not 3306. If TCP/IP is disabled, DUP also tries the MariaDB 10 local socket when it is accessible. Your phpMyAdmin login may use that socket.</p>
+      <?php endif; ?>
       <div class="field"><label for="db_name">Empty database name</label>
         <input id="db_name" name="db_name" value="<?= show($old('db_name','dup')) ?>" maxlength="64"></div>
       <div class="field"><label for="db_user">Database user</label>
@@ -164,7 +170,7 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
     <p class="muted">This action creates the initial database schema and administrator account, writes a private configuration file, then permanently closes the installer.</p>
   </form>
 <?php endif; ?>
-<footer class="app-footer">DUP 0.7.4 · <a href="assets/license.txt">MIT License</a></footer>
+<footer class="app-footer">DUP 0.7.5 · <a href="assets/license.txt">MIT License</a></footer>
 </div>
 </body>
 </html>

@@ -76,6 +76,7 @@ def metadata(version:str,php_backend:int,files:dict[str,bytes])->dict[str,tuple[
     assert parsed["webservice"]["portals"][0]["alias"]=="dup"
     assert "var/packages/dup/target/app" in service["php"]["open_basedir"]
     assert "iconv" in service["php"]["extensions"]
+    assert "/run/mysqld" in service["php"]["open_basedir"]
     assert service["custom_rule"]["global_rule"] == "/var/packages/dup/target/app/misc/nginx_global.mustache"
     info=(DSM/"INFO").read_text(encoding="utf-8").replace("__VERSION__",version).encode()
     assert b'package="dup"' in info and b'adminurl="dup/"' in info
@@ -155,7 +156,7 @@ def build(output:Path,version:str,php_backend:int)->None:
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version",default="0.7.4")
+    parser.add_argument("--version",default="0.7.5")
     parser.add_argument("--php-backend",type=int,default=11,
         help="Web Station PHP backend ID, default 11 validated for PHP8.2 on the test DSM")
     parser.add_argument("--output",type=Path,default=None)

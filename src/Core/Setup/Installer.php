@@ -56,6 +56,10 @@ final class Installer
         return [
             'php'=>PHP_VERSION,
             'os'=>PHP_OS_FAMILY,
+            'platform'=>HostEnvironment::label($this->root),
+            'synology'=>HostEnvironment::isSynology($this->root),
+            'mysql_port'=>HostEnvironment::mysqlPort($this->root),
+            'synology_socket'=>HostEnvironment::localMariaDbSocket($this->root)!==null,
             'missing'=>$missing,
             'mysql'=>in_array('mysql',$drivers,true),
             'sqlite'=>in_array('sqlite',$drivers,true),
@@ -94,7 +98,7 @@ final class Installer
             if($driver==='mysql') {
                 if(!$required['mysql']) throw new \DomainException('Enable the PHP pdo_mysql extension.');
                 $host=trim((string)($input['db_host']??''));
-                $port=filter_var($input['db_port']??'3306',FILTER_VALIDATE_INT,
+                $port=filter_var($input['db_port']??(string)HostEnvironment::mysqlPort($this->root),FILTER_VALIDATE_INT,
                     ['options'=>['min_range'=>1,'max_range'=>65535]]);
                 $name=trim((string)($input['db_name']??''));
                 $dbUser=trim((string)($input['db_user']??''));
@@ -103,11 +107,14 @@ final class Installer
                     !preg_match('/^[a-zA-Z0-9_-]{1,64}$/D',$name) ||
                     $dbUser==='' || strlen($dbUser)>128)
                     throw new \DomainException('Database host, name, port or username is invalid.');
+                // Use TCP when a host/port is provided: PDO treats "localhost"
+                // as an implicit socket connection regardless of the port.
+                $tcpHost=$host==='localhost'?'127.0.0.1':$host;
                 $options=[
-                    'driver'=>'pdo_mysql','host'=>$host,'port'=>(int)$port,
+                    'driver'=>'pdo_mysql','host'=>$tcpHost,'port'=>(int)$port,
                     'dbname'=>$name,'user'=>$dbUser,'password'=>$dbPass,'charset'=>'utf8mb4'
                 ];
-                $uriHost=str_contains($host,':')?'['.$host.']':$host;
+                $uriHost=str_contains($tcpHost,':')?'['.$tcpHost.']':$tcpHost;
                 $url='mysql://'.rawurlencode($dbUser).':'.rawurlencode($dbPass).'@'.
                     $uriHost.':'.$port.'/'.rawurlencode($name).'?charset=utf8mb4';
             } else {
@@ -115,16 +122,63 @@ final class Installer
                 $options=['driver'=>'pdo_sqlite','path'=>$this->storage().DIRECTORY_SEPARATOR.'dup.sqlite'];
                 $url='sqlite:///%kernel.project_dir%/var/dup.sqlite';
             }
-            try {
-                $connection=DriverManager::getConnection($options);
-                $connection->executeQuery('SELECT 1')->fetchOne();
-                if($connection->createSchemaManager()->listTableNames()!==[])
-                    throw new \DomainException('The selected database must be empty. Existing data will never be overwritten.');
-            } catch(\DomainException $ex) {
-                throw $ex;
-            } catch(\Throwable) {
-                throw new \DomainException('Cannot connect to the selected database. Check its host, user, permissions and name.');
+            $isSynology=HostEnvironment::isSynology($this->root);
+            $transport=$driver==='mysql'?'TCP '.$tcpHost.':'.$port:'local SQLite file';
+            $candidates=[['options'=>$options,'url'=>$url,'transport'=>$transport]];
+            if($driver==='mysql' && $isSynology &&
+                in_array($tcpHost,['127.0.0.1','::1'],true)) {
+                $socket=HostEnvironment::localMariaDbSocket($this->root);
+                if($socket!==null) {
+                    // Synology phpMyAdmin commonly uses MariaDB 10's local
+                    // socket even when the TCP listener is disabled.
+                    $candidates[]=[
+                        'options'=>[
+                            'driver'=>'pdo_mysql','unix_socket'=>$socket,
+                            'dbname'=>$name,'user'=>$dbUser,'password'=>$dbPass,
+                            'charset'=>'utf8mb4'
+                        ],
+                        'url'=>'mysql://'.rawurlencode($dbUser).':'.
+                            rawurlencode($dbPass).'@localhost/'.rawurlencode($name).
+                            '?charset=utf8mb4&unix_socket='.rawurlencode($socket),
+                        'transport'=>'Synology MariaDB 10 local socket'
+                    ];
+                }
             }
+            $lastConnectionError=null;
+            foreach($candidates as $candidate) {
+                $attemptConnection=null;
+                try {
+                    $attemptConnection=DriverManager::getConnection($candidate['options']);
+                    $attemptConnection->executeQuery('SELECT 1')->fetchOne();
+                    $connection=$attemptConnection;
+                    $url=$candidate['url'];
+                    break;
+                } catch(\Throwable $ex) {
+                    $lastConnectionError=$ex;
+                    $transport=$candidate['transport'];
+                    DatabaseDiagnostic::logFailure($ex,$transport);
+                    if($attemptConnection instanceof Connection) $attemptConnection->close();
+                    // A wrong password, unknown database or denied privileges
+                    // cannot be fixed by silently changing the transport.
+                    if(!in_array(DatabaseDiagnostic::driverCode($ex),
+                        [null,2002,2003,2005],true)) break;
+                }
+            }
+            if(!($connection instanceof Connection)) {
+                throw new \DomainException(DatabaseDiagnostic::explain(
+                    $lastConnectionError,$isSynology,$transport),0,$lastConnectionError);
+            }
+            try {
+                $existingTables=$connection->createSchemaManager()->listTableNames();
+            } catch(\Throwable $ex) {
+                DatabaseDiagnostic::logFailure($ex,'schema inspection');
+                throw new \DomainException('Connected to the database, but could not inspect its tables. '.
+                    'Check the selected database and user privileges'.
+                    (($code=DatabaseDiagnostic::driverCode($ex))===null?'': ' (MariaDB error '.$code.')').
+                    '.',0,$ex);
+            }
+            if($existingTables!==[])
+                throw new \DomainException('The selected database must be empty. Existing data will never be overwritten.');
             $config=[
                 'APP_ENV'=>'prod',
                 'APP_DEBUG'=>'0',

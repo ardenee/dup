@@ -159,3 +159,6 @@ textarea{font:inherit;color:var(--ink)}
   .setup-fields{grid-template-columns:minmax(0,1fr)}
   .setup-title{align-items:flex-start}
 }
+
+/* Setup diagnostics span both form columns without removing card gutters. */
+.setup-fields .setup-db-help{grid-column:1/-1;margin:0 0 12px}

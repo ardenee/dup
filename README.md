@@ -2,7 +2,7 @@
 
 DUP is a web-based duplicate-file scanner and manager for Windows, Linux and Synology DSM. The same PHP application, scan engine, database and job worker run on all three platforms. DSM is a packaging/integration option, not a requirement of the application.
 
-**Current development version: 0.7.4.** This is a major rebuild of DUP and a development preview, not a production-ready upgrade. The Synology package retains the original package ID `dup` and the `/dup/` URL. The new database schema does not migrate older profile data automatically. An upgrade must be tested using disposable data before replacing an existing installation.
+**Current development version: 0.7.5.** This is a major rebuild of DUP and a development preview, not a production-ready upgrade. The Synology package retains the original package ID `dup` and the `/dup/` URL. The new database schema does not migrate older profile data automatically. An upgrade must be tested using disposable data before replacing an existing installation.
 
 **Licence:** MIT for DUP source code. Bundled dependencies retain their respective licences.
 
@@ -44,9 +44,11 @@ For Windows, configure PHP on Apache or IIS/FastCGI and allow the relevant servi
 
 Install Web Station, PHP 8.2+ and MariaDB 10 first, then use Package Center's **Manual Install** with the DUP SPK. The package provides the Web Station portal `/dup/` and opens it over HTTPS. The PHP profile must enable pdo_mysql, mbstring, intl, iconv, openssl, fileinfo and xml.
 
-Complete the same web setup wizard. Scan folders are selected when creating profiles and depend on the installed package user's filesystem permissions. Synology shared-folder permissions must grant that account access; the scan worker cannot use mapped Windows drive paths.
+Complete the same web setup wizard. DUP identifies Synology DSM in the readiness panel and defaults its MariaDB 10 port to **3307** rather than 3306. If TCP is unavailable, the installer can try the local MariaDB 10 socket at `/run/mysqld/mysqld10.sock` when accessible to the PHP profile. The readiness panel reports socket visibility, and connection failures show a safe driver error code instead of a generic message. A phpMyAdmin login alone does not verify that the PHP profile can connect to the same database and host.
 
-**Upgrade caveat:** The 0.7.4 package uses the same Synology package identity as previous DUP releases, but the redesigned application requires a fresh database. It does not automatically migrate older database schemas or profiles. Back up any installation you want to preserve and do not apply this preview over production data.
+Scan folders are selected when creating profiles and depend on the installed package user's filesystem permissions. Synology shared-folder permissions must grant that account access; the scan worker cannot use mapped Windows drive paths.
+
+**Upgrade caveat:** The 0.7.5 package uses the same Synology package identity as previous DUP releases, but the redesigned application requires a fresh database. It does not automatically migrate older database schemas or profiles. Back up any installation you want to preserve and do not apply this preview over production data.
 
 ## Background processing
 
@@ -70,7 +72,8 @@ Development source requires Composer dependencies and a configured local databas
 
 ```bash
 python packaging/build_preview.py
-python packaging/build_dsm_preview.py --version 0.7.4 --php-backend 11
+python packaging/build_dsm_preview.py --version 0.7.5 --php-backend 11
+php tests/setup-database.php
 ```
 
-The DSM build produces `DUP-DSM7-0.7.4-compat.spk`. Both outputs are development previews and must pass a real installation test before release. DSM Web Station PHP backend IDs vary between machines and must be verified for the target.
+The DSM build produces `DUP-DSM7-0.7.5-compat.spk`. Both outputs are development previews and must pass a real installation test before release. DSM Web Station PHP backend IDs vary between machines and must be verified for the target.
