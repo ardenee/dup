@@ -18,6 +18,8 @@ $files = [
     'duplicates/group.html.twig',
     'duplicates/index.html.twig',
     'duplicates/_members.html.twig',
+    'duplicates/_format.html.twig',
+    'duplicates/_pager.html.twig',
     'reports/run.html.twig',
     'reports/index.html.twig'
 ];

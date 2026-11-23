@@ -1,91 +1,133 @@
 {% extends 'base.html.twig' %}
+{% from 'duplicates/_format.html.twig' import bytes, hash, method %}
 {% block title %}Duplicates{% endblock %}
 {% block section %}Duplicates{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ asset('assets/duplicates.css') }}?v=1">{% endblock %}
 {% block body %}
-<div class="page-heading">
+<div class="page-heading dup-heading">
   <div>
     <div class="eyebrow">SCAN RESULTS</div>
     <h1>Duplicate files</h1>
-    <p class="muted">Expand a group to view its files, paths, hashes and available actions here. All groups start collapsed, and expanding them does not reload the page.</p>
+    <p class="muted">Files from completed scans. Select a filename to reveal its matches in the same table.</p>
   </div>
+  <form method="get" action="{{ path('app_duplicates') }}" class="dup-filter">
+    <label for="dup-profile">Scan profile</label>
+    <select name="profile" id="dup-profile" onchange="this.form.submit()">
+      <option value="">All profiles</option>
+      {% for profile in profiles %}
+        <option value="{{ profile.id }}" {{ selected_profile == profile.id ? 'selected' : '' }}>{{ profile.name }}{% if profile.duplicate_groups is not null %} ({{ profile.duplicate_groups }}){% endif %}</option>
+      {% endfor %}
+    </select>
+    <noscript><button class="secondary" type="submit">Filter</button></noscript>
+  </form>
 </div>
-<div class="stats-grid dup-stats">
-  <div class="stat"><span>Matching groups</span><strong>{{ totals.total_groups|number_format }}</strong></div>
-  <div class="stat"><span>File records in groups</span><strong>{{ totals.total_members|number_format }}</strong></div>
-  <div class="stat"><span>Potential reclaimable bytes</span><strong>{{ totals.reclaimable_bytes|number_format }}</strong></div>
-</div>
-<section class="panel" id="duplicate-groups">
-  <div class="panel-heading dup-results-heading">
-    <div><h2>Results</h2><p class="muted">Latest successful scan for each profile</p></div>
-    <div class="dup-results-controls">
-      <form action="{{ path('app_duplicates') }}" method="get" class="inline-filter">
-        <label for="profile-filter">Profile</label>
-        <select id="profile-filter" name="profile" onchange="this.form.submit()">
-          <option value="">All profiles</option>
-          {% for profile in profiles %}
-            <option value="{{ profile.id }}" {{ selected_profile == profile.id ? 'selected' : '' }}>
-              {{ profile.name }} {% if profile.duplicate_groups is not null %}({{ profile.duplicate_groups }} groups){% endif %}
-            </option>
-          {% endfor %}
-        </select>
-        <noscript><button type="submit">Filter</button></noscript>
-      </form>
-      {% if groups is not empty %}
-      <div class="dup-expand-actions">
-        <button type="button" class="secondary" data-dup-expand-all>Expand all</button>
-        <button type="button" class="secondary" data-dup-collapse-all>Collapse all</button>
-      </div>
-      {% endif %}
+<section class="panel dup-browser" id="duplicate-groups">
+  <div class="dup-toolbar">
+    <div class="dup-overview">
+      <strong>{{ totals.total_groups|number_format }}</strong> groups
+      <span class="dup-separator"></span>
+      <strong>{{ totals.total_members|number_format }}</strong> matching files
+      <span class="dup-separator"></span>
+      <strong>{{ bytes(totals.reclaimable_bytes) }}</strong> potential savings
+    </div>
+    <div class="dup-controls">
+      <button type="button" data-dup-expand-all>Expand all</button>
+      <button type="button" data-dup-collapse-all>Collapse all</button>
+      <span class="dup-control-divider"></span>
+      <button type="button" data-dup-invert>Invert selection</button>
+      <button type="button" data-dup-copy disabled>Copy paths (<span data-dup-selected-count>0</span>)</button>
     </div>
   </div>
   {% if groups is empty %}
-    <div class="empty-state">No duplicate groups are available for this selection. <a href="{{ path('app_profiles') }}">View scan profiles</a>.</div>
+    <div class="empty-state">No duplicate groups were found in the latest completed scan for this selection.</div>
   {% else %}
-    <div class="table-wrap dup-results-table">
-      <table>
-        <thead><tr>
-          <th>View</th><th>Group / sample file</th><th>Profile</th>
-          <th>Files</th><th>File size</th><th>Potential savings</th><th>Match type</th>
-        </tr></thead>
-        <tbody>
-          {% for group in groups %}
-            <tr class="dup-group-row" data-dup-group-row>
-              <td>
-                <button type="button" class="dup-toggle" data-dup-toggle
+    {% include 'duplicates/_pager.html.twig' %}
+    <div class="table-wrap dup-file-table-wrap">
+      <table class="dup-file-table">
+        <colgroup>
+          <col class="dup-col-num"><col class="dup-col-id"><col class="dup-col-file">
+          <col class="dup-col-size"><col class="dup-col-date"><col class="dup-col-hash"><col class="dup-col-actions">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>#</th><th>ID / Select</th><th>File (relative to profile folder)</th>
+            <th>Size</th><th>Modified</th><th>Hash</th><th>Actions</th>
+          </tr>
+        </thead>
+        {% for group in groups %}
+          <tbody class="dup-set" id="dup-body-{{ group.id }}" data-dup-set data-group-id="{{ group.id }}" data-profile-id="{{ group.profile_id }}">
+            <tr class="dup-primary" data-dup-primary>
+              <td class="dup-num">
+                <button type="button" class="dup-disclosure" data-dup-toggle
                   data-members-url="{{ path('app_duplicate_members',{id:group.id}) }}"
-                  aria-expanded="false" aria-controls="dup-members-{{ group.id }}"
-                  aria-label="Expand group #{{ group.id }}">
-                  <span class="dup-chevron" aria-hidden="true">▸</span>
-                </button>
+                  aria-controls="dup-body-{{ group.id }}" aria-expanded="false"
+                  aria-label="Expand {{ group.file_count - 1 }} matching files in group {{ group.id }}"></button>
+                <span title="Group #{{ group.id }}">{{ page_start + loop.index0 }}</span>
               </td>
-              <td>
-                <strong>Group #{{ group.id }}</strong>
-                <div class="muted dup-sample" title="{{ group.example_filename ?? '' }}">{{ group.example_filename ?? 'No file name' }}</div>
+              <td class="dup-file-id">
+                {% if group.first_file_id %}
+                  <label class="dup-select">
+                    <input type="checkbox" data-dup-select value="{{ group.first_file_id }}"
+                      data-file-path="{{ group.full_path }}" aria-label="Select {{ group.relative_path }}">
+                    <span>{{ group.first_file_id }}</span>
+                  </label>
+                {% else %}<span class="muted">—</span>{% endif %}
               </td>
-              <td>{{ group.profile_name }}</td>
-              <td class="group-size">{{ group.file_count|number_format }}</td>
-              <td class="group-size">{{ group.size_bytes|number_format }} bytes</td>
-              <td class="group-size">{{ group.reclaimable_bytes|number_format }} bytes</td>
-              <td><span class="status">{{ group.rules_version == 1 ? 'SHA-256 (full)' : (group.rules_version == 2 ? 'CRC32 3 Part (candidate)' : (group.rules_version == 3 ? 'CRC32 Full (candidate)' : 'Size only (candidate)')) }}</span></td>
+              <td class="dup-file-name">
+                <button type="button" class="dup-filename" data-dup-toggle
+                  data-members-url="{{ path('app_duplicate_members',{id:group.id}) }}"
+                  aria-controls="dup-body-{{ group.id }}" aria-expanded="false"
+                  title="{{ group.full_path }}">{{ group.relative_path }}</button>
+                <small>
+                  <span class="dup-match-count">{{ group.file_count - 1 }} {{ group.file_count == 2 ? 'match' : 'matches' }}</span>
+                  <span class="dup-file-profile">{{ group.profile_name }}</span>
+                </small>
+              </td>
+              <td class="dup-file-size" title="{{ group.size_bytes|number_format }} bytes">{{ bytes(group.size_bytes) }}</td>
+              <td class="dup-file-date">{% if group.first_mtime_epoch is not null %}{{ group.first_mtime_epoch|date('Y-m-d H:i','UTC') }}{% else %}—{% endif %}</td>
+              <td class="dup-file-hash">
+                {{ hash(group.first_hash_value) }}
+                <small title="{{ group.rules_version == 1 ? 'Full-file hash' : 'Candidate matching; not full-content verification' }}">{{ method(group.rules_version) }}</small>
+              </td>
+              <td class="dup-file-actions">
+                {% if group.first_file_id and group.first_error_code is null %}
+                  <a href="{{ path('app_rename_file',{id:group.first_file_id}) }}" class="dup-action-link">Rename</a>
+                  {% if group.rules_version == 1 and group.file_count > 1 %}
+                    <form method="post" action="{{ path('app_action_preview',{id:group.first_file_id}) }}">
+                      <input type="hidden" name="_token" value="{{ csrf_token('preview_file_' ~ group.first_file_id) }}">
+                      <button type="submit" class="dup-action-link">Quarantine</button>
+                    </form>
+                  {% endif %}
+                {% else %}
+                  <span class="muted">{{ group.first_error_code ?? 'Unavailable' }}</span>
+                {% endif %}
+              </td>
             </tr>
-            <tr class="dup-details-row" hidden>
-              <td colspan="7">
-                <div id="dup-members-{{ group.id }}" data-dup-detail role="region" aria-label="Files in group #{{ group.id }}" aria-live="polite"></div>
-              </td>
+            <tr class="dup-loading" data-dup-loading hidden>
+              <td colspan="7">Loading matching files…</td>
             </tr>
-          {% endfor %}
-        </tbody>
+          </tbody>
+        {% endfor %}
+        <tfoot>
+          <tr>
+            <td colspan="3"><strong>Shown:</strong> {{ groups|length|number_format }} groups · {{ page_rows|number_format }} file records</td>
+            <td colspan="2"><strong>Listed data:</strong> {{ bytes(page_listed_bytes) }}</td>
+            <td colspan="2"><strong>Possible cleanup:</strong> {{ bytes(page_reclaimable) }}</td>
+          </tr>
+          <tr>
+            <td colspan="3">Total duplicate groups: <strong>{{ totals.total_groups|number_format }}</strong></td>
+            <td colspan="2">Matching files: <strong>{{ totals.total_members|number_format }}</strong></td>
+            <td colspan="2">Matched by profile's scan method</td>
+          </tr>
+        </tfoot>
       </table>
     </div>
-    <div class="result-toolbar dup-results-footer">
-      <span class="muted">{{ groups|length }} duplicate groups on this page · {{ totals.total_groups|number_format }} matching groups · {{ totals.reclaimable_bytes|number_format }} potentially reclaimable bytes</span>
-      <nav aria-label="Duplicate results pages">
-        {% if previous %}<a href="{{ path('app_duplicates',(selected_profile ? {profile:selected_profile} : {})|merge({before:previous})) }}">Previous</a>{% endif %}
-        {% if next %}<a href="{{ path('app_duplicates',(selected_profile ? {profile:selected_profile} : {})|merge({after:next})) }}">Next</a>{% endif %}
-      </nav>
-    </div>
+    {% include 'duplicates/_pager.html.twig' %}
   {% endif %}
+  <div class="dup-statusline">
+    <span data-dup-message role="status" aria-live="polite">Expand a group to view its matching files. File paths can be copied using the selection controls.</span>
+    <span>Size and CRC32 matches are candidates; file actions require additional verification.</span>
+  </div>
 </section>
-<p class="muted dup-candidate-note">Size and CRC32 matches are candidate duplicates, not proof that all bytes are identical. Destructive file actions remain restricted to the verified workflow.</p>
-<script type="module" src="{{ asset('assets/duplicates.js') }}?v=1"></script>
+<script type="module" src="{{ asset('assets/duplicates.js') }}?v=2"></script>
 {% endblock %}

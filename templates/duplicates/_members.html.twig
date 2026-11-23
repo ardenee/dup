@@ -1,54 +1,49 @@
-<div class="dup-member-heading">
-  <div>
-    <strong>Group #{{ group.id }} — {{ group.file_count|number_format }} files</strong>
-    <span class="muted">Matching {{ group.rules_version == 1 ? 'SHA-256' : (group.rules_version == 2 ? 'CRC32 3 Part' : (group.rules_version == 3 ? 'CRC32 Full' : 'file size')) }}</span>
-  </div>
-  <a class="text-link" href="{{ path('app_duplicate_group',{id:group.id}) }}">Open full group view</a>
-</div>
-{% if members is empty %}
-  <div class="empty-state">No file records remain in this group.</div>
-{% else %}
-  <div class="table-wrap dup-member-table">
-    <table>
-      <thead><tr>
-        <th>File path</th><th>Size</th><th>Modified (UTC)</th><th>Hash</th><th>Actions</th>
-      </tr></thead>
-      <tbody>
-        {% for file in members %}
-        <tr>
-          <td class="dup-member-path" title="{{ file.path }}/{{ file.filename }}"><code>{{ file.path }}{{ file.path ends with '/' or file.path ends with '\\' ? '' : '/' }}{{ file.filename }}</code></td>
-          <td class="group-size">{{ file.size_bytes|number_format }} bytes</td>
-          <td class="dup-member-date">{{ file.mtime_epoch|date('Y-m-d H:i:s','UTC') }}</td>
-          <td class="dup-member-hash"><code>{{ file.hash_value ?? 'Not computed' }}</code></td>
-          <td>
-            <div class="dup-member-actions">
-              {% if file.error_code is null %}
-                <a class="text-link" href="{{ path('app_rename_file',{id:file.file_entry_id}) }}">Rename</a>
-                {% if group.rules_version == 1 and group.file_count > 1 %}
-                  <form method="post" action="{{ path('app_action_preview',{id:file.file_entry_id}) }}">
-                    <input type="hidden" name="_token" value="{{ csrf_token('preview_file_' ~ file.file_entry_id) }}">
-                    <button class="secondary" type="submit">Preview quarantine</button>
-                  </form>
-                {% endif %}
-              {% else %}<span class="muted">{{ file.error_code }}</span>{% endif %}
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <div class="result-toolbar dup-member-footer">
-    <span class="muted">{{ members|length }} file records on this page (up to 100 per page)</span>
-    <nav aria-label="Group #{{ group.id }} member pages">
-      {% if previous %}
-        <a data-dup-page href="{{ path('app_duplicate_group',{id:group.id,before:previous}) }}"
-           data-ajax-url="{{ path('app_duplicate_members',{id:group.id,before:previous}) }}">Previous files</a>
+{% from 'duplicates/_format.html.twig' import bytes, hash %}
+{% for file in members %}
+  <tr class="dup-child" data-dup-child>
+    <td class="dup-num dup-child-num">{{ start_number + loop.index0 }}</td>
+    <td class="dup-file-id">
+      <label class="dup-select">
+        <input type="checkbox" data-dup-select value="{{ file.file_entry_id }}"
+          data-file-path="{{ file.full_path }}" aria-label="Select {{ file.relative_path }}">
+        <span>{{ file.file_entry_id }}</span>
+      </label>
+    </td>
+    <td class="dup-file-name" title="{{ file.full_path }}">
+      <span class="dup-child-path">{{ file.relative_path }}</span>
+    </td>
+    <td class="dup-file-size" title="{{ file.size_bytes|number_format }} bytes">{{ bytes(file.size_bytes) }}</td>
+    <td class="dup-file-date">{{ file.mtime_epoch|date('Y-m-d H:i','UTC') }}</td>
+    <td class="dup-file-hash">{{ hash(file.hash_value) }}</td>
+    <td class="dup-file-actions">
+      {% if file.error_code is null %}
+        <a class="dup-action-link" href="{{ path('app_rename_file',{id:file.file_entry_id}) }}">Rename</a>
+        {% if group.rules_version == 1 and group.file_count > 1 %}
+          <form method="post" action="{{ path('app_action_preview',{id:file.file_entry_id}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('preview_file_' ~ file.file_entry_id) }}">
+            <button class="dup-action-link" type="submit">Quarantine</button>
+          </form>
+        {% endif %}
+      {% else %}
+        <span class="muted">{{ file.error_code }}</span>
       {% endif %}
-      {% if next %}
-        <a data-dup-page href="{{ path('app_duplicate_group',{id:group.id,after:next}) }}"
-           data-ajax-url="{{ path('app_duplicate_members',{id:group.id,after:next}) }}">Next files</a>
-      {% endif %}
-    </nav>
-  </div>
+    </td>
+  </tr>
+{% endfor %}
+{% if previous or next %}
+  <tr class="dup-members-pager" data-dup-child>
+    <td colspan="7">
+      <span>Files {{ start_number }}–{{ start_number + members|length - 1 }} of {{ group.file_count }} in this group</span>
+      <nav aria-label="Group {{ group.id }} files">
+        {% if previous %}
+          <a href="{{ path('app_duplicate_group',{id:group.id,before:previous}) }}"
+             data-dup-page data-ajax-url="{{ path('app_duplicate_members',{id:group.id,before:previous}) }}">Previous files</a>
+        {% endif %}
+        {% if next %}
+          <a href="{{ path('app_duplicate_group',{id:group.id,after:next}) }}"
+             data-dup-page data-ajax-url="{{ path('app_duplicate_members',{id:group.id,after:next}) }}">Next files</a>
+        {% endif %}
+      </nav>
+    </td>
+  </tr>
 {% endif %}

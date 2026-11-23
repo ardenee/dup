@@ -36,6 +36,10 @@ final class DuplicatesController extends AbstractController
         $before=$this->cursor($request,'before');
         $where=" FROM duplicate_groups g " .
             "JOIN scan_runs r ON r.id=g.run_id JOIN scan_profiles p ON p.id=r.profile_id " .
+            "LEFT JOIN duplicate_group_members firstm ON firstm.id=" .
+            "(SELECT MIN(fm.id) FROM duplicate_group_members fm WHERE fm.group_id=g.id) " .
+            "LEFT JOIN file_entries firstf ON firstf.id=firstm.file_entry_id " .
+            "LEFT JOIN directories firstd ON firstd.id=firstf.directory_id " .
             "WHERE r.state='completed' AND r.id=(SELECT MAX(id) FROM scan_runs " .
             "WHERE profile_id=r.profile_id AND state='completed')";
         $params=[];
@@ -56,15 +60,29 @@ final class DuplicatesController extends AbstractController
 
         $rows=$db->fetchAllAssociative(
             'SELECT g.id,g.size_bytes,g.file_count,g.reclaimable_bytes,' .
-            'g.rules_version,g.group_key,p.name AS profile_name,p.id AS profile_id, ' .
-            '(SELECT f.filename FROM duplicate_group_members m ' .
-            'JOIN file_entries f ON f.id=m.file_entry_id ' .
-            'WHERE m.group_id=g.id ORDER BY m.id LIMIT 1) AS example_filename ' .
+            'g.rules_version,p.name AS profile_name,p.id AS profile_id,' .
+            'p.source_root,firstf.id AS first_file_id,' .
+            'firstf.filename AS first_filename,firstf.mtime_epoch AS first_mtime_epoch,' .
+            'firstf.hash_value AS first_hash_value,firstf.error_code AS first_error_code,' .
+            'firstd.path AS first_directory ' .
             $pageWhere.$order.' LIMIT '.(self::PAGE_GROUPS+1),
             $params
         );
         if(count($rows)>self::PAGE_GROUPS) $rows=array_slice($rows,0,self::PAGE_GROUPS);
         if($before!==null) $rows=array_reverse($rows);
+        foreach($rows as &$row) {
+            $directory=str_replace('\\','/',(string)($row['first_directory']??''));
+            $root=rtrim(str_replace('\\','/',(string)$row['source_root']),'/');
+            $filename=(string)($row['first_filename']??'');
+            $relative=$directory===$root?'':(
+                $root!=='' && str_starts_with($directory,$root.'/')
+                    ? ltrim(substr($directory,strlen($root)),'/').'/'
+                    : ltrim($directory,'/').'/'
+            );
+            $row['relative_path']=$relative.$filename;
+            $row['full_path']=rtrim($directory,'/').'/'.$filename;
+        }
+        unset($row);
         $first=$rows?(int)$rows[0]['id']:null;
         $last=$rows?(int)$rows[count($rows)-1]['id']:null;
         $baseParams=$profile===null?[]:['profile'=>$profile];
@@ -82,10 +100,24 @@ final class DuplicatesController extends AbstractController
             'COALESCE(SUM(g.reclaimable_bytes),0) AS reclaimable_bytes '.
             $where,$baseParams
         );
+        $pageStart=$first===null?0:1+(int)$db->fetchOne(
+            'SELECT COUNT(*)'.$where.' AND g.id<:cursor',
+            array_merge($baseParams,['cursor'=>$first])
+        );
+        $pageEnd=$rows?$pageStart+count($rows)-1:0;
+        $pageRows=array_sum(array_map(static fn(array $g)=>(int)$g['file_count'],$rows));
+        $pageListedBytes=array_sum(array_map(
+            static fn(array $g)=>(int)$g['file_count']*(int)$g['size_bytes'],$rows
+        ));
+        $pageReclaimable=array_sum(array_map(
+            static fn(array $g)=>(int)$g['reclaimable_bytes'],$rows
+        ));
         return $this->render('duplicates/index.html.twig',[
             'groups'=>$rows,'profiles'=>$profiles,'selected_profile'=>$profile,
             'previous'=>$prior?$first:null,'next'=>$later?$last:null,
-            'totals'=>$totals ?: ['total_groups'=>0,'total_members'=>0,'reclaimable_bytes'=>0]
+            'totals'=>$totals ?: ['total_groups'=>0,'total_members'=>0,'reclaimable_bytes'=>0],
+            'page_start'=>$pageStart,'page_end'=>$pageEnd,'page_rows'=>$pageRows,
+            'page_listed_bytes'=>$pageListedBytes,'page_reclaimable'=>$pageReclaimable
         ]);
     }
 

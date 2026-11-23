@@ -1,0 +1,17 @@
+{% macro bytes(value) %}
+{% set n = value|default(0) + 0 %}
+{%- if n >= 1099511627776 -%}{{ (n / 1099511627776)|number_format(2) }} TiB
+{%- elseif n >= 1073741824 -%}{{ (n / 1073741824)|number_format(2) }} GiB
+{%- elseif n >= 1048576 -%}{{ (n / 1048576)|number_format(2) }} MiB
+{%- elseif n >= 1024 -%}{{ (n / 1024)|number_format(2) }} KiB
+{%- else -%}{{ n|number_format(0) }} B{%- endif -%}
+{% endmacro %}
+{% macro hash(value) %}
+{% if value is not empty %}<code title="{{ value }}" class="dup-digest">{{ value|length > 16 ? value|slice(0,16) ~ '…' : value }}</code>{% else %}<span class="muted">Not hashed</span>{% endif %}
+{% endmacro %}
+{% macro method(version) %}
+{%- if version == 1 -%}SHA-256
+{%- elseif version == 2 -%}CRC32 3 Part
+{%- elseif version == 3 -%}CRC32 Full
+{%- else -%}Size only{%- endif -%}
+{% endmacro %}

@@ -1,0 +1,17 @@
+<div class="dup-pagebar">
+  <span>Groups <strong>{{ page_start|number_format }}–{{ page_end|number_format }}</strong> of <strong>{{ totals.total_groups|number_format }}</strong>
+  <span class="dup-pagebar-divider">|</span>
+  {{ groups|length|number_format }} groups and {{ page_rows|number_format }} file records on this page</span>
+  <nav aria-label="Duplicate group pages">
+    {% if previous %}
+      <a href="{{ path('app_duplicates',(selected_profile ? {profile:selected_profile} : {})|merge({before:previous})) }}">Previous</a>
+    {% else %}
+      <span class="dup-page-disabled">Previous</span>
+    {% endif %}
+    {% if next %}
+      <a href="{{ path('app_duplicates',(selected_profile ? {profile:selected_profile} : {})|merge({after:next})) }}">Next</a>
+    {% else %}
+      <span class="dup-page-disabled">Next</span>
+    {% endif %}
+  </nav>
+</div>

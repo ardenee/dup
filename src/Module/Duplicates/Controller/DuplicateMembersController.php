@@ -21,7 +21,9 @@ final class DuplicateMembersController extends AbstractController
     {
         $group=$db->fetchAssociative(
             "SELECT g.id,g.file_count,g.size_bytes,g.rules_version,".
-            "p.id AS profile_id,p.name AS profile_name ".
+            "p.id AS profile_id,p.name AS profile_name,p.source_root,".
+            "(SELECT MIN(dm.id) FROM duplicate_group_members dm ".
+            "WHERE dm.group_id=g.id) AS first_member_id ".
             "FROM duplicate_groups g JOIN scan_runs r ON r.id=g.run_id ".
             "JOIN scan_profiles p ON p.id=r.profile_id ".
             "WHERE g.id=? AND r.state='completed' ".
@@ -36,11 +38,14 @@ final class DuplicateMembersController extends AbstractController
         if($after!==null && $before!==null)
             throw $this->createNotFoundException('Invalid member pagination.');
 
-        $params=[$id];
+        // The first file is already visible in the parent table row.
+        // Load siblings only; retain bounded member pagination.
+        $firstMember=(int)($group['first_member_id']??0);
+        $params=[$id,$firstMember];
         $where=' FROM duplicate_group_members m '.
             'JOIN file_entries f ON f.id=m.file_entry_id '.
             'JOIN directories d ON d.id=f.directory_id '.
-            'WHERE m.group_id=?';
+            'WHERE m.group_id=? AND m.id>?';
         $reverse=$before!==null;
         if($after!==null) {
             $where.=' AND m.id>?'; $params[]=$after;
@@ -56,18 +61,35 @@ final class DuplicateMembersController extends AbstractController
         );
         if(count($members)>self::PER_PAGE) array_pop($members);
         if($reverse) $members=array_reverse($members);
+        foreach($members as &$member) {
+            $directory=str_replace('\\','/',(string)$member['path']);
+            $root=rtrim(str_replace('\\','/',(string)$group['source_root']),'/');
+            $relative=$directory===$root?'':(
+                $root!=='' && str_starts_with($directory,$root.'/')
+                    ? ltrim(substr($directory,strlen($root)),'/').'/'
+                    : ltrim($directory,'/').'/'
+            );
+            $member['relative_path']=$relative.$member['filename'];
+            $member['full_path']=rtrim($directory,'/').'/'.$member['filename'];
+        }
+        unset($member);
         $first=$members?(int)$members[0]['member_id']:null;
         $last=$members?(int)$members[count($members)-1]['member_id']:null;
         $previous=$first!==null && (bool)$db->fetchOne(
-            'SELECT 1 FROM duplicate_group_members WHERE group_id=? AND id<? LIMIT 1',
-            [$id,$first]
+            'SELECT 1 FROM duplicate_group_members WHERE group_id=? AND id>? AND id<? LIMIT 1',
+            [$id,$firstMember,$first]
         );
         $next=$last!==null && (bool)$db->fetchOne(
             'SELECT 1 FROM duplicate_group_members WHERE group_id=? AND id>? LIMIT 1',
             [$id,$last]
         );
+        $startNumber=$first===null?0:2+(int)$db->fetchOne(
+            'SELECT COUNT(*) FROM duplicate_group_members '.
+            'WHERE group_id=? AND id>? AND id<?',
+            [$id,$firstMember,$first]
+        );
         $response=$this->render('duplicates/_members.html.twig',[
-            'group'=>$group,'members'=>$members,
+            'group'=>$group,'members'=>$members,'start_number'=>$startNumber,
             'previous'=>$previous?$first:null,'next'=>$next?$last:null
         ]);
         $response->headers->set('Cache-Control','private, no-store');
