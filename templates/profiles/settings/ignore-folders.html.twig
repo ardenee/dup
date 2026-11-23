@@ -12,7 +12,7 @@
     <input type="hidden" name="_token" value="{{ csrf_token('ignore_rules') }}">
     <div class="field"><label for="ignored-folders">Directory names (one per line)</label>
       <textarea id="ignored-folders" name="names" rows="9" spellcheck="false" maxlength="24000">{{ names }}</textarea>
-      <p class="muted">For example: <code>@eaDir</code> and <code>#recycle</code>. Match any folder with this exact name, anywhere within a scan. Do not enter full paths.</p>
+      <p class="muted field-help">Examples: <code>@eaDir</code>, <code>#recycle</code>. Enter folder names only, one per line; they match anywhere within the scanned folders. Full paths are not needed.</p>
     </div>
     <div class="notice">
       Scans still index eligible files inside these folders. Changes queue a database-only

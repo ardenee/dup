@@ -1,33 +1,40 @@
 {% extends 'base.html.twig' %}
-{% block title %}New profile{% endblock %}
-{% block section %}Profiles / New{% endblock %}
+{% set editing = profile is not null %}
+{% block title %}{{ editing ? 'Edit profile' : 'New profile' }}{% endblock %}
+{% block section %}Profiles / {{ editing ? 'Edit' : 'New' }}{% endblock %}
 {% block body %}
-<div class="page-heading"><div><div class="eyebrow">SCANNING</div><h1>New profile</h1>
-<p class="muted">Select a source folder on the web server, a move destination, and a duplicate-matching strategy. The background worker performs the scan.</p></div>
-<a class="secondary link-button" href="{{ path('app_profiles') }}">Back to profiles</a></div>
+<div class="page-heading"><div><div class="eyebrow">SCANNING</div>
+  <h1>{{ editing ? 'Edit scan profile' : 'New scan profile' }}</h1>
+  <p class="muted">Select accessible server folders, file types and a hashing strategy. Only files with identical sizes are hashed.</p>
+  {% if editing %}<p class="muted">Changes apply to future scans. Completed scan history remains intact.</p>{% endif %}
+</div><a class="secondary link-button" href="{{ path('app_profiles') }}">Back to profiles</a></div>
 <section class="panel form-panel">
   {% if errors %}<div class="notice notice-error" role="alert"><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
-  <form method="post" action="{{ path('app_profile_new') }}" data-folder-browser-endpoint="{{ path('app_folder_browse') }}">
-    <input type="hidden" name="_token" value="{{ csrf_token('create_profile') }}">
+  <form method="post" action="{{ editing ? path('app_profile_edit',{id:profile.id}) : path('app_profile_new') }}" data-folder-browser-endpoint="{{ path('app_folder_browse') }}">
+    <input type="hidden" name="_token" value="{{ csrf_token(editing ? 'edit_profile_' ~ profile.id : 'create_profile') }}">
     <div class="field"><label for="name">Profile name</label>
-      <input id="name" name="name" maxlength="140" required value="{{ app.request.request.get('name', '') }}" placeholder="e.g. Music library"></div>
+      <input id="name" name="name" maxlength="140" required value="{{ app.request.request.get('name',editing ? profile.name : '') }}" placeholder="e.g. Music library"></div>
     <div class="field"><label for="source">Main folder</label>
-      <input id="source" data-directory-input name="source_root" required value="{{ app.request.request.get('source_root', '') }}" placeholder="D:\\Media or /srv/media">
-      <small class="muted">Available folders depend on filesystem permissions of the PHP and background worker accounts.</small></div>
+      <input id="source" data-directory-input name="source_root" required value="{{ app.request.request.get('source_root',editing ? profile.source_root : '') }}" placeholder="D:\\Media or /srv/media">
+      <small class="muted">Folders must be readable to the PHP and background worker accounts.</small></div>
     <div class="field"><label for="move">Move folder</label>
-      <input id="move" data-directory-input name="move_root" required value="{{ app.request.request.get('move_root', '') }}" placeholder="D:\\Archive or /srv/archive"></div>
+      <input id="move" data-directory-input name="move_root" required value="{{ app.request.request.get('move_root',editing ? profile.move_root : '') }}" placeholder="D:\\Archive or /srv/archive"></div>
     <div class="field"><label for="type">File-type preset</label>
       <select name="profile_type_id" id="type">{% for item in types %}
-        <option value="{{ item.id }}" {{ app.request.request.get('profile_type_id') == item.id ? 'selected' : '' }}>{{ item.name }}</option>
+        <option value="{{ item.id }}" {{ app.request.request.get('profile_type_id',editing ? profile.profile_type_id : '') == item.id ? 'selected' : '' }}>{{ item.name }}</option>
       {% endfor %}</select></div>
+    {% set selectedMode = app.request.request.get('hash_mode',editing ? profile.hash_mode : 'crc32_3part') %}
     <div class="field"><label for="mode">Duplicate matching</label>
       <select id="mode" name="hash_mode">
-        <option value="sha256" {{ app.request.request.get('hash_mode','sha256') == 'sha256' ? 'selected' : '' }}>Verified SHA-256</option>
-        <option value="size" {{ app.request.request.get('hash_mode') == 'size' ? 'selected' : '' }}>Size candidates only (not verified)</option>
-      </select></div>
+        <option value="size" {{ selectedMode == 'size' ? 'selected' : '' }}>File Size — fastest; candidates only</option>
+        <option value="crc32_3part" {{ selectedMode == 'crc32_3part' ? 'selected' : '' }}>CRC32 3 Part — fast, original DUP default</option>
+        <option value="crc32_full" {{ selectedMode == 'crc32_full' ? 'selected' : '' }}>CRC32 Full — reads the whole file</option>
+        <option value="sha256" {{ selectedMode == 'sha256' ? 'selected' : '' }}>SHA-256 — full verified comparison</option>
+      </select>
+      <small class="muted">CRC32 3 Part reads 150 KiB from the beginning, middle and end of large files. Files under 450 KiB use full CRC32. Size and CRC32 matches are candidates; file actions must independently verify their contents.</small></div>
     <div class="field"><label for="minimum">Minimum file size (bytes)</label>
-      <input id="minimum" name="minimum_bytes" type="number" min="0" step="1" value="{{ app.request.request.get('minimum_bytes','0') }}" required></div>
-    <div class="form-actions"><button class="primary" type="submit" >Save profile</button>
+      <input id="minimum" name="minimum_bytes" type="number" min="0" step="1" value="{{ app.request.request.get('minimum_bytes',editing ? profile.minimum_bytes : '0') }}" required></div>
+    <div class="form-actions"><button class="primary" type="submit">{{ editing ? 'Save changes' : 'Save profile' }}</button>
       <a class="secondary link-button" href="{{ path('app_profiles') }}">Cancel</a></div>
   </form>
 </section>

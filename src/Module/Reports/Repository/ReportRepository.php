@@ -33,11 +33,11 @@ final class ReportRepository
             "COALESCE((SELECT SUM(g.reclaimable_bytes) FROM duplicate_groups g " .
             "WHERE g.run_id=r.id AND g.rules_version=1),0) AS verified_bytes," .
             "COALESCE((SELECT SUM(g.reclaimable_bytes) FROM duplicate_groups g " .
-            "WHERE g.run_id=r.id AND g.rules_version=0),0) AS candidate_bytes," .
+            "WHERE g.run_id=r.id AND g.rules_version<>1),0) AS candidate_bytes," .
             "COALESCE((SELECT COUNT(*) FROM duplicate_groups g " .
             "WHERE g.run_id=r.id AND g.rules_version=1),0) AS verified_groups," .
             "COALESCE((SELECT COUNT(*) FROM duplicate_groups g " .
-            "WHERE g.run_id=r.id AND g.rules_version=0),0) AS candidate_groups " .
+            "WHERE g.run_id=r.id AND g.rules_version<>1),0) AS candidate_groups " .
             "FROM scan_profiles p LEFT JOIN scan_runs r ON r.id=(" .
             "SELECT MAX(latest.id) FROM scan_runs latest " .
             "WHERE latest.profile_id=p.id AND latest.state='completed') ";
@@ -148,9 +148,9 @@ final class ReportRepository
         $groupSummary=$this->db->fetchAssociative(
             'SELECT COUNT(*) AS groups,' .
             'COALESCE(SUM(CASE WHEN rules_version=1 THEN 1 ELSE 0 END),0) AS verified_groups,' .
-            'COALESCE(SUM(CASE WHEN rules_version=0 THEN 1 ELSE 0 END),0) AS candidate_groups,' .
+            'COALESCE(SUM(CASE WHEN rules_version<>1 THEN 1 ELSE 0 END),0) AS candidate_groups,' .
             'COALESCE(SUM(CASE WHEN rules_version=1 THEN reclaimable_bytes ELSE 0 END),0) AS verified_bytes,' .
-            'COALESCE(SUM(CASE WHEN rules_version=0 THEN reclaimable_bytes ELSE 0 END),0) AS candidate_bytes ' .
+            'COALESCE(SUM(CASE WHEN rules_version<>1 THEN reclaimable_bytes ELSE 0 END),0) AS candidate_bytes ' .
             'FROM duplicate_groups WHERE run_id=?',[$runId]
         );
         $run['files']=$fileSummary;
@@ -200,22 +200,22 @@ final class ReportRepository
         return match($kind) {
             'files' => [
                 ['run_id','file_id','directory','filename','size_bytes','mtime_epoch',
-                 'ignored_directory','hash_method','sha256','file_status'],
+                 'ignored_directory','hash_method','hash_value','file_status'],
                 $this->db->executeQuery(
                     'SELECT f.run_id,f.id AS file_id,d.path AS directory,f.filename,' .
                     'f.size_bytes,f.mtime_epoch,d.is_ignored AS ignored_directory,' .
-                    'f.hash_method,f.hash_value AS sha256,f.error_code AS file_status ' .
+                    'f.hash_method,f.hash_value AS hash_value,f.error_code AS file_status ' .
                     'FROM file_entries f JOIN directories d ON d.id=f.directory_id ' .
                     'WHERE f.run_id=? ORDER BY f.id',[$runId]
                 )
             ],
             'duplicates' => [
-                ['run_id','group_id','verified_sha256','file_count','size_bytes',
-                 'potential_reclaimable_bytes','file_id','directory','filename','sha256'],
+                ['run_id','group_id','hash_confidence','file_count','size_bytes',
+                 'potential_reclaimable_bytes','file_id','directory','filename','hash_value'],
                 $this->db->executeQuery(
-                    'SELECT g.run_id,g.id AS group_id,g.rules_version AS verified_sha256,' .
+                    'SELECT g.run_id,g.id AS group_id,g.rules_version AS hash_confidence,' .
                     'g.file_count,g.size_bytes,g.reclaimable_bytes AS potential_reclaimable_bytes,' .
-                    'f.id AS file_id,d.path AS directory,f.filename,f.hash_value AS sha256 ' .
+                    'f.id AS file_id,d.path AS directory,f.filename,f.hash_value AS hash_value ' .
                     'FROM duplicate_groups g ' .
                     'JOIN duplicate_group_members m ON m.group_id=g.id ' .
                     'JOIN file_entries f ON f.id=m.file_entry_id ' .

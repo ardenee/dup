@@ -39,7 +39,7 @@
     <div class="empty-state">No profiles match this filter. <a href="{{ path('app_profiles') }}">Create a profile</a>.</div>
   {% else %}
     <div class="table-wrap"><table>
-      <thead><tr><th>Profile</th><th>Latest completed</th><th>Files indexed</th><th>Duplicate groups</th><th>Verified potential savings</th><th>Size-only candidates</th></tr></thead>
+      <thead><tr><th>Profile</th><th>Latest completed</th><th>Files indexed</th><th>Duplicate groups</th><th>Verified potential savings</th><th>Candidate candidates</th></tr></thead>
       <tbody>{% for profile in snapshots %}
         <tr><td><strong>{{ profile.profile_name }}</strong></td>
           {% if profile.run_id is null %}

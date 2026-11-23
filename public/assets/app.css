@@ -162,3 +162,13 @@ textarea{font:inherit;color:var(--ink)}
 
 /* Setup diagnostics span both form columns without removing card gutters. */
 .setup-fields .setup-db-help{grid-column:1/-1;margin:0 0 12px}
+
+/* Inline examples in helper copy should never become tall code buttons. */
+.field-help{font-size:13px;line-height:1.65;max-width:65ch;overflow-wrap:break-word}
+.field-help code,.field .muted code{display:inline;padding:2px 5px;font-size:.93em;line-height:inherit;white-space:nowrap;overflow:visible;background:#f1f5f9;border-radius:4px}
+.field select+.muted{display:block;margin-top:7px;line-height:1.55}
+
+/* Profile management controls remain grouped on narrower displays. */
+.profile-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:260px}
+.profile-actions form{display:inline-flex;margin:0}
+.profile-actions .link-button{font-size:12px;padding:6px 10px}

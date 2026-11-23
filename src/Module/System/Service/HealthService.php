@@ -25,7 +25,7 @@ final class HealthService
             'worker' => 'not_configured',
             'worker_processes' => 0,
             'worker_last_heartbeat' => null,
-            'host_os' => PHP_OS_FAMILY,
+            'host_os' => \App\Core\Setup\HostEnvironment::label(dirname(__DIR__,4)),
             'queued_jobs'=>0,
             'running_jobs'=>0,
             'failed_jobs_24h'=>0,

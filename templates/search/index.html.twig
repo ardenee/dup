@@ -1,0 +1,64 @@
+{% extends 'base.html.twig' %}
+{% block title %}Search{% endblock %}
+{% block section %}Search{% endblock %}
+{% block body %}
+<div class="page-heading"><div><div class="eyebrow">INDEXED FILES</div><h1>Search</h1>
+  <p class="muted">Search file names and folders in the latest completed scan for each profile. Results use the database index; no filesystem rescan is needed.</p>
+</div></div>
+<section class="panel">
+  <form class="search-form" method="get" action="{{ path('app_search') }}">
+    <div class="field"><label for="search-term">Name or path contains</label>
+      <input id="search-term" type="search" name="q" maxlength="200" value="{{ term }}" placeholder="File name or folder" autofocus></div>
+    <div class="field"><label for="search-mode">Search</label>
+      <select id="search-mode" name="mode">
+        <option value="all" {{ mode == 'all' ? 'selected' : '' }}>General — all indexed files</option>
+        <option value="duplicates" {{ mode == 'duplicates' ? 'selected' : '' }}>Duplicates — matched groups</option>
+        <option value="moved" {{ mode == 'moved' ? 'selected' : '' }}>Moved — quarantined files</option>
+      </select></div>
+    <div class="field"><label for="search-profile">Scope</label>
+      <select name="profile" id="search-profile">
+        <option value="">All profiles</option>
+        {% for p in profiles %}
+        <option value="{{ p.id }}" {{ profile == p.id ? 'selected' : '' }}>{{ p.name }}</option>
+        {% endfor %}
+      </select></div>
+    <label class="search-check"><input type="checkbox" name="case" value="1" {{ case_sensitive ? 'checked' : '' }}> Case sensitive</label>
+    <button type="submit" class="primary">Search</button>
+  </form>
+  {% if mode == 'moved' %}
+  <p class="report-explanation">The current action engine indexes quarantined files. Full legacy move-history searches will be added when move operations are restored.</p>
+  {% endif %}
+</section>
+<section class="panel">
+  <div class="panel-heading"><h2>Results</h2>
+    <span class="muted">{{ submitted ? (results.total|number_format ~ ' files found') : 'Enter a search above' }}</span>
+  </div>
+  {% if not submitted %}
+    <div class="empty-state">Enter a name or path and click Search. Leave the field blank to browse all indexed records.</div>
+  {% elseif results.rows is empty %}
+    <div class="empty-state">No indexed files matched this search.</div>
+  {% else %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>File path</th><th>Profile</th><th>Size</th><th>Modified (Unix time)</th><th>Hash method</th><th>State</th><th>Duplicate group</th></tr></thead>
+      <tbody>{% for row in results.rows %}
+        <tr><td><code>{{ row.directory }}{{ row.directory ends with '/' or row.directory ends with '\\' ? '' : '/' }}{{ row.filename }}</code></td>
+        <td>{{ row.profile_name }}</td>
+        <td class="group-size">{{ row.size_bytes|number_format }}</td>
+        <td>{{ row.mtime_epoch }}</td>
+        <td>{{ row.hash_method == 'sha256' ? 'SHA-256 (verified)' : (row.hash_method == 'crc32_3part' ? 'CRC32 3 Part (candidate)' : (row.hash_method == 'crc32_full' ? 'CRC32 Full (candidate)' : 'Size only')) }}</td>
+        <td><span class="status">{{ row.error_code ?? (row.is_ignored ? 'Ignored in matching' : 'Indexed') }}</span></td>
+        <td>{% if row.group_id %}
+          <a class="text-link" href="{{ path('app_duplicate_group',{id:row.group_id}) }}">#{{ row.group_id }}</a>
+        {% else %}<span class="muted">—</span>{% endif %}</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+    <div class="result-toolbar">
+      <span class="muted">{{ results.rows|length|number_format }} records on this page · {{ results.total|number_format }} matches found</span>
+      <nav aria-label="Search pagination">
+        {% if results.previous %}<a href="{{ path('app_search',filters|merge({before:results.previous})) }}">Previous</a>{% endif %}
+        {% if results.next %}<a href="{{ path('app_search',filters|merge({after:results.next})) }}">Next</a>{% endif %}
+      </nav>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

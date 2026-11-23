@@ -17,18 +17,25 @@
       <tr>
         <td><strong>{{ profile.name }}</strong><div class="muted"><code>{{ profile.source_root }}</code></div></td>
         <td>{{ profile.type_name }}</td>
-        <td>{{ profile.hash_mode == 'sha256' ? 'Verified SHA-256' : 'Size candidates only' }}</td>
+        <td>{{ profile.hash_mode == 'sha256' ? 'Verified SHA-256' : (profile.hash_mode == 'crc32_3part' ? 'CRC32 3 Part (fast)' : (profile.hash_mode == 'crc32_full' ? 'CRC32 Full' : 'Size candidates only')) }}</td>
         <td>{% if profile.finished_at %}
           <strong>{{ profile.duplicate_groups|number_format }} groups</strong>
           <div class="muted">{{ profile.files_indexed|number_format }} indexed · {{ profile.finished_at }}</div>
           {% else %}<span class="muted">Never scanned</span>{% endif %}</td>
         <td>{% if profile.active_state %}<span class="status">{{ profile.active_state }}</span>
           <div class="muted">{{ profile.active_phase }}</div>
-          {% else %}<span class="status">Idle</span>{% endif %}</td>
-        <td><form method="post" action="{{ path('app_profile_scan',{id:profile.id}) }}">
+          {% else %}<span class="status">{{ profile.enabled ? 'Idle' : 'Disabled' }}</span>{% endif %}</td>
+        <td><div class="profile-actions">
+          <form method="post" action="{{ path('app_profile_scan',{id:profile.id}) }}">
             <input type="hidden" name="_token" value="{{ csrf_token('scan_profile_' ~ profile.id) }}">
             <button class="secondary" type="submit" {{ not profile.enabled or profile.active_state ? 'disabled' : '' }}>Start scan</button>
-          </form></td>
+          </form>
+          <a class="secondary link-button" href="{{ path('app_profile_edit',{id:profile.id}) }}">Edit</a>
+          <form method="post" action="{{ path('app_profile_enabled',{id:profile.id}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('toggle_profile_' ~ profile.id) }}">
+            <button class="secondary" type="submit" {{ profile.active_state ? 'disabled' : '' }}>{{ profile.enabled ? 'Disable' : 'Enable' }}</button>
+          </form>
+          </div></td>
       </tr>
     {% endfor %}
     </tbody></table></div>

@@ -1,8 +1,10 @@
 <?php
 declare(strict_types=1);
 namespace App\Module\Profiles\Controller;
+
 use App\Module\Profiles\Repository\ProfileRepository;
 use App\Module\Profiles\Service\DirectoryBrowser;
+use App\Module\Scans\Service\FileHasher;
 use App\Module\Jobs\Service\JobStore;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -15,46 +17,99 @@ final class ProfilesController extends AbstractController
     public function index(ProfileRepository $repository): Response
     {
         return $this->render('profiles/index.html.twig',[
-            'profiles'=>$repository->profiles(), 'types'=>$repository->types()
+            'profiles'=>$repository->profiles(),'types'=>$repository->types()
         ]);
+    }
+
+    /** Same form and same validation for both create and edit. */
+    private function validate(Request $request,ProfileRepository $repository,DirectoryBrowser $browser): array
+    {
+        $errors=[];
+        $name=trim((string)$request->request->get('name',''));
+        $source=trim((string)$request->request->get('source_root',''));
+        $move=trim((string)$request->request->get('move_root',''));
+        $type=filter_var($request->request->get('profile_type_id'),FILTER_VALIDATE_INT);
+        $size=filter_var($request->request->get('minimum_bytes'),FILTER_VALIDATE_INT,
+            ['options'=>['min_range'=>0]]);
+        $mode=(string)$request->request->get('hash_mode','crc32_3part');
+        if(mb_strlen($name)<1 || mb_strlen($name)>140)
+            $errors[]='Profile name must be 1–140 characters.';
+        if(!$type || !in_array($type,array_map(
+            static fn($row)=>(int)$row['id'],$repository->types()),true))
+            $errors[]='Choose a valid file-type preset.';
+        if($size===false) $errors[]='Minimum size must be a non-negative number of bytes.';
+        if(!FileHasher::isSupported($mode)) $errors[]='Choose a supported hashing strategy.';
+
+        $canonicalSource=$browser->canonicalDirectory($source);
+        $canonicalMove=$browser->canonicalDirectory($move);
+        if($canonicalSource===null)
+            $errors[]='Source folder is not accessible to the PHP account.';
+        if($canonicalMove===null)
+            $errors[]='Move folder is not accessible to the PHP account.';
+
+        return [$errors,$name,$canonicalSource,$canonicalMove,$type,$size,$mode];
     }
 
     #[Route('/profiles/new',name:'app_profile_new',methods:['GET','POST'])]
     public function create(Request $request,ProfileRepository $repository,DirectoryBrowser $browser): Response
     {
-        $types=$repository->types();
         $errors=[];
         if($request->isMethod('POST')) {
-            if(!$this->isCsrfTokenValid('create_profile',(string)$request->request->get('_token',''))) {
+            if(!$this->isCsrfTokenValid('create_profile',(string)$request->request->get('_token','')))
                 throw $this->createAccessDeniedException('Invalid form token.');
-            }
-            $name=trim((string)$request->request->get('name',''));
-            $source=trim((string)$request->request->get('source_root',''));
-            $move=trim((string)$request->request->get('move_root',''));
-            $type=filter_var($request->request->get('profile_type_id'),FILTER_VALIDATE_INT);
-            $size=filter_var($request->request->get('minimum_bytes'),FILTER_VALIDATE_INT,
-                ['options'=>['min_range'=>0]]);
-            $mode=(string)$request->request->get('hash_mode','sha256');
-            if(mb_strlen($name)<1 || mb_strlen($name)>140) $errors[]='Profile name must be 1–140 characters.';
-            if(!$type || !in_array($type,array_map(fn($row)=>(int)$row['id'],$types),true))
-                $errors[]='Choose a valid profile type.';
-            if($size===false) $errors[]='Minimum size must be a non-negative number of bytes.';
-            if(!in_array($mode,['size','sha256'],true)) $errors[]='Choose a supported hash mode.';
-            // Check real paths on the host, not paths in the user's browser.
-            foreach(['Source'=>$source,'Move'=>$move] as $label=>$path) {
-                if($browser->canonicalDirectory($path) === null)
-                    $errors[]=$label.' folder is not accessible to the server PHP account.';
-            }
+            [$errors,$name,$source,$move,$type,$size,$mode]=$this->validate($request,$repository,$browser);
             if(!$errors) {
-                $repository->create($name,$browser->canonicalDirectory($source),$browser->canonicalDirectory($move),
-                    (int)$type,(int)$size,$mode);
-                $this->addFlash('success','Profile created. Queue a scan when the CLI worker is configured.');
+                $repository->create($name,$source,$move,$type,$size,$mode);
+                $this->addFlash('success','Profile created. Start a scan to index its files.');
                 return $this->redirectToRoute('app_profiles');
             }
         }
         return $this->render('profiles/new.html.twig',[
-            'types'=>$types,'errors'=>$errors
+            'types'=>$repository->types(),'errors'=>$errors,'profile'=>null
         ]);
+    }
+
+    #[Route('/profiles/{id<\\d+>}/edit',name:'app_profile_edit',methods:['GET','POST'])]
+    public function edit(int $id,Request $request,ProfileRepository $repository,DirectoryBrowser $browser): Response
+    {
+        $profile=$repository->find($id);
+        if(!$profile) throw $this->createNotFoundException('Profile not found.');
+        $errors=[];
+        if($request->isMethod('POST')) {
+            if(!$this->isCsrfTokenValid('edit_profile_'.$id,(string)$request->request->get('_token','')))
+                throw $this->createAccessDeniedException('Invalid form token.');
+            [$errors,$name,$source,$move,$type,$size,$mode]=$this->validate($request,$repository,$browser);
+            if(!$errors) {
+                try {
+                    $repository->update($id,$name,$source,$move,$type,$size,$mode);
+                    $this->addFlash('success','Profile settings updated. Existing scan history was preserved.');
+                    return $this->redirectToRoute('app_profiles');
+                } catch(\DomainException $ex) {
+                    $errors[]=$ex->getMessage();
+                }
+            }
+        }
+        return $this->render('profiles/new.html.twig',[
+            'types'=>$repository->types(),'errors'=>$errors,'profile'=>$profile
+        ]);
+    }
+
+    #[Route('/profiles/{id<\\d+>}/enabled',name:'app_profile_enabled',methods:['POST'])]
+    public function enabled(int $id,Request $request,ProfileRepository $repository): Response
+    {
+        if(!$this->isCsrfTokenValid('toggle_profile_'.$id,(string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid form token.');
+        $profile=$repository->find($id);
+        if(!$profile) throw $this->createNotFoundException('Profile not found.');
+        try {
+            $newState=!(bool)$profile['enabled'];
+            $repository->setEnabled($id,$newState);
+            $this->addFlash('success','Profile '.($newState?'enabled':'disabled').
+                '. Historical scan data remains available.');
+        } catch(\DomainException $ex) {
+            $this->addFlash('warning',$ex->getMessage());
+        }
+        return $this->redirectToRoute('app_profiles');
     }
 
     #[Route('/profiles/{id<\\d+>}/scan',name:'app_profile_scan',methods:['POST'])]

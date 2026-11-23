@@ -34,7 +34,7 @@
           <td>{{ group.file_count|number_format }}</td>
           <td class="group-size">{{ group.size_bytes|number_format }} bytes</td>
           <td class="group-size">{{ group.reclaimable_bytes|number_format }} bytes</td>
-          <td><span class="status">{{ group.rules_version == 1 ? 'Verified SHA-256' : 'Size only — unverified' }}</span></td>
+          <td><span class="status">{{ group.rules_version == 1 ? 'Verified SHA-256' : (group.rules_version == 2 ? 'CRC32 3 Part — candidate' : (group.rules_version == 3 ? 'CRC32 Full — candidate' : 'Size only — candidate')) }}</span></td>
         </tr>
       {% endfor %}</tbody>
     </table></div>

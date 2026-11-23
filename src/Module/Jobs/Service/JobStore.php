@@ -36,7 +36,7 @@ final class JobStore
             'hash_mode'=>(string)$profile['hash_mode'],
             'ignored_folders'=>array_values(array_unique([...array_map('strtolower',$ignore),'.dup-quarantine']))
         ];
-        if(!in_array($settings['hash_mode'],['size','sha256'],true))
+        if(!\App\Module\Scans\Service\FileHasher::isSupported($settings['hash_mode']))
             throw new \DomainException('Unsupported hash mode.');
 
         try {

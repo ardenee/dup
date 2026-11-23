@@ -8,17 +8,17 @@ DUP is a web-based duplicate-file scanner and manager for Windows, Linux and Syn
 
 ## What DUP does
 
-- Creates scan profiles for source folders, move destinations, file types and matching settings
+- Creates and edits scan profiles for source folders, move destinations, file types and matching settings; supports enabling/disabling profiles while retaining scan history
 - Browses filesystem folders available to the server's PHP account, without a separate allowlist configured during installation
 - Runs persistent background scan jobs with progress, heartbeat, cancellation, and error reporting
-- Uses streamed SHA-256 comparison for verified duplicates; size-only candidates are explicitly marked unverified
+- Supports four matching modes: file size, original CRC32 3 Part (150 KiB at start/middle/end of large files), full CRC32, and streamed SHA-256; size and CRC32 groups are explicitly marked as candidates
 - Retains indexed files from ignored folders so ignore rules can be changed without a full rescan
 - Preserves prior successful scan snapshots if a later scan fails
-- Provides duplicate-group browsing, results pagination, reports, historic runs and CSV exports
+- Provides general/duplicate/quarantined-file index searches, duplicate-group browsing, results pagination, reports, historic runs and CSV exports
 - Shows worker/queue diagnostics and authenticated system status
 - Supports explicitly confirmed, reversible quarantine and restore with hash verification and an audit history
 
-Permanent deletion is deliberately unavailable pending further safety and recovery testing.
+Permanent deletion is deliberately unavailable pending further safety and recovery testing. Legacy move history, bulk renaming and inline file previews are not yet restored in the new application; quarantined-file search is not a replacement for all historical moved-file searches.
 
 ## Requirements
 

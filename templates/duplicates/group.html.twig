@@ -4,7 +4,7 @@
 {% block body %}
 <div class="page-heading"><div><div class="eyebrow">DUPLICATE COMPARISON</div><h1>Group #{{ group.id }}</h1>
   <p class="muted">{{ group.profile_name }} · {{ group.file_count|number_format }} files · {{ group.size_bytes|number_format }} bytes each</p>
-  <p><span class="status">{{ group.rules_version == 1 ? 'Verified SHA-256' : 'Size candidates only — NOT verified' }}</span></p>
+  <p><span class="status">{{ group.rules_version == 1 ? 'Verified SHA-256' : (group.rules_version == 2 ? 'CRC32 3 Part — candidate' : (group.rules_version == 3 ? 'CRC32 Full — candidate' : 'Size only — candidate')) }}</span></p>
 </div><a class="secondary link-button" href="{{ path('app_duplicates') }}">Back to groups</a></div>
 <div class="stats-grid">
   <div class="stat"><span>Files</span><strong>{{ group.file_count|number_format }}</strong></div>

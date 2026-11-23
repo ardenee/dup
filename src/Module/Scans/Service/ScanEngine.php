@@ -42,7 +42,7 @@ final class ScanEngine
             if($root==='' || $this->browser->canonicalDirectory($root)!==$root)
                 throw new \RuntimeException('The scan root is no longer allowed or accessible.');
             $mode=(string)($settings['hash_mode']??'');
-            if(!in_array($mode,['size','sha256'],true))
+            if(!FileHasher::isSupported($mode))
                 throw new \RuntimeException('Invalid hash strategy in scan snapshot.');
             $extensions=$this->extensionSet((string)($settings['extensions']??''));
             $ignore=array_fill_keys((array)($settings['ignored_folders']??[]),true);
@@ -59,8 +59,8 @@ final class ScanEngine
                 'symlinks_skipped'=>$this->stats['symlinks_skipped']
             ]);
             $this->jobs->progress($id,$token,'finding_candidates',0,null);
-            if($mode==='sha256')
-                $this->hashCandidateFiles($id,$runId,$token);
+            if($mode!=='size')
+                $this->hashCandidateFiles($id,$runId,$token,$mode);
             $this->jobs->progress($id,$token,'grouping',0,null);
             $this->stats['duplicate_groups']=$this->db->transactional(
                 fn() => $this->rebuilder->rebuild($runId,$mode,
@@ -178,7 +178,7 @@ final class ScanEngine
         $batch=[];
     }
 
-    private function hashCandidateFiles(int $jobId,int $runId,string $token): void
+    private function hashCandidateFiles(int $jobId,int $runId,string $token,string $mode): void
     {
         $sizes=$this->db->executeQuery(
             'SELECT size_bytes FROM file_entries WHERE run_id=? ' .
@@ -204,47 +204,21 @@ final class ScanEngine
             while(($file=$candidates->fetchAssociative())!==false) {
                 $this->heartbeat($jobId,$token,'hashing',$done,$total);
                 $path=rtrim((string)$file['directory'],'/\\') . DIRECTORY_SEPARATOR . $file['filename'];
-                $digest=$this->hashFile($path,(int)$file['size_bytes'],(int)$file['mtime_epoch'],
-                    $jobId,$token,$done,$total);
+                $digest=FileHasher::digest(
+                    $path,$mode,(int)$file['size_bytes'],(int)$file['mtime_epoch'],
+                    fn() => $this->heartbeat($jobId,$token,'hashing',$done,$total)
+                );
                 $this->db->executeStatement(
-                    "UPDATE file_entries SET hash_method='sha256',hash_value=? WHERE id=?",
-                    [$digest,(int)$file['id']]
+                    "UPDATE file_entries SET hash_method=?,hash_value=? WHERE id=?",
+                    [$mode,in_array($digest,['0 Filled','unknown'],true)?null:$digest,(int)$file['id']]
                 );
                 $done++;
             }
         }
         $this->jobs->progress($jobId,$token,'hashing',$done,$total);
-        $this->jobs->event($jobId,'info','HASHING_FINISHED',['hashed_files'=>$done]);
-    }
-
-    private function hashFile(string $path,int $size,int $mtime,int $jobId,string $token,int $done,int $total): string
-    {
-        clearstatcache(true,$path);
-        if(is_link($path) || !is_file($path) || filesize($path)!==$size || filemtime($path)!==$mtime)
-            throw new \RuntimeException('A candidate file changed or became inaccessible: '.$path);
-        $stream=@fopen($path,'rb');
-        if($stream===false) throw new \RuntimeException('Unable to read candidate file: '.$path);
-        try {
-            $context=hash_init('sha256');
-            $read=0;
-            while(!feof($stream)) {
-                $chunk=fread($stream,1024*1024);
-                if($chunk===false) throw new \RuntimeException('Read error for: '.$path);
-                if($chunk==='') {
-                    if(!feof($stream)) throw new \RuntimeException('Unexpected empty read: '.$path);
-                    break;
-                }
-                hash_update($context,$chunk);
-                $read+=strlen($chunk);
-                $this->heartbeat($jobId,$token,'hashing',$done,$total);
-            }
-        } finally {
-            fclose($stream);
-        }
-        clearstatcache(true,$path);
-        if($read!==$size || filesize($path)!==$size || filemtime($path)!==$mtime)
-            throw new \RuntimeException('File changed while hashing: '.$path);
-        return hash_final($context);
+        $this->jobs->event($jobId,'info','HASHING_FINISHED',[
+            'hashed_files'=>$done,'method'=>$mode
+        ]);
     }
 
     private function heartbeat(int $id,string $token,string $phase,int $current,?int $total): void
