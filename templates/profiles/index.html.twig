@@ -18,25 +18,26 @@
     </thead><tbody>
     {% for profile in profiles %}
       <tr>
-        <td><strong>{{ profile.name }}</strong><div class="muted"><code>{{ profile.source_root }}</code></div></td>
+        <td><strong><a href="{{ path('app_duplicates',{profile:profile.id}) }}" title="Browse current and historical scans for this profile">{{ profile.name }}</a></strong><div class="muted"><code>{{ profile.source_root }}</code></div></td>
         <td>{{ profile.type_name }}</td>
         <td>{{ profile.hash_mode == 'sha256' ? 'Verified SHA-256' : (profile.hash_mode == 'crc32_3part' ? 'CRC32 3 Part (fast)' : (profile.hash_mode == 'crc32_full' ? 'CRC32 Full' : 'Size candidates only')) }}</td>
         <td>{% if profile.finished_at %}
           <strong>{{ profile.duplicate_groups|number_format }} groups</strong>
           <div class="muted">{{ profile.files_indexed|number_format }} indexed · {{ profile.finished_at }}</div>
+          {% elseif profile.retained_runs|default(0) > 0 %}
+            <strong>Historical results available</strong>
+            <div class="muted">{{ profile.retained_runs|number_format }} retained scans · last finished {{ profile.last_saved_at }} UTC</div>
           {% else %}<span class="muted">Never scanned</span>{% endif %}</td>
         <td>{% if profile.active_state %}<span class="status">{{ profile.active_state }}</span>
           <div class="muted">{{ profile.active_phase }}</div>
           {% else %}<span class="status">{{ profile.enabled ? 'Idle' : 'Disabled' }}</span>{% endif %}</td>
         <td><div class="profile-actions">
+          <a class="primary link-button" href="{{ path('app_duplicates',{profile:profile.id}) }}">Browse scans</a>
           <form method="post" action="{{ path('app_profile_scan',{id:profile.id}) }}">
             <input type="hidden" name="_token" value="{{ csrf_token('scan_profile_' ~ profile.id) }}">
             <button class="secondary" type="submit" {{ not profile.enabled or profile.active_state ? 'disabled' : '' }}>Start scan</button>
           </form>
-          <a class="secondary link-button" href="{{ path('app_reports',{profile:profile.id}) }}">Scan history</a>
-          {% if profile.finished_at %}
-            <a class="secondary link-button" href="{{ path('app_duplicates',{profile:profile.id}) }}">Current duplicates</a>
-          {% endif %}
+          <a class="secondary link-button" href="{{ path('app_reports',{profile:profile.id}) }}">Reports & history</a>
           <a class="secondary link-button" href="{{ path('app_profile_edit',{id:profile.id}) }}">Edit</a>
           <form method="post" action="{{ path('app_profile_enabled',{id:profile.id}) }}">
             <input type="hidden" name="_token" value="{{ csrf_token('toggle_profile_' ~ profile.id) }}">

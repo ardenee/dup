@@ -4,26 +4,98 @@
 {% block body %}
 <div class="page-heading"><div><div class="eyebrow">OVERVIEW</div><h1>Dashboard</h1>
   <p class="muted">Current successful snapshots, verified recovery estimates and background work across your configured profiles.</p></div>
-  <div class="report-downloads"><a class="secondary link-button" href="{{ path('app_reports') }}">View reports</a>
-    <a class="primary link-button" href="{{ path('app_profile_new') }}">New profile</a></div></div>
+  <div class="profile-page-actions">
+    <a class="primary link-button" href="{{ path('app_duplicates') }}">Browse duplicates</a>
+    {% if is_granted('ROLE_ADMIN') %}
+      <a class="secondary link-button" href="{{ path('app_profiles') }}">Manage profiles</a>
+    {% endif %}
+  </div></div>
 <div class="stats-grid">
   <div class="stat"><span>Profiles</span><strong>{{ metrics.profiles|number_format }}</strong></div>
-  <div class="stat"><span>Completed runs</span><strong>{{ metrics.completed_scans|number_format }}</strong></div>
+  <div class="stat"><span>Retained scan results</span><strong>{{ metrics.completed_scans|number_format }}</strong></div>
   <div class="stat"><span>Indexed files</span><strong>{{ metrics.files|number_format }}</strong></div>
   <div class="stat"><span>Duplicate groups</span><strong>{{ metrics.duplicate_groups|number_format }}</strong></div>
   <div class="stat"><span>Potential verified recovery</span><strong>{{ metrics.verified_potential_bytes|number_format }} <small>bytes</small></strong></div>
   <div class="stat"><span>Active jobs</span><strong>{{ metrics.active_jobs|number_format }}</strong></div>
 </div>
 <section class="panel">
+  <div class="panel-heading"><div><h2>Common tasks</h2>
+    <p class="muted">Open what you need without searching through multiple sections.</p>
+  </div></div>
+  <div class="dashboard-quick-grid">
+    <a class="dashboard-quick-link" href="{{ path('app_duplicates') }}">
+      <strong>Browse current duplicates</strong><span>Review matching files and take actions</span>
+    </a>
+    <a class="dashboard-quick-link" href="{{ path('app_duplicates',firstProfileId ? {profile:firstProfileId} : {}) }}">
+      <strong>Browse older scans</strong><span>Choose a profile and any retained scan</span>
+    </a>
+    {% if is_granted('ROLE_ADMIN') %}
+      <a class="dashboard-quick-link" href="{{ path('app_profiles') }}">
+        <strong>Start or configure scans</strong><span>Manage scan profiles and source folders</span>
+      </a>
+      <a class="dashboard-quick-link" href="{{ path('app_actions') }}">
+        <strong>File action history</strong><span>Review results and restore files</span>
+      </a>
+    {% else %}
+      <a class="dashboard-quick-link" href="{{ path('app_search') }}">
+        <strong>Find a file</strong><span>Search indexed file records</span>
+      </a>
+      <a class="dashboard-quick-link" href="{{ path('app_reports') }}">
+        <strong>Scan reports</strong><span>View dates and history</span>
+      </a>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading"><div><h2>Recent scans</h2>
+    <p class="muted">Open any saved scan's duplicate results directly. Older snapshots are read-only.</p>
+  </div><a class="text-link" href="{{ path('app_duplicates',firstProfileId ? {profile:firstProfileId} : {}) }}">Choose another scan</a></div>
+  {% if scans is empty %}
+    <div class="empty-state">No scan results yet.
+      {% if is_granted('ROLE_ADMIN') %}<a href="{{ path('app_profiles') }}">Configure a scan profile</a>.{% endif %}
+    </div>
+  {% else %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Profile / scan</th><th>Finished</th><th>Status</th><th>Indexed files</th><th>Duplicate groups</th><th>Open</th></tr></thead>
+      <tbody>{% for scan in scans %}
+        <tr>
+          <td><strong>{{ scan.profile_name }}</strong><div class="muted">#{{ scan.id }}</div></td>
+          <td>{{ scan.finished_at ?? scan.started_at ?? 'Not recorded' }} UTC</td>
+          <td><span class="status">{{ scan.state == 'archived' ? 'Historical' : scan.state|capitalize }}</span></td>
+          <td>{{ scan.files_indexed|default(0)|number_format }}</td>
+          <td>{{ scan.duplicate_groups|default(0)|number_format }}</td>
+          <td>
+            {% if scan.state in ['completed','archived'] %}
+              <a class="text-link" href="{{ path('app_duplicates',{run:scan.id}) }}">Duplicates</a>
+            {% endif %}
+            <a class="text-link" href="{{ path('app_report_run',{id:scan.id}) }}">Report</a>
+          </td>
+        </tr>
+      {% endfor %}</tbody>
+    </table></div>
+  {% endif %}
+</section>
+
+<section class="panel">
   <div class="panel-heading"><div><h2>Recent jobs</h2><p class="muted">Worker progress and errors will appear here.</p></div>
-    <a class="text-link" href="{{ path('app_jobs') }}">View all jobs</a></div>
+    {% if is_granted('ROLE_ADMIN') %}
+      <a class="text-link" href="{{ path('app_jobs') }}">View all jobs</a>
+    {% endif %}</div>
   {% if jobs is empty %}
     <div class="empty-state">No jobs yet. Set up a profile to begin.</div>
   {% else %}
     <div class="table-wrap"><table><thead><tr><th>Job</th><th>Type</th><th>Stage</th><th>Status</th><th>Progress</th></tr></thead>
-    <tbody>{% for job in jobs %}<tr><td>#{{ job.id }}</td><td>{{ job.kind }}</td><td>{{ job.phase }}</td>
+    <tbody>{% for job in jobs %}<tr>
+      <td>{% if is_granted('ROLE_ADMIN') %}
+        <a class="text-link" href="{{ path('app_job_detail',{id:job.id}) }}">#{{ job.id }}</a>
+      {% else %}#{{ job.id }}{% endif %}</td><td>{{ job.kind }}</td><td>{{ job.phase }}</td>
     <td><span class="status">{{ job.state }}</span></td>
-    <td>{{ job.progress_current }}{% if job.progress_total is not null %} / {{ job.progress_total }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+    <td>{{ job.progress_current }}{% if job.progress_total is not null %} / {{ job.progress_total }}{% endif %}
+      {% if job.run_id and job.run_state in ['completed','archived'] %}
+        <div><a class="text-link" href="{{ path('app_duplicates',{run:job.run_id}) }}">Open scan results</a></div>
+      {% endif %}
+    </td></tr>{% endfor %}</tbody></table></div>
   {% endif %}
 </section>
 {% endblock %}

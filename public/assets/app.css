@@ -236,3 +236,39 @@ textarea{font:inherit;color:var(--ink)}
 .viewer-settings-form .field input,.viewer-settings-form .field select{max-width:900px;width:100%;min-height:42px}
 .viewer-settings-form .field p.muted{margin-top:7px;font-size:12px;line-height:1.5}
 .viewer-settings-form .form-actions{display:flex;gap:10px;flex-wrap:wrap}
+
+
+/* Workflow-oriented sidebar rather than an ungrouped module list. */
+.sidebar nav{gap:2px}
+.nav-section-heading{font-size:10px;font-weight:750;letter-spacing:.12em;color:#93aac0;
+  margin:13px 13px 4px;padding:9px 0 4px;border-top:1px solid #36485a}
+.nav-section-heading:first-child{margin-top:0;border-top:0;padding-top:0}
+.nav-link{padding:8px 13px;font-weight:550}
+.nav-link.active{background:#294a5c;border-left:3px solid #51b7c0;padding-left:10px}
+@media(max-width:800px){
+  .nav-section-heading{display:none}
+  .sidebar nav{gap:6px}
+  .nav-link{border-radius:7px;border:1px solid #415368;padding:7px 11px}
+  .nav-link.active{border:1px solid #51b7c0;padding:7px 11px}
+}
+
+/* Direct dashboard shortcuts rather than forcing users through Reports. */
+.dashboard-quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:18px 20px}
+.dashboard-quick-link{display:flex;flex-direction:column;gap:3px;border:1px solid var(--line);border-radius:9px;
+ padding:15px 17px;text-decoration:none;color:var(--ink);background:#fbfdfe}
+.dashboard-quick-link:hover,.dashboard-quick-link:focus-visible{border-color:#90c5d0;background:#ecf7f8}
+.dashboard-quick-link strong{font-weight:700;color:#15586b}
+.dashboard-quick-link span{font-size:12px;color:var(--muted)}
+@media(max-width:620px){.dashboard-quick-grid{grid-template-columns:minmax(0,1fr);padding:14px}}
+
+/* Searchable job history and readable event context. */
+.job-filter{display:grid;grid-template-columns:repeat(2,minmax(180px,1fr)) auto;
+ gap:12px 16px;align-items:end;padding:18px 22px}
+.job-filter .field{margin:0;min-width:0}
+.job-filter .field input,.job-filter .field select{min-height:42px}
+.job-filter-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.job-event-field{font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.job-event-field+div{margin-top:3px}
+.job-event-field strong{text-transform:capitalize;color:#3a5969}
+@media(max-width:900px){.job-filter{grid-template-columns:repeat(2,minmax(0,1fr))}.job-filter-actions{grid-column:1/-1}}
+@media(max-width:600px){.job-filter{grid-template-columns:minmax(0,1fr);padding:16px}.job-filter-actions{grid-column:auto}}

@@ -30,7 +30,7 @@ $view=$twig->render('duplicates/index.html.twig',$app+[
     'page_start'=>1,'page_end'=>1,'page_rows'=>3,'page_listed_bytes'=>768,
     'page_reclaimable'=>512
 ]);
-foreach(['Bulk rename','Bulk move','Bulk quarantine','Bulk link',
+foreach(['data-dup-rename','data-dup-move','data-dup-quarantine','data-dup-link',
     'Select matches','data-dup-select-visible','data-dup-clear-selection',
     'data-bulk-duplicate-url','data-bulk-duplicate-token'] as $needle)
     if(!str_contains($view,$needle))throw new RuntimeException('Bulk browser missing '.$needle);

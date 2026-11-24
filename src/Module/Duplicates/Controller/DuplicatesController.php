@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Module\Duplicates\Controller;
 
 use Doctrine\DBAL\Connection;
+use App\Module\Duplicates\Repository\ScanSelectionRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -23,32 +24,47 @@ final class DuplicatesController extends AbstractController
     }
 
     #[Route('/duplicates',name:'app_duplicates',methods:['GET'])]
-    public function index(Request $request,Connection $db): Response
+    public function index(Request $request,Connection $db,ScanSelectionRepository $selector): Response
     {
-        $profiles=$db->fetchAllAssociative(
-            "SELECT p.id,p.name,r.id AS run_id,r.duplicate_groups " .
-            "FROM scan_profiles p LEFT JOIN scan_runs r ON r.id=" .
-            "(SELECT MAX(id) FROM scan_runs WHERE profile_id=p.id AND state='completed') " .
-            'ORDER BY p.name'
-        );
+        $profiles=$selector->profiles();
         $profile=$this->cursor($request,'profile');
         $selectedRun=$this->cursor($request,'run');
+        $scanBefore=$this->cursor($request,'scan_before');
         $historical=false;
         $runInfo=null;
         if($selectedRun!==null) {
-            $runInfo=$db->fetchAssociative(
-                'SELECT r.id,r.profile_id,r.state,r.finished_at,p.name AS profile_name '.
-                'FROM scan_runs r JOIN scan_profiles p ON p.id=r.profile_id '.
-                "WHERE r.id=? AND r.state IN ('completed','archived')",[$selectedRun]
-            );
-            if(!$runInfo || ($profile!==null && $profile!==(int)$runInfo['profile_id']))
+            $runInfo=$selector->selectedRun($selectedRun,$profile);
+            if(!$runInfo)
                 throw $this->createNotFoundException('No completed scan matches this selection.');
             $profile=(int)$runInfo['profile_id'];
-            $currentId=(int)$db->fetchOne(
-                "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=? AND state='completed'",
-                [$profile]
-            );
-            $historical=$currentId!==$selectedRun || $runInfo['state']!=='completed';
+            $historical=(bool)$runInfo['is_historical'];
+        }
+        $latestRunId=null;
+        if($profile!==null) foreach($profiles as $profileRow) {
+            if((int)$profileRow['id']===$profile) {
+                $latestRunId=$profileRow['run_id']===null?null:(int)$profileRow['run_id'];
+                break;
+            }
+        }
+        if($scanBefore!==null && $profile===null)
+            throw $this->createNotFoundException('Choose a profile before paging its scans.');
+        $history=$profile!==null?$selector->runs($profile,$scanBefore):['rows'=>[],'more'=>false];
+        $scanChoicesLast=$history['rows']?(int)$history['rows'][count($history['rows'])-1]['id']:null;
+        if($scanBefore!==null && !$history['rows'])
+            throw $this->createNotFoundException('No older scans were found.');
+        // A profile whose current results were cleared should still open its
+        // latest retained snapshot, clearly marked historical and read-only.
+        if($profile!==null && $selectedRun===null && $history['rows'] &&
+            ($scanBefore!==null || $latestRunId===null)) {
+            $selectedRun=(int)$history['rows'][0]['id'];
+            $runInfo=$selector->selectedRun($selectedRun,$profile);
+            $historical=true;
+        }
+        // A bookmarked older run may lie beyond the 75 recent choices.
+        // Keep its selection visible without making the chooser unbounded.
+        if($runInfo && !array_filter($history['rows'],
+            static fn(array $run):bool=>(int)$run['id']===$selectedRun)) {
+            array_unshift($history['rows'],$runInfo);
         }
         $after=$this->cursor($request,'after');
         $before=$this->cursor($request,'before');
@@ -135,6 +151,9 @@ final class DuplicatesController extends AbstractController
         return $this->render('duplicates/index.html.twig',[
             'groups'=>$rows,'profiles'=>$profiles,'selected_profile'=>$profile,
             'selected_run'=>$selectedRun,'run_info'=>$runInfo,'historical'=>$historical,
+            'latest_run_id'=>$latestRunId,
+            'scan_choices'=>$history['rows'],'scan_choices_more'=>$history['more'],
+            'scan_before'=>$scanBefore,'scan_choices_last'=>$scanChoicesLast,
             'previous'=>$prior?$first:null,'next'=>$later?$last:null,
             'totals'=>$totals ?: ['total_groups'=>0,'total_members'=>0,'reclaimable_bytes'=>0],
             'page_start'=>$pageStart,'page_end'=>$pageEnd,'page_rows'=>$pageRows,

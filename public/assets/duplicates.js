@@ -1,4 +1,24 @@
 // Compact, single-table duplicate browser. Never load all file rows at once.
+// A user can switch to any retained profile scan without visiting Reports.
+// Changing profile clears a stale scan ID before submitting the selector.
+const scanPicker = document.querySelector('[data-scan-picker-form]');
+if (scanPicker) {
+  const profile = scanPicker.querySelector('[data-scan-profile]');
+  const run = scanPicker.querySelector('[data-scan-run]');
+  profile?.addEventListener('change', () => {
+    if (run) run.value = '';
+    // A paging cursor belongs to the previous profile's scan history.
+    scanPicker.querySelector('input[name="scan_before"]')?.remove();
+    scanPicker.requestSubmit();
+  });
+  run?.addEventListener('change', () => {
+    // The "latest" choice must always return to current results, even after
+    // navigating into older scan-choice pages.
+    if (!run.value) scanPicker.querySelector('input[name="scan_before"]')?.remove();
+    scanPicker.requestSubmit();
+  });
+}
+
 const browser = document.querySelector('#duplicate-groups');
 
 if (browser) {

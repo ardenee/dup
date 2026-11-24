@@ -1,0 +1,11 @@
+<div class="result-toolbar">
+  <span>{{ jobs|length|number_format }} jobs on this page · {{ page.total|number_format }} matching jobs total</span>
+  <nav aria-label="Job history pages">
+    {% if page.previous %}
+      <a href="{{ path('app_jobs',job_filters|merge({after:page.previous})) }}">Newer jobs</a>
+    {% endif %}
+    {% if page.next %}
+      <a href="{{ path('app_jobs',job_filters|merge({before:page.next})) }}">Older jobs</a>
+    {% endif %}
+  </nav>
+</div>

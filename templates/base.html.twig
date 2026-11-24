@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
   <title>{% block title %}DUP{% endblock %} · Duplicate Manager</title>
-  <link rel="stylesheet" href="{{ asset('assets/app.css') }}?v=0.7.6-history">
+  <link rel="stylesheet" href="{{ asset('assets/app.css') }}?v=0.7.6-ux">
   {% block page_styles %}{% endblock %}
   <link rel="icon" type="image/png" sizes="120x120" href="{{ asset('assets/dup.png') }}">
 </head>
@@ -15,10 +15,19 @@
   {% if app.user %}
     <aside class="sidebar" aria-label="Application navigation">
       <div class="brand"><img class="brand-logo-original" src="{{ asset('assets/dup.png') }}" width="32" height="32" alt="DUP icon"><div><strong>DUP</strong><small>Duplicate Manager</small></div></div>
-      <nav>
+      <nav aria-label="Main navigation">
+      {% set last_section = '' %}
+      {% set nav_labels = {'overview':'OVERVIEW','find':'FIND FILES','scan':'SCAN & MONITOR','actions':'FILE OPERATIONS','settings':'SETTINGS'} %}
       {% for link in dup_navigation() %}
         {% if is_granted('ROLE_ADMIN') or link.route in ['app_dashboard','app_duplicates','app_search','app_reports'] %}
-          <a href="{{ path(link.route) }}" class="nav-link {{ app.request.attributes.get('_route') == link.route ? 'active' : '' }}">{{ link.label }}</a>
+          {% set nav_section = link.section|default('other') %}
+          {% if nav_section != last_section %}
+            <div class="nav-section-heading">{{ nav_labels[nav_section]|default(nav_section|replace({'_':' '})|title) }}</div>
+            {% set last_section = nav_section %}
+          {% endif %}
+          {% set destination = path(link.route) %}
+          {% set is_active = app.request.attributes.get('_route') == link.route or (destination != '/' and app.request.pathInfo starts with destination ~ '/') %}
+          <a href="{{ destination }}" class="nav-link {{ is_active ? 'active' : '' }}" {{ is_active ? 'aria-current="page"' : '' }}>{{ link.label }}</a>
         {% endif %}
       {% endfor %}
       </nav>

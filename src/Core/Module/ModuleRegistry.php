@@ -20,6 +20,13 @@ final class ModuleRegistry
         $links=[];
         foreach($this->modules as $module)
             foreach($module->navigation() as $item) $links[]=$item;
+        $sections=['overview'=>0,'find'=>10,'scan'=>20,'actions'=>30,'settings'=>40];
+        usort($links,static function(array $a,array $b) use ($sections):int {
+            $one=$sections[$a['section']??'']??90;
+            $two=$sections[$b['section']??'']??90;
+            return ($one<=>$two) ?: (($a['order']??50)<=>($b['order']??50))
+                ?: strcmp((string)$a['label'],(string)$b['label']);
+        });
         return $links;
     }
     public function ids(): array {return array_keys($this->modules);}

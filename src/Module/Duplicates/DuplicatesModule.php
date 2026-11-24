@@ -6,6 +6,6 @@ final class DuplicatesModule implements ModuleInterface
 {
     public function id(): string { return 'duplicates'; }
     public function navigation(): array {
-        return [['route'=>'app_duplicates','label'=>'Duplicates']];
+        return [['route'=>'app_duplicates','label'=>'Duplicates','section'=>'find','order'=>10]];
     }
 }

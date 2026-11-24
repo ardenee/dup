@@ -2,37 +2,98 @@
 {% from 'duplicates/_format.html.twig' import bytes, hash, method %}
 {% block title %}Duplicates{% endblock %}
 {% block section %}Duplicates{% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ asset('assets/duplicates.css') }}?v=1">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ asset('assets/duplicates.css') }}?v=2">{% endblock %}
 {% block body %}
 <div class="page-heading dup-heading">
   <div>
-    <div class="eyebrow">SCAN RESULTS</div>
+    <div class="eyebrow">FIND & MANAGE DUPLICATES</div>
     <h1>Duplicate files</h1>
-    <p class="muted">Browse the latest completed scans or open an individual historical scan from its report. Expand a filename to reveal matches in the same table.</p>
-    {% if historical|default(false) %}
-      <div class="notice notice-warning"><strong>Historical scan #{{ selected_run }} — read-only.</strong>
-      These paths and hashes were indexed in a previous scan. Files may have changed or moved. Rename, move, link, quarantine, preview and download operations are disabled for historical results.</div>
-      <a class="secondary link-button" href="{{ path('app_report_run',{id:selected_run}) }}">Back to scan #{{ selected_run }}</a>
-    {% elseif selected_run|default(null) %}
-      <p><strong>Viewing scan #{{ selected_run }}</strong> — current completed results.</p>
-      <a class="secondary link-button" href="{{ path('app_report_run',{id:selected_run}) }}">Scan report</a>
+    <p class="muted">Choose a scan below. You can review older results here without leaving the Duplicates page.</p>
+  </div>
+  <div class="profile-page-actions">
+    <a class="secondary link-button" href="{{ path('app_reports',selected_profile ? {profile:selected_profile} : {}) }}">Full scan history</a>
+    {% if is_granted('ROLE_ADMIN') %}
+      <a class="secondary link-button" href="{{ path('app_profiles') }}">Manage scan profiles</a>
     {% endif %}
   </div>
-  {% if not historical|default(false) and not selected_run|default(null) %}
-  <form method="get" action="{{ path('app_duplicates') }}" class="dup-filter">
-    <label for="dup-profile">Scan profile</label>
-    <select name="profile" id="dup-profile" onchange="this.form.submit()">
-      <option value="">All profiles</option>
-      {% for profile in profiles %}
-        <option value="{{ profile.id }}" {{ selected_profile == profile.id ? 'selected' : '' }}>{{ profile.name }}{% if profile.duplicate_groups is not null %} ({{ profile.duplicate_groups }}){% endif %}</option>
-      {% endfor %}
-    </select>
-    <noscript><button class="secondary" type="submit">Filter</button></noscript>
-  </form>
-  {% else %}
-    <a class="secondary link-button" href="{{ path('app_duplicates') }}">Current duplicates</a>
-  {% endif %}
 </div>
+
+<section class="panel scan-picker-panel" aria-label="Choose duplicate scan">
+  <form method="get" action="{{ path('app_duplicates') }}" class="scan-picker" data-scan-picker-form>
+    {% if scan_before|default(null) %}
+      <input type="hidden" name="scan_before" value="{{ scan_before }}">
+    {% endif %}
+    <div class="field">
+      <label for="dup-profile">Profile</label>
+      <select name="profile" id="dup-profile" data-scan-profile>
+        <option value="" {{ selected_profile is null ? 'selected' : '' }}>All profiles — latest scans</option>
+        {% for profile in profiles %}
+          <option value="{{ profile.id }}" {{ selected_profile == profile.id ? 'selected' : '' }}>
+            {{ profile.name }}{% if profile.run_id %} · {{ profile.duplicate_groups|number_format }} current groups{% else %} · no current scan{% endif %}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="dup-run">Scan</label>
+      <select name="run" id="dup-run" data-scan-run {{ selected_profile is null ? 'disabled' : '' }}>
+        <option value="">Latest completed {{ selected_profile ? 'scan for this profile' : 'scans' }}</option>
+        {% for scan in scan_choices|default([]) %}
+          <option value="{{ scan.id }}" {{ selected_run|default(null) == scan.id ? 'selected' : '' }}>
+            Scan #{{ scan.id }} · {{ (scan.finished_at ?? scan.started_at ?? '')|slice(0,16) }} UTC ·
+            {{ scan.state == 'completed' and scan.id == latest_run_id|default(-1) ? 'Latest' : 'Historical' }} ·
+            {{ scan.duplicate_groups|default(0)|number_format }} groups
+          </option>
+        {% endfor %}
+      </select>
+      <small class="muted">
+        {% if selected_profile is null %}Select a profile to see its previous scans.
+        {% elseif scan_choices is empty %}No saved scans for this profile.
+        {% else %}Choose any retained scan to inspect its duplicates.
+        {% endif %}
+      </small>
+    </div>
+    <div class="scan-picker-actions">
+      <button class="primary" type="submit">View results</button>
+      {% if selected_profile is not null %}
+        {% if scan_before|default(null) %}
+          <a class="text-link" href="{{ path('app_duplicates',{profile:selected_profile}) }}">Newest scans</a>
+        {% endif %}
+        {% if scan_choices_more|default(false) and scan_choices_last|default(null) %}
+          <a class="text-link" href="{{ path('app_duplicates',{profile:selected_profile,scan_before:scan_choices_last}) }}">Older scans</a>
+        {% endif %}
+        <a class="text-link" href="{{ path('app_reports',{profile:selected_profile}) }}">Scan details &amp; maintenance</a>
+      {% endif %}
+    </div>
+  </form>
+  {% if selected_run|default(null) %}
+    <div class="scan-selection-summary {{ historical ? 'scan-selection-historical' : '' }}">
+      <div>
+        <strong>{{ historical ? 'Historical snapshot — read-only' : 'Current completed snapshot' }}</strong>
+        <span>Scan #{{ selected_run }} · {{ run_info.profile_name }} ·
+          {{ run_info.finished_at ?? 'Date unavailable' }} UTC ·
+          {{ run_info.duplicate_groups|default(0)|number_format }} groups</span>
+        {% if historical %}
+          <small>These files may have moved or changed since this scan. File actions and downloads are disabled for past snapshots.</small>
+        {% endif %}
+      </div>
+      <a href="{{ path('app_report_run',{id:selected_run}) }}" class="secondary link-button">Scan report</a>
+    </div>
+  {% elseif selected_profile %}
+    <div class="scan-selection-summary">
+      <div>
+        <strong>Latest completed scan</strong>
+        <span>Showing current results for the selected profile. Previous scans are available in the Scan selector above.</span>
+      </div>
+    </div>
+  {% else %}
+    <div class="scan-selection-summary">
+      <div><strong>All current profiles</strong>
+        <span>Showing the latest completed scan for each profile. Select a profile to browse older scans.</span></div>
+    </div>
+  {% endif %}
+</section>
+
 <section class="panel dup-browser" id="duplicate-groups"
   data-bulk-move-url="{{ path('app_move_preview') }}"
   data-bulk-move-token="{{ csrf_token('move_selected') }}"
@@ -53,18 +114,29 @@
       <button type="button" data-dup-expand-all>Expand all</button>
       <button type="button" data-dup-collapse-all>Collapse all</button>
       {% if is_granted('ROLE_ADMIN') and not historical|default(false) %}
-      <span class="dup-control-divider"></span>
-      <button type="button" data-dup-select-visible>Select visible files</button>
-      <button type="button" data-dup-invert>Invert selection</button>
-      <button type="button" data-dup-copy disabled>Copy paths (<span data-dup-selected-count>0</span>)</button>
-      <button type="button" class="primary" data-dup-rename disabled>Bulk rename</button>
-      <button type="button" class="primary" data-dup-move disabled>Bulk move</button>
-      <button type="button" data-dup-quarantine disabled>Bulk quarantine</button>
-      <button type="button" data-dup-link disabled>Bulk link</button>
-      <button type="button" data-dup-clear-selection disabled>Clear selected</button>
+      <div class="dup-selection-tools" aria-label="Choose files">
+        <button type="button" data-dup-select-visible>Select visible</button>
+        <button type="button" data-dup-invert>Invert</button>
+        <button type="button" data-dup-clear-selection disabled>Clear selection</button>
+        <button type="button" data-dup-copy disabled>Copy paths</button>
+      </div>
+      <div class="dup-bulk-actions" aria-label="Bulk file actions">
+        <span class="dup-bulk-actions-label">Selected: <span data-dup-selected-count aria-live="polite">0</span></span>
+        <button type="button" class="primary" data-dup-rename disabled>Rename</button>
+        <button type="button" class="primary" data-dup-move disabled>Move</button>
+        <button type="button" data-dup-quarantine disabled>Quarantine</button>
+        <button type="button" data-dup-link disabled>Link</button>
+      </div>
       {% endif %}
     </div>
   </div>
+  {% if groups is not empty and is_granted('ROLE_ADMIN') and not historical|default(false) %}
+    <div class="dup-how-to">
+      <strong>1.</strong> Expand a group. <strong>2.</strong> Select individual files or use <strong>Select matches</strong>
+      to leave the first copy untouched. <strong>3.</strong> Choose Rename, Move, Quarantine or Link above
+      to preview the change before confirming. Limit: 50 files per action, from one profile.
+    </div>
+  {% endif %}
   {% if groups is empty %}
     <div class="empty-state">No duplicate groups were indexed in this {{ selected_run|default(null) ? 'scan' : 'current scan selection' }}.</div>
   {% else %}
@@ -176,5 +248,5 @@
     <span>Size and CRC32 matches are candidates; file actions require additional verification.</span>
   </div>
 </section>
-<script type="module" src="{{ asset('assets/duplicates.js') }}?v=5"></script>
+<script type="module" src="{{ asset('assets/duplicates.js') }}?v=6"></script>
 {% endblock %}

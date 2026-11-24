@@ -5,5 +5,5 @@ use App\Core\Module\ModuleInterface;
 final class SystemModule implements ModuleInterface
 {
     public function id(): string { return 'system'; }
-    public function navigation(): array { return [['route'=>'app_system','label'=>'System']]; }
+    public function navigation(): array { return [['route'=>'app_system','label'=>'System health','section'=>'settings','order'=>50]]; }
 }

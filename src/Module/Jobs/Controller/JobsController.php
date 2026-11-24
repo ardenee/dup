@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Module\Jobs\Controller;
 
 use App\Module\Jobs\Service\JobStore;
+use App\Module\Jobs\Repository\JobHistoryRepository;
 use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -12,21 +13,57 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class JobsController extends AbstractController
 {
-    #[Route('/jobs',name:'app_jobs',methods:['GET'])]
-    public function index(Connection $db,\App\Module\Jobs\Service\WorkerHeartbeat $heartbeat): Response
+    private function positive(Request $request,string $key):?int
     {
+        $raw=$request->query->get($key);
+        if($raw===null || $raw==='') return null;
+        $value=filter_var($raw,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+        if($value===false) throw $this->createNotFoundException('Invalid job filter.');
+        return $value;
+    }
+
+    private const STATES=['queued','running','cancelling','completed','failed','cancelled'];
+
+    #[Route('/jobs',name:'app_jobs',methods:['GET'])]
+    public function index(
+        Request $request,JobHistoryRepository $history,
+        \App\Module\Jobs\Service\WorkerHeartbeat $heartbeat
+    ): Response
+    {
+        $profile=$this->positive($request,'profile');
+        $before=$this->positive($request,'before');
+        $after=$this->positive($request,'after');
+        if($before!==null && $after!==null)
+            throw $this->createNotFoundException('Invalid job paging.');
+        $state=(string)$request->query->get('state','');
+        if($state!=='' && !in_array($state,self::STATES,true))
+            throw $this->createNotFoundException('Unknown job state.');
+        $profiles=$history->profiles();
+        if($profile!==null && !in_array($profile,
+            array_map(static fn(array $p):int=>(int)$p['id'],$profiles),true))
+            throw $this->createNotFoundException('Unknown profile.');
+        $page=$history->page($profile,$state?:null,$before,$after);
         return $this->render('jobs/index.html.twig',[
             'is_dsm'=>\App\Core\Setup\HostEnvironment::isSynology(dirname(__DIR__,4)),
             'worker'=>$heartbeat->report(),
-            'jobs'=>$db->fetchAllAssociative(
-                'SELECT j.id,j.kind,j.phase,j.state,j.progress_current,j.progress_total,' .
-                'j.created_at,j.started_at,j.finished_at,j.heartbeat_at,j.error_code,' .
-                'p.name AS profile_name,j.run_id,r.id AS scan_available ' .
-                'FROM jobs j LEFT JOIN scan_profiles p ON p.id=j.profile_id ' .
-                "LEFT JOIN scan_runs r ON r.id=j.run_id AND r.state IN ('completed','archived') " .
-                'ORDER BY j.id DESC LIMIT 100'
-            )
+            'jobs'=>$page['rows'],'page'=>$page,
+            'profiles'=>$profiles,'selected_profile'=>$profile,
+            'selected_state'=>$state,
+            'job_filters'=>array_filter(['profile'=>$profile,'state'=>$state],
+                static fn($value):bool=>$value!==null && $value!=='')
         ]);
+    }
+
+    #[Route('/jobs/{id<\\d+>}',name:'app_job_detail',methods:['GET'])]
+    public function detail(int $id,Request $request,JobHistoryRepository $history):Response
+    {
+        $before=$this->positive($request,'before');
+        $after=$this->positive($request,'after');
+        if($before!==null && $after!==null)
+            throw $this->createNotFoundException('Invalid event paging.');
+        $details=$history->detail($id,$before,$after);
+        if(!$details) throw $this->createNotFoundException('Job does not exist.');
+        return $this->render('jobs/detail.html.twig',$details);
     }
 
     #[Route('/api/jobs',name:'app_jobs_api',methods:['GET'])]
@@ -64,6 +101,8 @@ final class JobsController extends AbstractController
         $this->addFlash($changed?'success':'warning',$changed?
             'Cancellation requested. Running scans stop at a safe checkpoint.':
             'Cancellation is unavailable: the job has finished, is missing, or a file action is already executing.');
-        return $this->redirectToRoute('app_jobs');
+        return $request->request->get('return_to')==='detail'
+            ?$this->redirectToRoute('app_job_detail',['id'=>$id])
+            :$this->redirectToRoute('app_jobs');
     }
 }

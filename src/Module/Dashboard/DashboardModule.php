@@ -5,5 +5,5 @@ use App\Core\Module\ModuleInterface;
 final class DashboardModule implements ModuleInterface
 {
     public function id(): string { return 'dashboard'; }
-    public function navigation(): array { return [['route'=>'app_dashboard','label'=>'Dashboard']]; }
+    public function navigation(): array { return [['route'=>'app_dashboard','label'=>'Dashboard','section'=>'overview','order'=>10]]; }
 }

@@ -6,7 +6,7 @@
   <div class="eyebrow">STORAGE & SCAN ANALYTICS</div>
   <h1>Reports</h1>
   <p class="muted">Current results use only each profile's latest completed scan. Previous scans remain available below. Overlapping profile roots may count the same files more than once.</p>
-</div><a class="secondary link-button" href="{{ path('app_system') }}">System health</a></div>
+</div>{% if is_granted('ROLE_ADMIN') %}<a class="secondary link-button" href="{{ path('app_system') }}">System health</a>{% endif %}</div>
 
 <section class="panel">
   <div class="panel-heading"><h2>Profile filter</h2></div>
@@ -36,12 +36,14 @@
     <p class="muted">Possible recovery is not disk space already freed. Each group retains one copy. Totals are per profile and are not de-duplicated across overlapping roots.</p></div>
   </div>
   {% if snapshots is empty %}
-    <div class="empty-state">No profiles match this filter. <a href="{{ path('app_profiles') }}">Create a profile</a>.</div>
+    <div class="empty-state">No profiles match this filter.
+      {% if is_granted('ROLE_ADMIN') %}<a href="{{ path('app_profiles') }}">Create a profile</a>.{% endif %}
+    </div>
   {% else %}
     <div class="table-wrap"><table>
       <thead><tr><th>Profile</th><th>Latest completed</th><th>Files indexed</th><th>Duplicate groups</th><th>Verified potential savings</th><th>Candidate candidates</th></tr></thead>
       <tbody>{% for profile in snapshots %}
-        <tr><td><strong>{{ profile.profile_name }}</strong></td>
+        <tr><td><strong><a href="{{ path('app_duplicates',{profile:profile.profile_id}) }}">{{ profile.profile_name }}</a></strong></td>
           {% if profile.run_id is null %}
             <td colspan="5" class="muted">No completed scan yet</td>
           {% else %}
@@ -101,7 +103,9 @@
   <p class="muted">Jobs created in the past 24 hours: {{ recent_failures.failed_jobs|number_format }} failed;
     {{ recent_failures.queued_jobs|number_format }} queued;
     {{ recent_failures.running_jobs|number_format }} running.</p>
-  <p>For live progress and failure details, use the <a href="{{ path('app_jobs') }}">Job Monitor</a>.
+  <p>{% if is_granted('ROLE_ADMIN') %}
+    For live progress and failure details, use the <a href="{{ path('app_jobs') }}">Job Monitor</a>.
+    {% endif %}
     To download files, duplicate memberships or recorded file states as CSV, open a scan run.</p>
 </section>
 {% endblock %}

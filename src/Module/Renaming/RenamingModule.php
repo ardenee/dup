@@ -9,6 +9,6 @@ final class RenamingModule implements ModuleInterface
     public function id(): string {return 'renaming';}
     public function navigation(): array
     {
-        return [['route'=>'app_rename','label'=>'Rename files']];
+        return [['route'=>'app_rename','label'=>'Rename files','section'=>'actions','order'=>10]];
     }
 }

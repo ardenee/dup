@@ -21,7 +21,7 @@ function canReach(array $rules,string $method,string $uri,string $role):bool
 foreach(['/','/duplicates','/duplicates/12','/search','/reports','/reports/run/14','/files/2','/files/2/download','/files/2/inline'] as $url) {
     check(canReach($rules,'GET',$url,'ROLE_USER'),'User blocked on read-only endpoint '.$url);
 }
-foreach(['/accounts','/settings/viewer','/settings/ignored-folders','/profiles','/jobs','/move/3','/actions','/rename','/system'] as $url) {
+foreach(['/accounts','/settings/viewer','/settings/ignored-folders','/profiles','/jobs','/jobs/42','/move/3','/actions','/rename','/system'] as $url) {
     check(!canReach($rules,'GET',$url,'ROLE_USER'),'User gained administrative GET '.$url);
     check(canReach($rules,'GET',$url,'ROLE_ADMIN'),'Administrator blocked on '.$url);
 }

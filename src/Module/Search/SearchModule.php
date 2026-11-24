@@ -9,6 +9,6 @@ final class SearchModule implements ModuleInterface
     public function id(): string {return 'search';}
     public function navigation(): array
     {
-        return [['route'=>'app_search','label'=>'Search']];
+        return [['route'=>'app_search','label'=>'Find files','section'=>'find','order'=>20]];
     }
 }

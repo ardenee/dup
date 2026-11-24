@@ -1,0 +1,92 @@
+{% extends 'base.html.twig' %}
+{% block title %}Job #{{ job.id }}{% endblock %}
+{% block section %}Job monitor / #{{ job.id }}{% endblock %}
+{% block body %}
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">BACKGROUND JOB DETAILS</div>
+    <h1>Job #{{ job.id }}</h1>
+    <p class="muted">{{ job.kind|replace({'_':' ','-':' '})|capitalize }} ·
+      {{ job.profile_name ?? 'Profile removed' }} ·
+      <span class="status">{{ job.state|replace({'_':' '}) }}</span></p>
+  </div>
+  <a class="secondary link-button" href="{{ path('app_jobs') }}">Back to job monitor</a>
+</div>
+<div class="stats-grid">
+  <div class="stat"><span>Status</span><strong>{{ job.state|capitalize }}</strong></div>
+  <div class="stat"><span>Current stage</span><strong>{{ job.phase|replace({'_':' '})|capitalize }}</strong></div>
+  <div class="stat"><span>Progress</span><strong>{{ job.progress_current|number_format }}{% if job.progress_total is not null %} / {{ job.progress_total|number_format }}{% endif %}</strong></div>
+</div>
+<section class="panel">
+  <div class="panel-heading"><h2>Job information</h2></div>
+  <dl class="details">
+    <div><dt>Created</dt><dd>{{ job.created_at }} UTC</dd></div>
+    <div><dt>Started</dt><dd>{{ job.started_at ? job.started_at ~ ' UTC' : 'Not started' }}</dd></div>
+    <div><dt>Finished</dt><dd>{{ job.finished_at ? job.finished_at ~ ' UTC' : 'Not finished' }}</dd></div>
+    <div><dt>Last heartbeat</dt><dd>{{ job.heartbeat_at ? job.heartbeat_at ~ ' UTC' : 'No heartbeat' }}</dd></div>
+    <div><dt>Attempts</dt><dd>{{ job.attempts|default(0) }}</dd></div>
+    <div><dt>Error code</dt><dd>{{ job.error_code ?? 'None recorded' }}</dd></div>
+  </dl>
+  <div class="panel-content">
+    <div class="profile-page-actions">
+      {% if job.run_id %}
+        <a class="secondary link-button" href="{{ path('app_report_run',{id:job.run_id}) }}">Scan report #{{ job.run_id }}</a>
+        {% if job.run_state in ['completed','archived'] %}
+          <a class="primary link-button" href="{{ path('app_duplicates',{run:job.run_id}) }}">View duplicate results</a>
+        {% endif %}
+      {% endif %}
+      {% if job.file_action_batch_id %}
+        <a class="secondary link-button" href="{{ path('app_action_detail',{id:job.file_action_batch_id}) }}">Review file action / restore</a>
+      {% endif %}
+      {% set cancellable = job.state == 'queued' or (job.state == 'running' and job.kind in ['scan','rebuild-duplicates']) %}
+      {% if cancellable %}
+        <form method="post" action="{{ path('app_job_cancel',{id:job.id}) }}">
+          <input type="hidden" name="_token" value="{{ csrf_token('cancel_job_' ~ job.id) }}">
+          <input type="hidden" name="return_to" value="detail">
+          <button class="secondary" type="submit">Cancel job</button>
+        </form>
+      {% elseif job.state == 'running' and job.kind not in ['scan','rebuild-duplicates'] %}
+        <span class="muted">File operations cannot be interrupted during execution.</span>
+      {% endif %}
+    </div>
+  </div>
+</section>
+<section class="panel">
+  <div class="panel-heading"><div><h2>Job events and errors</h2>
+    <p class="muted">Newest first. Event details are displayed below rather than opening raw JSON.</p>
+  </div></div>
+  {% if events is empty %}
+    <div class="empty-state">No job events have been recorded. The job status and heartbeat above may still be available.</div>
+  {% else %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>When (UTC)</th><th>Severity</th><th>Event</th><th>Details</th></tr></thead>
+        <tbody>{% for event in events %}
+          <tr>
+            <td>{{ event.created_at }}</td>
+            <td><span class="status">{{ event.severity|capitalize }}</span></td>
+            <td><strong>{{ event.code|replace({'_':' '}) }}</strong></td>
+            <td>
+              {% if event.fields is not empty %}
+                {% for key,value in event.fields %}
+                  <div class="job-event-field"><strong>{{ key|replace({'_':' '}) }}</strong>:
+                    <span>{{ value is iterable ? value|json_encode : value }}</span></div>
+                {% endfor %}
+              {% else %}
+                <span class="muted">No additional details</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}</tbody>
+      </table>
+    </div>
+    <div class="result-toolbar">
+      <span>Showing {{ events|length }} events (100 per page)</span>
+      <nav aria-label="Job event pages">
+        {% if previous %}<a href="{{ path('app_job_detail',{id:job.id,after:previous}) }}">Newer events</a>{% endif %}
+        {% if next %}<a href="{{ path('app_job_detail',{id:job.id,before:next}) }}">Older events</a>{% endif %}
+      </nav>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
