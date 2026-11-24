@@ -28,7 +28,7 @@ final class DuplicateVerificationController extends AbstractController
             $job=$service->queue($id,$user->id);
             $this->addFlash('success','Second-stage SHA-256 verification queued as job #'.$job.
                 '. Only existing duplicate candidates will be read.');
-            return $this->redirectToRoute('app_job_detail',['id'=>$job]);
+            return $this->redirectToRoute('app_jobs');
         } catch(\DomainException $ex) {
             $this->addFlash('warning',$ex->getMessage());
             return $this->redirectToRoute('app_duplicates',['profile'=>$id]);
