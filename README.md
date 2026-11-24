@@ -2,7 +2,7 @@
 
 DUP is a web-based duplicate-file scanner and manager for Windows, Linux and Synology DSM. The same PHP application, scan engine, database and job worker run on all three platforms. DSM is a packaging/integration option, not a requirement of the application.
 
-**Current development version: 0.7.6.** This is a major rebuild of DUP and a development preview, not a production-ready upgrade. The Synology package retains the original package ID `dup` and the `/dup/` URL. The new database schema does not migrate older profile data automatically. An upgrade must be tested using disposable data before replacing an existing installation.
+**Current development version: 0.7.7.** This is a major rebuild of DUP and a development preview, not a production-ready upgrade. The Synology package retains the original package ID `dup` and the `/dup/` URL. The new database schema does not migrate older profile data automatically. An upgrade must be tested using disposable data before replacing an existing installation.
 
 **Licence:** MIT for DUP source code. Bundled dependencies retain their respective licences.
 
@@ -58,7 +58,7 @@ Complete the same web setup wizard. DUP automatically creates a missing MariaDB 
 
 Scan folders are selected when creating profiles. The Web Station PHP process runs as `dup:http`, while DSM may initially launch the package background worker as `dup:dup`. The worker must have access through the same `http` group permissions as the web process. The DSM `postinst` script grants supplementary `http` membership to `dup` when it runs with root privileges; existing installations can be repaired with `sudo /usr/syno/sbin/synogroup --memberadd http dup` followed by a worker restart. No per-user shared-folder ACL changes are required. Scan folders must use actual DSM paths such as `/volume1/...`, not Windows mapped-drive paths.
 
-**Upgrade caveat:** The 0.7.6 package uses the same Synology package identity as previous DUP releases, but the redesigned application requires a fresh database. It does not automatically migrate older database schemas or profiles. Back up any installation you want to preserve and do not apply this preview over production data.
+**Upgrade caveat:** DUP v2.0.7.7 updates existing **DUP v2** installations in place and applies pending additive database migrations during DSM Package Center upgrade. It preserves the private `.env.local`, scan profiles and results under the package's persistent runtime directory. **Back up the MariaDB database and the package's persistent data before upgrading.** Old pre-v2 DUP databases still require a fresh installation; the package does not import or convert their legacy schema automatically.
 
 ## Background processing
 
