@@ -163,9 +163,14 @@ final class WorkJobsCommand extends Command
                 $state=(string)$this->db->fetchOne('SELECT state FROM jobs WHERE id=?',[$id]);
                 $this->debug->write($id,'info','worker.job.finished',['state'=>$state]);
                 $output->writeln('Job #'.$id.' finished with state: '.$state);
-                if($job['kind']==='duplicate-verify' && $state==='cancelled') {
-                    $this->debug->write($id,'info','worker.exit.after_verification_cancel',[
-                        'note'=>'Exit before claiming another job; supervisor owns this cancellation request.'
+                if($job['kind']==='duplicate-verify' && $state!=='completed') {
+                    // A cancellation signal can race with an I/O exception.
+                    // Leave the worker loop after ANY unfinished/failed
+                    // verification so a delayed supervisor stop never kills
+                    // an unrelated next job running in this same PID.
+                    $this->debug->write($id,'info','worker.exit.after_verification_failure_or_cancel',[
+                        'final_state'=>$state,
+                        'note'=>'Exit before claiming another job; the DSM supervisor may still be stopping this worker.'
                     ]);
                     $this->stopping=true;
                 }
