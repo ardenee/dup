@@ -71,7 +71,7 @@ final class DuplicateRebuilder
         $groups=$this->db->executeQuery(
             'SELECT '.$columns.',COUNT(*) AS members FROM file_entries f ' .
             'INNER JOIN directories d ON d.id=f.directory_id ' .
-            'WHERE f.run_id=? AND d.is_ignored=0 AND f.error_code IS NULL'.$filter .
+            'WHERE f.run_id=? AND f.is_symlink=0 AND d.is_ignored=0 AND f.error_code IS NULL'.$filter .
             ' GROUP BY '.$columns.' HAVING COUNT(*)>1 ORDER BY f.size_bytes',[$runId]
         );
         $count=0;
@@ -87,7 +87,7 @@ final class DuplicateRebuilder
             ]);
             $groupId=(int)$this->db->lastInsertId();
             $sql='SELECT f.id FROM file_entries f INNER JOIN directories d ON d.id=f.directory_id ' .
-                'WHERE f.run_id=? AND f.size_bytes=? AND d.is_ignored=0 AND f.error_code IS NULL';
+                'WHERE f.run_id=? AND f.size_bytes=? AND f.is_symlink=0 AND d.is_ignored=0 AND f.error_code IS NULL';
             $args=[$runId,$size];
             if($hashed) {$sql.=' AND f.hash_value=?';$args[]=$hash;}
             $files=$this->db->executeQuery($sql.' ORDER BY f.id',$args);

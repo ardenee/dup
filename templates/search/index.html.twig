@@ -2,65 +2,173 @@
 {% block title %}Search{% endblock %}
 {% block section %}Search{% endblock %}
 {% block body %}
-<div class="page-heading"><div><div class="eyebrow">INDEXED FILES</div><h1>Search</h1>
-  <p class="muted">Search file names and folders in the latest completed scan for each profile. Results use the database index; no filesystem rescan is needed.</p>
-</div></div>
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">INDEXED FILES & HISTORY</div>
+    <h1>Search</h1>
+    <p class="muted">Search indexed files or the recorded history of file actions. No filesystem rescan is needed.</p>
+  </div>
+</div>
 <section class="panel">
   <form class="search-form" method="get" action="{{ path('app_search') }}">
-    <div class="field search-term"><label for="search-term">Name or path contains</label>
-      <input id="search-term" type="search" name="q" maxlength="200" value="{{ term }}" placeholder="File name or folder" autofocus></div>
-    <div class="field"><label for="search-mode">Search</label>
+    <div class="field search-term">
+      <label for="search-term">Name or path contains</label>
+      <input id="search-term" type="search" name="q" maxlength="200" value="{{ term }}" placeholder="File name or folder" autofocus>
+    </div>
+    <div class="field">
+      <label for="search-mode">Search</label>
       <select id="search-mode" name="mode">
         <option value="all" {{ mode == 'all' ? 'selected' : '' }}>General — all indexed files</option>
         <option value="duplicates" {{ mode == 'duplicates' ? 'selected' : '' }}>Duplicates — matched groups</option>
-        <option value="moved" {{ mode == 'moved' ? 'selected' : '' }}>Moved / linked / quarantined files</option>
-      </select></div>
-    <div class="field"><label for="search-profile">Scope</label>
+        <option value="moved" {{ mode == 'moved' ? 'selected' : '' }}>Moved — latest scan's current states</option>
+        <option value="history" {{ mode == 'history' ? 'selected' : '' }}>File-action history — all recorded scans</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="search-profile">Scope</label>
       <select name="profile" id="search-profile">
         <option value="">All profiles</option>
         {% for p in profiles %}
-        <option value="{{ p.id }}" {{ profile == p.id ? 'selected' : '' }}>{{ p.name }}</option>
+          <option value="{{ p.id }}" {{ profile == p.id ? 'selected' : '' }}>{{ p.name }}</option>
         {% endfor %}
-      </select></div>
+      </select>
+    </div>
     <div class="search-actions">
-      <label class="search-check"><input type="checkbox" name="case" value="1" {{ case_sensitive ? 'checked' : '' }}> Case sensitive</label>
+      <label class="search-check">
+        <input type="checkbox" name="case" value="1" {{ case_sensitive ? 'checked' : '' }}> Case sensitive
+      </label>
       <button type="submit" class="primary">Search</button>
     </div>
   </form>
   {% if mode == 'moved' %}
-  <p class="report-explanation">Shows indexed files currently moved, linked or quarantined. The destination or link target is taken from the audited file-action records.</p>
+    <p class="report-explanation">Shows files marked as moved, linked or quarantined in each profile's latest completed scan. For completed or reversed actions in older runs, use File-action history.</p>
+  {% elseif mode == 'history' %}
+    <p class="report-explanation">All recorded file moves, links and quarantines, including restored, failed and cancelled attempts. Records remain visible across later scans. This report covers actions recorded by DUP v2.</p>
+  {% else %}
+    <p class="report-explanation">Symbolic links are indexed by their own path and target, but never followed, hashed or included in duplicate groups.</p>
   {% endif %}
 </section>
 <section class="panel">
-  <div class="panel-heading"><h2>Results</h2>
-    <span class="muted">{{ submitted ? (results.total|number_format ~ ' files found') : 'Enter a search above' }}</span>
+  <div class="panel-heading">
+    <h2>{{ mode == 'history' ? 'File-action history' : 'Results' }}</h2>
+    <span class="muted">{{ submitted ? (results.total|number_format ~ (mode == 'history' ? ' action records' : ' files found')) : 'Enter a search above' }}</span>
   </div>
   {% if not submitted %}
-    <div class="empty-state">Enter a name or path and click Search. Leave the field blank to browse all indexed records.</div>
+    <div class="empty-state">Enter a name or path and click Search. Leave the field blank to browse all records in the selected scope.</div>
   {% elseif results.rows is empty %}
-    <div class="empty-state">No indexed files matched this search.</div>
+    <div class="empty-state">No records matched the search.</div>
+  {% elseif mode == 'history' %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Requested (UTC)</th><th>Profile / Scan</th><th>Operation</th>
+            <th>Original file</th><th>Destination / link target</th>
+            <th>Item / batch status</th><th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in results.rows %}
+          <tr>
+            <td>{{ row.requested_at }}</td>
+            <td>
+              <strong>{{ row.profile_name }}</strong>
+              <small class="muted">Run #{{ row.run_id ?? 'Unknown' }}{% if row.scan_finished_at %} · {{ row.scan_finished_at }}{% endif %}</small>
+            </td>
+            <td>{{ row.action_kind|capitalize }}</td>
+            <td><code>{{ row.source_path }}</code></td>
+            <td>
+              {% if row.action_kind == 'link' %}
+                <span class="muted">Points to:</span> <code>{{ row.link_target_path ?? 'Unknown' }}</code>
+                {% if row.target_path %}<small class="muted">Original retained: {{ row.target_path }}</small>{% endif %}
+              {% else %}
+                <code>{{ row.target_path ?? 'Not assigned' }}</code>
+              {% endif %}
+            </td>
+            <td>
+              <span class="status">{{ row.item_state|replace({'_':' '}) }}</span>
+              <small class="muted">Batch: {{ row.batch_state|replace({'_':' '}) }}{% if row.result_code %} · {{ row.result_code }}{% endif %}</small>
+            </td>
+            <td>
+              {% if is_granted('ROLE_ADMIN') %}
+                <a class="text-link" href="{{ row.action_kind == 'move' ? path('app_move_detail',{id:row.batch_id}) : path('app_action_detail',{id:row.batch_id}) }}">Batch #{{ row.batch_id }}</a>
+              {% else %}
+                <span class="muted">Batch #{{ row.batch_id }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   {% else %}
-    <div class="table-wrap"><table>
-      <thead><tr><th>File path</th><th>Profile</th><th>Size</th><th>Modified (Unix time)</th><th>Hash method</th><th>State</th><th>Duplicate group</th>{% if mode == 'moved' %}<th>Destination / link target</th>{% endif %}<th>Actions</th></tr></thead>
-      <tbody>{% for row in results.rows %}
-        <tr><td><code>{{ row.directory }}{{ row.directory ends with '/' or row.directory ends with '\\' ? '' : '/' }}{{ row.filename }}</code></td>
-        <td>{{ row.profile_name }}</td>
-        <td class="group-size">{{ row.size_bytes|number_format }}</td>
-        <td>{{ row.mtime_epoch }}</td>
-        <td>{{ row.hash_method == 'sha256' ? 'SHA-256 (verified)' : (row.hash_method == 'crc32_3part' ? 'CRC32 3 Part (candidate)' : (row.hash_method == 'crc32_full' ? 'CRC32 Full (candidate)' : 'Size only')) }}</td>
-        <td><span class="status">{{ row.error_code ?? (row.is_ignored ? 'Ignored in matching' : 'Indexed') }}</span></td>
-        <td>{% if row.group_id %}
-          <a class="text-link" href="{{ path('app_duplicate_group',{id:row.group_id}) }}">#{{ row.group_id }}</a>
-        {% else %}<span class="muted">—</span>{% endif %}</td>
-        {% if mode == 'moved' %}<td><code>{{ row.action_target ?? 'No action target recorded' }}</code></td>{% endif %}
-        <td>{% if row.error_code is null and not row.is_ignored %}<a class="text-link" href="{{ path('app_file_view',{id:row.id}) }}">View</a> <a class="text-link" href="{{ path('app_file_download',{id:row.id}) }}">Download</a> {% if is_granted('ROLE_ADMIN') %}<a class="text-link" href="{{ path('app_rename_file',{id:row.id}) }}">Rename</a>{% endif %}{% else %}<span class="muted">See file action history</span>{% endif %}</td></tr>
-      {% endfor %}</tbody>
-    </table></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>File path</th><th>Profile</th><th>Size</th><th>Modified (Unix time)</th>
+            <th>Hash method</th><th>State</th><th>Duplicate group</th>
+            {% if mode == 'moved' %}<th>Destination / link target</th>{% endif %}
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in results.rows %}
+          <tr>
+            <td>
+              <code>{{ row.directory }}{{ row.directory ends with '/' or row.directory ends with '\\' ? '' : '/' }}{{ row.filename }}</code>
+              {% if row.is_symlink %}
+                <small class="muted">Symlink → <code>{{ row.link_target ?? 'Target unavailable' }}</code></small>
+              {% endif %}
+            </td>
+            <td>{{ row.profile_name }}</td>
+            <td class="group-size">{{ row.is_symlink ? 'Link' : row.size_bytes|number_format }}</td>
+            <td>{{ row.mtime_epoch }}</td>
+            <td>
+              {% if row.is_symlink %}
+                Symbolic link — not hashed
+              {% else %}
+                {{ row.hash_method == 'sha256' ? 'SHA-256 (verified)' : (row.hash_method == 'crc32_3part' ? 'CRC32 3 Part (candidate)' : (row.hash_method == 'crc32_full' ? 'CRC32 Full (candidate)' : 'Size only')) }}
+              {% endif %}
+            </td>
+            <td><span class="status">{{ row.error_code ?? (row.is_symlink ? 'Symbolic link' : (row.is_ignored ? 'Ignored in matching' : 'Indexed')) }}</span></td>
+            <td>
+              {% if row.group_id %}
+                <a class="text-link" href="{{ path('app_duplicate_group',{id:row.group_id}) }}">#{{ row.group_id }}</a>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            {% if mode == 'moved' %}
+              <td><code>{{ row.action_target ?? 'No action target recorded' }}</code></td>
+            {% endif %}
+            <td>
+              {% if row.is_symlink %}
+                <span class="muted">Link metadata only</span>
+              {% elseif row.error_code is null and not row.is_ignored %}
+                <a class="text-link" href="{{ path('app_file_view',{id:row.id}) }}">View</a>
+                <a class="text-link" href="{{ path('app_file_download',{id:row.id}) }}">Download</a>
+                {% if is_granted('ROLE_ADMIN') %}
+                  <a class="text-link" href="{{ path('app_rename_file',{id:row.id}) }}">Rename</a>
+                {% endif %}
+              {% else %}
+                <span class="muted">See file-action history</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+  {% if submitted and results.rows is not empty %}
     <div class="result-toolbar">
       <span class="muted">{{ results.rows|length|number_format }} records on this page · {{ results.total|number_format }} matches found</span>
       <nav aria-label="Search pagination">
-        {% if results.previous %}<a href="{{ path('app_search',filters|merge({before:results.previous})) }}">Previous</a>{% endif %}
-        {% if results.next %}<a href="{{ path('app_search',filters|merge({after:results.next})) }}">Next</a>{% endif %}
+        {% if results.previous %}
+          <a href="{{ path('app_search',filters|merge({before:results.previous})) }}">Previous</a>
+        {% endif %}
+        {% if results.next %}
+          <a href="{{ path('app_search',filters|merge({after:results.next})) }}">Next</a>
+        {% endif %}
       </nav>
     </div>
   {% endif %}

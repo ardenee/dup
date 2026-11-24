@@ -33,7 +33,7 @@ final class ScanEngine
         $token=(string)$job['worker_token'];
         $this->stats=['files_seen'=>0,'files_indexed'=>0,'bytes_indexed'=>0,
             'duplicate_groups'=>0,'error_count'=>0,'ignored_indexed'=>0,
-            'symlinks_skipped'=>0];
+            'symlinks_skipped'=>0,'symlinks_indexed'=>0];
         try {
             $settingsRaw=$this->db->fetchOne('SELECT settings_json FROM scan_runs WHERE id=?',[$runId]);
             $settings=json_decode((string)$settingsRaw,true,512,JSON_THROW_ON_ERROR);
@@ -63,7 +63,8 @@ final class ScanEngine
                 'files_indexed'=>$this->stats['files_indexed'],
                 'files_seen'=>$this->stats['files_seen'],
                 'ignored_indexed'=>$this->stats['ignored_indexed'],
-                'symlinks_skipped'=>$this->stats['symlinks_skipped']
+                'symlinks_skipped'=>$this->stats['symlinks_skipped'],
+                'symlinks_indexed'=>$this->stats['symlinks_indexed']
             ]);
             $this->jobs->progress($id,$token,'finding_candidates',0,null);
             if($mode!=='size')
@@ -129,7 +130,33 @@ final class ScanEngine
                     $this->heartbeat($jobId,$token,'enumerating',$this->stats['files_seen'],null);
                     $name=$entry->getFilename();
                     if($entry->isLink()) {
-                        $this->stats['symlinks_skipped']++;
+                        if($extensions) {
+                            $extension=strtolower((string)pathinfo($name,PATHINFO_EXTENSION));
+                            if(!isset($extensions[$extension])) continue;
+                        }
+                        // Never follow a file or directory symlink, even when
+                        // its destination points back into the scan root.
+                        $this->stats['files_seen']++;
+                        if(mb_strlen($name)>255)
+                            throw new \RuntimeException('Symbolic-link name longer than 255 characters.');
+                        $fullPath=$entry->getPathname();
+                        $linkTarget=@readlink($fullPath);
+                        $linkStat=@lstat($fullPath);
+                        if($linkTarget===false || $linkStat===false || !is_link($fullPath)) {
+                            $this->stats['symlinks_skipped']++;
+                            continue;
+                        }
+                        $fileBatch[]=[
+                            $runId,$dirId,$name,hash('sha256',$fullPath),
+                            (int)$linkStat['size'],(int)$linkStat['mtime'],
+                            1,$linkTarget
+                        ];
+                        if(count($fileBatch)>=100) $this->insertFileBatch($fileBatch);
+                        $this->stats['files_indexed']++;
+                        $this->stats['symlinks_indexed']++;
+                        if($dir['ignored']) $this->stats['ignored_indexed']++;
+                        // A symlink's lstat size is a path length, not
+                        // independent file content or potential savings.
                         continue;
                     }
                     if($entry->isDir()) {
@@ -152,7 +179,7 @@ final class ScanEngine
                     if($size<$minimum) continue;
                     $mtime=$entry->getMTime();
                     $fullPath=$entry->getPathname();
-                    $fileBatch[]=[$runId,$dirId,$name,hash('sha256',$fullPath),$size,$mtime];
+                    $fileBatch[]=[$runId,$dirId,$name,hash('sha256',$fullPath),$size,$mtime,0,null];
                     if(count($fileBatch)>=100) $this->insertFileBatch($fileBatch);
                     $this->stats['files_indexed']++;
                     if($dir['ignored']) $this->stats['ignored_indexed']++;
@@ -169,18 +196,18 @@ final class ScanEngine
             $this->stats['files_seen'],$this->stats['files_seen']);
     }
 
-    /** @param array<int,array<int,int|string>> $batch */
+    /** @param array<int,array<int,int|string|null>> $batch */
     private function insertFileBatch(array &$batch): void
     {
         if(!$batch) return;
         // One SQL statement per 100 rows: avoids per-file autocommits on MariaDB.
-        // 600 bind parameters also remain below the older SQLite 999 limit.
-        $values=implode(',',array_fill(0,count($batch),'(?,?,?,?,?,?,0)'));
+        // 800 bind parameters also remain below the older SQLite 999 limit.
+        $values=implode(',',array_fill(0,count($batch),'(?,?,?,?,?,?,?,?)'));
         $args=[];
         foreach($batch as $file) foreach($file as $value) $args[]=$value;
         $this->db->executeStatement(
             'INSERT INTO file_entries (run_id,directory_id,filename,path_hash,' .
-            'size_bytes,mtime_epoch,is_symlink) VALUES '.$values,$args
+            'size_bytes,mtime_epoch,is_symlink,link_target) VALUES '.$values,$args
         );
         $batch=[];
     }
@@ -188,7 +215,7 @@ final class ScanEngine
     private function hashCandidateFiles(int $jobId,int $runId,string $token,string $mode): void
     {
         $sizes=$this->db->executeQuery(
-            'SELECT size_bytes FROM file_entries WHERE run_id=? ' .
+            'SELECT size_bytes FROM file_entries WHERE run_id=? AND is_symlink=0 ' .
             'GROUP BY size_bytes HAVING COUNT(*)>1 ORDER BY size_bytes',[$runId]
         );
         $sizeList=[];
@@ -197,7 +224,7 @@ final class ScanEngine
         $total=0;
         foreach($sizeList as $size)
             $total+=(int)$this->db->fetchOne(
-                'SELECT COUNT(*) FROM file_entries WHERE run_id=? AND size_bytes=?',[$runId,$size]
+                'SELECT COUNT(*) FROM file_entries WHERE run_id=? AND is_symlink=0 AND size_bytes=?',[$runId,$size]
             );
         $done=0;
         $this->jobs->progress($jobId,$token,'hashing',0,$total);
@@ -206,7 +233,7 @@ final class ScanEngine
             $candidates=$this->db->executeQuery(
                 'SELECT f.id,f.filename,f.size_bytes,f.mtime_epoch,d.path AS directory ' .
                 'FROM file_entries f JOIN directories d ON d.id=f.directory_id ' .
-                'WHERE f.run_id=? AND f.size_bytes=? ORDER BY f.id',[$runId,$size]
+                'WHERE f.run_id=? AND f.is_symlink=0 AND f.size_bytes=? ORDER BY f.id',[$runId,$size]
             );
             while(($file=$candidates->fetchAssociative())!==false) {
                 $this->heartbeat($jobId,$token,'hashing',$done,$total);

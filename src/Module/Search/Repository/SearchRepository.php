@@ -94,6 +94,7 @@ final class SearchRepository
             'NULL AS action_target,';
         $rows=$this->db->fetchAllAssociative(
             'SELECT '.$targetSelect.'f.id,f.filename,f.size_bytes,f.mtime_epoch,f.hash_method,'.
+            'f.is_symlink,f.link_target,'.
             'f.hash_value,f.error_code,d.path AS directory,d.is_ignored,'.
             'p.id AS profile_id,p.name AS profile_name,'.
             '(SELECT MIN(m.group_id) FROM duplicate_group_members m '.

@@ -38,6 +38,8 @@ $db->executeStatement("UPDATE file_entries SET error_code='MOVED' WHERE id=6");
 $db->executeStatement("UPDATE file_entries SET error_code='LINKED' WHERE id=7");
 $db->executeStatement("INSERT INTO file_action_batches VALUES (1,'quarantine'),(2,'move'),(3,'link')");
 $db->executeStatement("INSERT INTO file_action_items VALUES (1,1,5,'/quarantine/track005.mp3',NULL,'quarantined'),(2,2,6,'/moves/track006.mp3',NULL,'moved'),(3,3,7,'/quarantine/backup007.mp3','/media/track002.mp3','linked')");
+$db->executeStatement('ALTER TABLE file_entries ADD COLUMN is_symlink INT NOT NULL DEFAULT 0');
+$db->executeStatement('ALTER TABLE file_entries ADD COLUMN link_target TEXT DEFAULT NULL');
 $search=new SearchRepository($db);
 $all=$search->find('',null,'all',false);
 checkSearch($all['total']===70,'Old scan should not appear (69 current music + 1 doc)');
@@ -67,4 +69,14 @@ checkSearch($special['total']===1 && (int)$special['rows'][0]['id']===4,
 $ignored=$search->find('track070',1,'all',false);
 checkSearch($ignored['total']===1 && (int)$ignored['rows'][0]['is_ignored']===1,
     'Ignored-folder data disappeared from index search');
-echo "PASS latest snapshots, 50-item keyset paging, search profiles, duplicates, quarantine, case handling and literal wildcards\n";
+$db->insert('file_entries',[
+    'id'=>72,'run_id'=>2,'directory_id'=>2,'filename'=>'sample-link.mp3',
+    'size_bytes'=>22,'mtime_epoch'=>1700000000,'hash_method'=>null,
+    'hash_value'=>null,'error_code'=>null,'is_symlink'=>1,
+    'link_target'=>'/archive/original.mp3'
+]);
+$link=$search->find('sample-link',1,'all',false);
+checkSearch($link['total']===1 && (int)$link['rows'][0]['is_symlink']===1 &&
+    $link['rows'][0]['link_target']==='/archive/original.mp3',
+    'Search did not return indexed symlink metadata');
+echo "PASS latest snapshots, 50-item keyset paging, historical states, symlink metadata, case handling and literal wildcards\n";

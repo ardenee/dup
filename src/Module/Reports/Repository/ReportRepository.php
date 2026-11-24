@@ -138,6 +138,7 @@ final class ReportRepository
 
         $fileSummary=$this->db->fetchAssociative(
             'SELECT COUNT(*) AS stored_files,' .
+            'COALESCE(SUM(CASE WHEN f.is_symlink=1 THEN 1 ELSE 0 END),0) AS symlinks_indexed,' .
             'COALESCE(SUM(CASE WHEN d.is_ignored=1 THEN 1 ELSE 0 END),0) AS ignored_files,' .
             "COALESCE(SUM(CASE WHEN f.error_code='QUARANTINED' THEN 1 ELSE 0 END),0) AS quarantined_files," .
             "COALESCE(SUM(CASE WHEN f.error_code IS NOT NULL AND f.error_code<>'QUARANTINED' THEN 1 ELSE 0 END),0) AS flagged_files," .
@@ -200,10 +201,11 @@ final class ReportRepository
         return match($kind) {
             'files' => [
                 ['run_id','file_id','directory','filename','size_bytes','mtime_epoch',
-                 'ignored_directory','hash_method','hash_value','file_status'],
+                 'ignored_directory','is_symlink','link_target','hash_method','hash_value','file_status'],
                 $this->db->executeQuery(
                     'SELECT f.run_id,f.id AS file_id,d.path AS directory,f.filename,' .
                     'f.size_bytes,f.mtime_epoch,d.is_ignored AS ignored_directory,' .
+                    'f.is_symlink,f.link_target,' .
                     'f.hash_method,f.hash_value AS hash_value,f.error_code AS file_status ' .
                     'FROM file_entries f JOIN directories d ON d.id=f.directory_id ' .
                     'WHERE f.run_id=? ORDER BY f.id',[$runId]

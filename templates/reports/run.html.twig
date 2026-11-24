@@ -18,6 +18,7 @@
   <div class="stat"><span>Indexed bytes</span><strong>{{ run.bytes_indexed|number_format }}</strong></div>
   <div class="stat"><span>Directories excluded from matching (files)</span><strong>{{ run.files.ignored_files|number_format }}</strong></div>
   <div class="stat"><span>Content hashes stored</span><strong>{{ run.files.hashed_files|number_format }}</strong></div>
+  <div class="stat"><span>Symbolic links indexed (not followed)</span><strong>{{ run.files.symlinks_indexed|number_format }}</strong></div>
   <div class="stat"><span>Current quarantined file records</span><strong>{{ run.files.quarantined_files|number_format }}</strong></div>
 </div>
 
