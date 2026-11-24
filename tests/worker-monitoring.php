@@ -26,6 +26,12 @@ foreach([
     'CREATE TABLE audit_events(id INTEGER PRIMARY KEY AUTOINCREMENT,actor_id INT,action TEXT,entity_type TEXT,'.
       'entity_id TEXT,correlation_id TEXT,outcome TEXT,context TEXT,created_at TEXT)'
 ] as $query)$db->executeStatement($query);
+$db->executeStatement('ALTER TABLE jobs ADD COLUMN progress_bytes_current BIGINT NOT NULL DEFAULT 0');
+$db->executeStatement('ALTER TABLE jobs ADD COLUMN progress_bytes_total BIGINT DEFAULT NULL');
+$db->executeStatement('ALTER TABLE jobs ADD COLUMN progress_detail VARCHAR(255) DEFAULT NULL');
+$db->executeStatement('ALTER TABLE jobs ADD COLUMN last_progress_at DATETIME DEFAULT NULL');
+$db->executeStatement('ALTER TABLE jobs ADD COLUMN last_failure_reason TEXT DEFAULT NULL');
+$db->executeStatement('ALTER TABLE jobs ADD COLUMN started_at DATETIME DEFAULT NULL');
 $db->insert('scan_profiles',['id'=>1,'name'=>'Media','source_root'=>sys_get_temp_dir(),
     'profile_type_id'=>1,'hash_mode'=>'size','minimum_bytes'=>0,'enabled'=>1]);
 $db->insert('profile_types',['id'=>1,'extensions'=>'']);
@@ -96,6 +102,20 @@ verifyWorker($db->fetchOne('SELECT state FROM jobs WHERE id=5')==='failed' &&
     'Recovering a stale job did not update its scan record.');
 verifyWorker((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action='STALE_JOBS_RECOVERED'")===1,
     'Recovery operation was not audited.');
+$stallContext=json_decode((string)$db->fetchOne(
+    "SELECT context FROM job_events WHERE job_id=5 AND code='WORKER_STALLED'"),true);
+verifyWorker(is_array($stallContext) &&
+    ($stallContext['timeout_seconds']??null)===600 &&
+    ($stallContext['files_completed']??null)===110 &&
+    isset($stallContext['explanation'],$stallContext['last_heartbeat_at'],
+        $stallContext['recommended_check']),
+    'Stalled-worker error did not provide its last observed state and diagnosis.');
+$failReason=(string)$db->fetchOne('SELECT last_failure_reason FROM jobs WHERE id=5');
+verifyWorker(str_contains($failReason,'heartbeat') && str_contains($failReason,'110'),
+    'The recovery error explanation was not persisted with the job.');
+$workerSource=file_get_contents(dirname(__DIR__).'/src/Module/Jobs/Command/WorkJobsCommand.php');
+verifyWorker(!str_contains($workerSource,'->recoverStalled('),
+    'A background worker must not auto-fail another worker solely from a heartbeat timeout.');
 
 $new=$maintenance->retry(5,7);
 verifyWorker($new!==5 &&

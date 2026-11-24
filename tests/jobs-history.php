@@ -17,6 +17,11 @@ foreach([
         'started_at TEXT,finished_at TEXT,heartbeat_at TEXT,error_code TEXT,attempts INT)',
     'CREATE TABLE job_events(id INT PRIMARY KEY,job_id INT,severity TEXT,code TEXT,context TEXT,created_at TEXT)'
 ] as $sql)$db->executeStatement($sql);
+$db->executeStatement('ALTER TABLE jobs ADD COLUMN progress_bytes_current BIGINT NOT NULL DEFAULT 0');
+$db->executeStatement('ALTER TABLE jobs ADD COLUMN progress_bytes_total BIGINT DEFAULT NULL');
+$db->executeStatement('ALTER TABLE jobs ADD COLUMN progress_detail VARCHAR(255) DEFAULT NULL');
+$db->executeStatement('ALTER TABLE jobs ADD COLUMN last_progress_at DATETIME DEFAULT NULL');
+$db->executeStatement('ALTER TABLE jobs ADD COLUMN last_failure_reason TEXT DEFAULT NULL');
 $db->insert('scan_profiles',['id'=>1,'name'=>'Audio']);
 $db->insert('scan_profiles',['id'=>2,'name'=>'Archive']);
 $db->insert('scan_runs',['id'=>44,'state'=>'archived']);
@@ -94,6 +99,8 @@ foreach(['Job history','job-profile','job-state','Older jobs','Job details and e
     assertJobs(str_contains($html,$needle),'Job monitor UI missing '.$needle);
 assertJobs(!str_contains($html,'/app_job_events'),'Raw events JSON remains primary workflow');
 $detailHtml=$twig->render('jobs/detail.html.twig',$app+$details);
+assertJobs(str_contains($detailHtml,'Job events and errors'),
+    'Event log missing in job details.');
 foreach(['Job #125','Job events and errors','Next page','View duplicate results',
     'Scan report #44'] as $needle)
     assertJobs(str_contains($detailHtml,$needle),'Job detail missing '.$needle);

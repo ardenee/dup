@@ -63,6 +63,8 @@ final class JobHistoryRepository
             $this->db,
             'j.id,j.kind,j.phase,j.state,j.progress_current,j.progress_total,'.
             'j.created_at,j.started_at,j.finished_at,j.heartbeat_at,j.error_code,'.
+            'j.progress_bytes_current,j.progress_bytes_total,j.progress_detail,'.
+            'j.last_progress_at,j.last_failure_reason,'.
             'j.history_prunable_at,j.run_id,j.file_action_batch_id,j.profile_id,'.
             'p.name AS profile_name,r.state AS run_state',
             $where,$params,'j.id',self::SORTS[$sort],strtoupper($direction),
@@ -111,6 +113,27 @@ final class JobHistoryRepository
         foreach($events as &$event) {
             $decoded=json_decode((string)($event['context']??'{}'),true);
             $event['fields']=is_array($decoded)?$decoded:[];
+            if(!$event['fields']) {
+                $event['fields']=match((string)$event['code']) {
+                    'WORKER_STALLED'=>[
+                        'Explanation'=>'The job heartbeat exceeded the recovery timeout.'.
+                            ' This does not establish whether SHA-256, storage I/O or the worker process caused the delay.',
+                        'Last phase'=>(string)($job['phase']??'Unknown'),
+                        'Last known progress'=>(int)($job['progress_current']??0).
+                            ' / '.(string)($job['progress_total']??'?').' files',
+                        'Next step'=>'Check worker and PHP service logs; retry only after confirming no worker is still operating.'
+                    ],
+                    'WORKER_CLAIMED'=>[
+                        'Explanation'=>'The background worker accepted this job.',
+                        'Note'=>'Older job events did not record process identity or per-file progress.'
+                    ],
+                    'VERIFICATION_FAILED'=>[
+                        'Explanation'=>'The verification worker reported a failure.',
+                        'Next step'=>'Inspect the error code and worker log for its underlying exception.'
+                    ],
+                    default=>[]
+                };
+            }
         }
         unset($event);
         return ['job'=>$job,'events'=>$events,

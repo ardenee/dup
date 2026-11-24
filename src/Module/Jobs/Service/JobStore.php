@@ -91,7 +91,15 @@ final class JobStore
                 "UPDATE scan_runs SET state='running',started_at=? WHERE id=? AND state='queued'",
                 [$now,(int)$job['run_id']]
             );
-            $this->event((int)$id,'info','WORKER_CLAIMED');
+            $this->event((int)$id,'info','WORKER_CLAIMED',[
+                'job_kind'=>(string)$job['kind'],
+                'profile_id'=>$job['profile_id']===null?null:(int)$job['profile_id'],
+                'run_id'=>$job['run_id']===null?null:(int)$job['run_id'],
+                'attempt'=>(int)$job['attempts'],
+                'worker_host'=>(string)(gethostname()?:'unknown'),
+                'worker_pid'=>getmypid(),
+                'php_version'=>PHP_VERSION
+            ]);
             return $job;
         }
         return null;
@@ -131,6 +139,30 @@ final class JobStore
         );
         if($updated!==1) $this->assertRunning($id,$token);
         else $this->processHeartbeat?->touch();
+    }
+
+    /**
+     * Persist actual hashing bytes separately from completed-file counts.
+     * Callers throttle this to avoid an SQL UPDATE for every 1-MiB read.
+     */
+    public function verificationProgress(
+        int $id,string $token,int $filesDone,int $filesTotal,
+        int $bytesDone,int $bytesTotal,string $detail,
+        string $phase='hashing_duplicates'
+    ):void {
+        $now=gmdate('Y-m-d H:i:s');
+        $changed=$this->db->executeStatement(
+            'UPDATE jobs SET phase=?,progress_current=?,progress_total=?,'.
+            'progress_bytes_current=?,progress_bytes_total=?,progress_detail=?,'.
+            'last_progress_at=?,heartbeat_at=? WHERE id=? AND worker_token=? AND state=?',
+            [$phase,$filesDone,$filesTotal,$bytesDone,$bytesTotal,
+                mb_substr($detail,0,255),$now,$now,$id,$token,'running']
+        );
+        if($changed!==1) {
+            $this->assertRunning($id,$token);
+            throw new LostLease('Verification job no longer holds the worker lease.');
+        }
+        $this->processHeartbeat?->touch();
     }
 
     public function event(int $id,string $severity,string $code,array $context=[]): void
@@ -253,11 +285,13 @@ final class JobStore
             throw new \InvalidArgumentException('Invalid terminal state.');
         $this->db->transactional(function(Connection $db) use ($id,$token,$state,$errorCode,$details): void {
             $now=gmdate('Y-m-d H:i:s');
+            $reason=isset($details['reason']) && is_string($details['reason'])?
+                mb_substr($details['reason'],0,2000):null;
             $changed=$db->executeStatement(
                 "UPDATE jobs SET state=?,phase=?,error_code=?,active_profile_id=NULL," .
-                "finished_at=?,heartbeat_at=? WHERE id=? AND worker_token=? " .
+                "last_failure_reason=?,finished_at=?,heartbeat_at=? WHERE id=? AND worker_token=? " .
                 "AND state IN ('running','cancelling')",
-                [$state,$state,$errorCode,$now,$now,$id,$token]
+                [$state,$state,$errorCode,$reason,$now,$now,$id,$token]
             );
             if($changed!==1) return; // Stale worker has already been recovered.
             if($db->fetchOne('SELECT kind FROM jobs WHERE id=?',[$id])==='scan')
@@ -273,7 +307,10 @@ final class JobStore
     {
         $cutoff=gmdate('Y-m-d H:i:s',time()-max(30,$seconds));
         $rows=$this->db->fetchAllAssociative(
-            "SELECT id,run_id,kind,file_action_batch_id FROM jobs WHERE state IN ('running','cancelling') " .
+            "SELECT id,run_id,kind,file_action_batch_id,phase,heartbeat_at," .
+            "progress_current,progress_total,progress_bytes_current,progress_bytes_total," .
+            "progress_detail,last_progress_at,started_at FROM jobs " .
+            "WHERE state IN ('running','cancelling') " .
             "AND (heartbeat_at IS NULL OR heartbeat_at<?)",[$cutoff]
         );
         $count=0;
@@ -281,9 +318,15 @@ final class JobStore
             $id=(int)$row['id'];
             $changed=$this->db->executeStatement(
                 "UPDATE jobs SET state='failed',phase='stalled',error_code='WORKER_STALLED'," .
-                "active_profile_id=NULL,finished_at=? WHERE id=? " .
+                "last_failure_reason=?,active_profile_id=NULL,finished_at=? WHERE id=? " .
                 "AND state IN ('running','cancelling') AND (heartbeat_at IS NULL OR heartbeat_at<?)",
-                [gmdate('Y-m-d H:i:s'),$id,$cutoff]
+                ['Worker job heartbeat expired. Last phase: '.(string)$row['phase'].
+                    '; last heartbeat: '.(string)($row['heartbeat_at']??'never').
+                    '; completed files: '.(int)$row['progress_current'].
+                    '/'.(int)($row['progress_total']??0).
+                    '; hashed bytes: '.(int)($row['progress_bytes_current']??0).
+                    '/'.(int)($row['progress_bytes_total']??0),
+                    gmdate('Y-m-d H:i:s'),$id,$cutoff]
             );
             if($changed!==1) continue;
             if($row['kind']==='duplicate-verify')
@@ -299,7 +342,22 @@ final class JobStore
                     "WHERE id=? AND state IN ('queued','executing','restore_queued','restore_executing')",
                     [(int)$row['file_action_batch_id']]
                 );
-            $this->event($id,'error','WORKER_STALLED');
+            $this->event($id,'error','WORKER_STALLED',[
+                'explanation'=>'No job heartbeat was recorded within the recovery window. '.
+                    'This does not identify why the process stopped responding.',
+                'phase'=>$row['phase'],
+                'last_heartbeat_at'=>$row['heartbeat_at'],
+                'last_progress_at'=>$row['last_progress_at'],
+                'progress_detail'=>$row['progress_detail'],
+                'files_completed'=>(int)$row['progress_current'],
+                'files_total'=>$row['progress_total']===null?null:(int)$row['progress_total'],
+                'bytes_hashed'=>(int)($row['progress_bytes_current']??0),
+                'bytes_total'=>$row['progress_bytes_total']===null?null:(int)$row['progress_bytes_total'],
+                'job_started_at'=>$row['started_at'],
+                'timeout_seconds'=>max(30,$seconds),
+                'recovery'=>'Job marked failed and its lease released; no source files were changed.',
+                'recommended_check'=>'Inspect service/process logs and verify source-folder I/O before retrying.'
+            ]);
             $count++;
         }
         return $count;

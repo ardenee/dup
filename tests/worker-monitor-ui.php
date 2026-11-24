@@ -28,7 +28,7 @@ $working=[
     'last_job_heartbeat'=>'2026-11-24 13:20:00'
 ];
 $html=$twig->render('jobs/index.html.twig',$basic+['worker'=>$working]);
-foreach(['Processing jobs','Jobs reporting progress','Last active job update',
+foreach(['Worker responding','Jobs with a recent heartbeat','Last active job update',
     '2026-11-24 13:20:00','Refresh status','Reload job list',
     'data-api-url="/app_jobs_api"','data-worker-refresh',
     'data-worker-recovery','Last process heartbeat','Last checked',

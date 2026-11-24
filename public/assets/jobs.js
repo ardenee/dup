@@ -12,12 +12,19 @@ function setText(row, field, value) {
   if (element) element.textContent = value ?? "—";
 }
 function formatCount(value) { return Number(value ?? 0).toLocaleString(); }
+function formatBytes(value) {
+  const b=Math.max(0,Number(value ?? 0));
+  const units=["B","KiB","MiB","GiB","TiB"];
+  let n=b,u=0;
+  while(n>=1024&&u<units.length-1){n/=1024;u++;}
+  return new Intl.NumberFormat(undefined,{maximumFractionDigits:u===0?0:1}).format(n)+" "+units[u];
+}
 function setWorkerField(field, value) {
   const node = workerPanel?.querySelector(`[data-worker-field="${field}"]`);
   if (node) node.textContent = value ?? "—";
 }
 const workerStates = {
-  working:["Processing jobs","A job is actively reporting progress. Long scans can keep the worker process busy between its own heartbeat updates. Do not restart or recover an active scan."],
+  working:["Worker responding","A recent job heartbeat confirms a worker check-in, but does not prove hashing is advancing. Check byte progress and the latest job event before taking action."],
   ready:["Ready","The worker process is responding and ready for new jobs."],
   stalled:["Job heartbeat overdue","An unfinished job has not reported recently. Check its last progress before recovery; a large file can take time."],
   waiting:["Waiting for worker","Jobs are queued but no worker is currently reporting. Check the DUP service if the queue does not advance."],
@@ -61,12 +68,33 @@ async function refresh(manual=false) {
       const total=job.progress_total===null ? null : Number(job.progress_total);
       setText(row,"progress-text",total===null ? formatCount(current) :
         `${formatCount(current)} / ${formatCount(total)}`);
+      const bytesTotal=job.progress_bytes_total===null ? null : Number(job.progress_bytes_total);
+      const bytesCurrent=Number(job.progress_bytes_current ?? 0);
+      const bytesText=row.querySelector('[data-field="bytes-text"]');
+      const detailText=row.querySelector('[data-field="progress-detail"]');
+      const byteBar=row.querySelector('[data-field="bytes-bar"]');
+      if(bytesText) {
+        bytesText.hidden=bytesTotal===null;
+        if(bytesTotal!==null)bytesText.textContent=formatBytes(bytesCurrent)+" / "+formatBytes(bytesTotal)+" read";
+      }
+      if(detailText) {
+        detailText.hidden=bytesTotal===null;
+        detailText.textContent=job.progress_detail??"";
+        detailText.title=job.progress_detail??"";
+      }
+      if(byteBar) {
+        byteBar.hidden=bytesTotal===null;
+        if(bytesTotal!==null) {
+          byteBar.max=Math.max(1,bytesTotal);
+          byteBar.value=Math.min(bytesCurrent,byteBar.max);
+        }
+      }
       const progress=row.querySelector('[data-field="progress-bar"]');
       if (progress) {
         if (total===null && !doneStates.has(job.state)) progress.removeAttribute("value");
         else {
           progress.max=Math.max(1,total ?? 1);
-          progress.value=doneStates.has(job.state) ? progress.max : Math.min(current,progress.max);
+          progress.value=job.state==="completed" ? progress.max : Math.min(current,progress.max);
         }
       }
       if (doneStates.has(job.state) || job.state==="cancelling") {

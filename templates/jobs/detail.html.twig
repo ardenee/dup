@@ -1,5 +1,6 @@
 {% extends 'base.html.twig' %}
 {% from '_table_headers.html.twig' import sort as sort_heading %}
+{% from 'duplicates/_format.html.twig' import bytes %}
 {% block title %}Job #{{ job.id }}{% endblock %}
 {% block section %}Job monitor / #{{ job.id }}{% endblock %}
 {% block body %}
@@ -16,7 +17,13 @@
 <div class="stats-grid">
   <div class="stat"><span>Status</span><strong>{{ job.state|capitalize }}</strong></div>
   <div class="stat"><span>Current stage</span><strong>{{ job.phase|replace({'_':' '})|capitalize }}</strong></div>
-  <div class="stat"><span>Progress</span><strong>{{ job.progress_current|number_format }}{% if job.progress_total is not null %} / {{ job.progress_total|number_format }}{% endif %}</strong></div>
+  <div class="stat"><span>Progress</span><strong>{{ job.progress_current|number_format }}{% if job.progress_total is not null %} / {{ job.progress_total|number_format }}{% endif %}</strong><small>Completed files / candidate files</small></div>
+  {% if job.progress_bytes_total is not null %}
+    <div class="stat"><span>Bytes read</span><strong>{{ bytes(job.progress_bytes_current|default(0)) }} / {{ bytes(job.progress_bytes_total) }}</strong>
+      <small>{{ job.progress_detail|default('') }}</small>
+      <progress max="{{ job.progress_bytes_total > 0 ? job.progress_bytes_total : 1 }}"
+          value="{{ job.progress_bytes_current|default(0) }}"></progress></div>
+  {% endif %}
 </div>
 <section class="panel">
   <div class="panel-heading"><h2>Job information</h2></div>
@@ -25,8 +32,17 @@
     <div><dt>Started</dt><dd>{{ job.started_at ? job.started_at ~ ' UTC' : 'Not started' }}</dd></div>
     <div><dt>Finished</dt><dd>{{ job.finished_at ? job.finished_at ~ ' UTC' : 'Not finished' }}</dd></div>
     <div><dt>Last heartbeat</dt><dd>{{ job.heartbeat_at ? job.heartbeat_at ~ ' UTC' : 'No heartbeat' }}</dd></div>
+    {% if job.last_progress_at %}
+      <div><dt>Last byte progress</dt><dd>{{ job.last_progress_at }} UTC</dd></div>
+    {% endif %}
+    {% if job.progress_detail %}
+      <div><dt>Processing</dt><dd>{{ job.progress_detail }}</dd></div>
+    {% endif %}
     <div><dt>Attempts</dt><dd>{{ job.attempts|default(0) }}</dd></div>
     <div><dt>Error code</dt><dd>{{ job.error_code ?? 'None recorded' }}</dd></div>
+    {% if job.last_failure_reason %}
+      <div><dt>Failure details</dt><dd class="report-error">{{ job.last_failure_reason }}</dd></div>
+    {% endif %}
   </dl>
   <div class="panel-content">
     <div class="profile-page-actions">
@@ -52,6 +68,30 @@
     </div>
   </div>
 </section>
+{% if job.state == 'failed' and job.error_code == 'WORKER_STALLED' %}
+<section class="notice notice-warning job-diagnostic-note">
+  <strong>Worker timeout, not a verified hash failure.</strong>
+  No heartbeat was observed within the recovery window. This alone cannot establish
+  whether the process was stopped, a storage read blocked, or the worker became unreachable.
+  The last recorded file and byte counts above are evidence, not a completion estimate.
+  Inspect the DUP worker service log and <a href="{{ path('app_system') }}">System health</a>
+  before retrying.
+  {% if is_dsm|default(false) %}
+    <p>Synology worker log: <code>/var/packages/dup/var/worker.log</code></p>
+  {% endif %}
+</section>
+{% endif %}
+{% if job.state in ['failed','cancelled'] and job.kind in ['scan','duplicate-verify'] %}
+<section class="panel panel-content">
+  <h2>Retry this operation</h2>
+  <p>Retry creates a new job. The original job and diagnostic events remain in history.</p>
+  <form method="post" action="{{ path('app_job_retry',{id:job.id}) }}"
+        onsubmit="return confirm('Queue a new {{ job.kind == 'scan' ? 'scan' : 'SHA-256 verification' }} job?')">
+    <input type="hidden" name="_token" value="{{ csrf_token('retry_job_' ~ job.id) }}">
+    <button type="submit" class="primary">Retry {{ job.kind == 'scan' ? 'scan' : 'SHA-256 verification' }}</button>
+  </form>
+</section>
+{% endif %}
 {% if cleanup.can_remove %}
 <section class="panel panel-content" id="remove-job">
   <h2>Remove this old job log</h2>

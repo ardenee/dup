@@ -87,6 +87,7 @@ final class JobsController extends AbstractController
         if(!$details) throw $this->createNotFoundException('Job does not exist.');
         return $this->render('jobs/detail.html.twig',$details+[
             'cleanup'=>$cleanup->inspect($id),'event_sort'=>$sort,'event_dir'=>$dir,
+            'is_dsm'=>\App\Core\Setup\HostEnvironment::isSynology(dirname(__DIR__,4)),
             'event_severity'=>$severity,'event_filters'=>array_filter([
                 'id'=>$id,'sort'=>$sort,'dir'=>$dir,'severity'=>$severity
             ],static fn($v)=>$v!=='')
@@ -185,7 +186,9 @@ final class JobsController extends AbstractController
         return new JsonResponse([
             'jobs'=>$db->fetchAllAssociative(
                 'SELECT id,kind,phase,state,progress_current,progress_total,' .
-                'created_at,started_at,finished_at,heartbeat_at,error_code ' .
+                'created_at,started_at,finished_at,heartbeat_at,error_code,' .
+                'progress_bytes_current,progress_bytes_total,progress_detail,'.
+                'last_progress_at,last_failure_reason ' .
                 'FROM jobs ORDER BY id DESC LIMIT 100'
             ),
             'worker'=>$heartbeat->report()

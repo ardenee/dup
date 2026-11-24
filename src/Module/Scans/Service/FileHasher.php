@@ -21,7 +21,8 @@ final class FileHasher
     }
 
     public static function digest(
-        string $path,string $mode,int $size,int $mtime,?callable $checkpoint=null
+        string $path,string $mode,int $size,int $mtime,?callable $checkpoint=null,
+        ?callable $onBytes=null
     ): string {
         if($mode==='size' || !self::isSupported($mode))
             throw new \InvalidArgumentException('A hashing strategy must be selected.');
@@ -60,6 +61,7 @@ final class FileHasher
                     if($chunk==='') break;
                     $read+=strlen($chunk);
                     hash_update($context,$chunk);
+                    if($onBytes!==null) $onBytes($read);
                     if($checkpoint!==null) $checkpoint();
                 }
                 if($read!==$size)

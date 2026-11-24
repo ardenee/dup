@@ -24,7 +24,14 @@ final class DuplicateVerificationWorker
         if($job['kind']!=='duplicate-verify') throw new \LogicException('Invalid job kind.');
         $id=(int)$job['id'];$runId=(int)$job['run_id'];
         $profileId=(int)$job['profile_id'];$token=(string)$job['worker_token'];
+        $step='preflight';$currentPath=null;$fileIndex=0;$done=0;
+        $total=0;$bytesTotal=0;$bytesCompleted=0;$fileBytesRead=0;
+        $started=microtime(true);
         try {
+            $this->jobs->event($id,'info','VERIFICATION_PREFLIGHT',[
+                'description'=>'Checking current scan and enumerating candidate files.',
+                'profile_id'=>$profileId,'run_id'=>$runId
+            ]);
             $run=$this->db->fetchAssociative(
                 "SELECT id,profile_id,state FROM scan_runs WHERE id=?",[$runId]
             );
@@ -35,13 +42,30 @@ final class DuplicateVerificationWorker
                    [$profileId]
                )!==$runId)
                 throw new \DomainException('The selected scan is no longer current.');
-            $total=(int)$this->db->fetchOne(
-                'SELECT COUNT(DISTINCT m.file_entry_id) FROM duplicate_group_members m '.
+            $stats=$this->db->fetchAssociative(
+                'SELECT COUNT(*) AS file_count,COALESCE(SUM(c.size_bytes),0) AS total_bytes '.
+                'FROM (SELECT DISTINCT f.id,f.size_bytes '.
+                'FROM duplicate_group_members m '.
                 'JOIN duplicate_groups g ON g.id=m.group_id '.
-                'WHERE g.run_id=? AND g.rules_version<>1',[$runId]
+                'JOIN file_entries f ON f.id=m.file_entry_id '.
+                'JOIN directories d ON d.id=f.directory_id '.
+                'WHERE g.run_id=? AND g.rules_version<>1 AND f.error_code IS NULL '.
+                'AND d.is_ignored=0) c',[$runId]
             );
-            if($total<2)throw new \DomainException('There are no candidate duplicate files to verify.');
-            $this->jobs->progress($id,$token,'hashing_duplicates',0,$total);
+            $total=(int)($stats['file_count']??0);
+            $bytesTotal=(int)($stats['total_bytes']??0);
+            if($total<2)
+                throw new \DomainException('There are no accessible candidate duplicate files to verify.');
+            $this->jobs->verificationProgress(
+                $id,$token,0,$total,0,$bytesTotal,'Preparing SHA-256 verification'
+            );
+            $this->jobs->event($id,'info','VERIFICATION_STARTED',[
+                'description'=>'Hashing only the previously detected candidate duplicate files.',
+                'profile_id'=>$profileId,'run_id'=>$runId,
+                'candidate_files'=>$total,'candidate_bytes'=>$bytesTotal,
+                'algorithm'=>'sha256'
+            ]);
+            $step='reading';
             $cursor=$this->db->executeQuery(
                 'SELECT DISTINCT f.id,f.filename,f.size_bytes,f.mtime_epoch,d.path AS directory '.
                 'FROM duplicate_group_members m JOIN duplicate_groups g ON g.id=m.group_id '.
@@ -50,24 +74,94 @@ final class DuplicateVerificationWorker
                 'WHERE g.run_id=? AND g.rules_version<>1 AND f.error_code IS NULL '.
                 'AND d.is_ignored=0 ORDER BY f.id',[$runId]
             );
-            $done=0;
             while(($row=$cursor->fetchAssociative())!==false) {
                 $this->jobs->assertRunning($id,$token);
-                $path=$this->fs->checkedPath((string)$row['directory'],(string)$row['filename']);
-                $size=(int)$row['size_bytes'];$mtime=(int)$row['mtime_epoch'];
-                $digest=FileHasher::digest($path,'sha256',$size,$mtime,
-                    fn()=>$this->jobs->assertRunning($id,$token)
+                $fileIndex=$done+1;
+                $currentPath=rtrim((string)$row['directory'],'/\\').DIRECTORY_SEPARATOR.(string)$row['filename'];
+                $currentPath=$this->fs->checkedPath((string)$row['directory'],(string)$row['filename']);
+                $size=(int)$row['size_bytes'];
+                $mtime=(int)$row['mtime_epoch'];
+                $fileBytesRead=0;
+                $fileStarted=microtime(true);
+                $lastWriteAt=$fileStarted;
+                $lastWrittenBytes=0;
+                $lastEventAt=$fileStarted;
+                $detail='File '.$fileIndex.'/'.$total.': '.(string)$row['filename'];
+                $this->jobs->verificationProgress(
+                    $id,$token,$done,$total,$bytesCompleted,$bytesTotal,$detail
+                );
+                $this->jobs->event($id,'info','VERIFICATION_FILE_STARTED',[
+                    'file_index'=>$fileIndex,'total_files'=>$total,
+                    'path'=>$currentPath,'file_bytes'=>$size,
+                    'bytes_completed_before_file'=>$bytesCompleted
+                ]);
+                $digest=FileHasher::digest(
+                    $currentPath,'sha256',$size,$mtime,
+                    fn()=>$this->jobs->assertRunning($id,$token),
+                    function(int $bytesRead) use (
+                        $id,$token,$done,$total,$bytesCompleted,$bytesTotal,
+                        $size,$fileIndex,$detail,$fileStarted,
+                        &$fileBytesRead,&$lastWriteAt,&$lastWrittenBytes,&$lastEventAt
+                    ):void {
+                        $fileBytesRead=$bytesRead;
+                        $now=microtime(true);
+                        if($now-$lastWriteAt>=2.0 || $bytesRead-$lastWrittenBytes>=16*1024*1024
+                           || $bytesRead===$size) {
+                            $this->jobs->verificationProgress(
+                                $id,$token,$done,$total,$bytesCompleted+$bytesRead,
+                                $bytesTotal,$detail
+                            );
+                            $lastWriteAt=$now;
+                            $lastWrittenBytes=$bytesRead;
+                        }
+                        if($now-$lastEventAt>=30) {
+                            $seconds=max(0.001,$now-$fileStarted);
+                            $this->jobs->event($id,'info','VERIFICATION_FILE_PROGRESS',[
+                                'file_index'=>$fileIndex,'total_files'=>$total,
+                                'file_bytes_read'=>$bytesRead,'file_bytes'=>$size,
+                                'overall_bytes_read'=>$bytesCompleted+$bytesRead,
+                                'overall_bytes'=>$bytesTotal,
+                                'elapsed_seconds'=>round($seconds,1),
+                                'read_mib_per_second'=>round($bytesRead/$seconds/1048576,2)
+                            ]);
+                            $lastEventAt=$now;
+                        }
+                    }
                 );
                 $this->db->insert('duplicate_verification_hashes',[
                     'job_id'=>$id,'file_entry_id'=>(int)$row['id'],'sha256'=>$digest
                 ]);
                 $done++;
-                $this->jobs->progress($id,$token,'hashing_duplicates',$done,$total);
+                $bytesCompleted+=$size;
+                $seconds=max(0.001,microtime(true)-$fileStarted);
+                $this->jobs->verificationProgress(
+                    $id,$token,$done,$total,$bytesCompleted,$bytesTotal,
+                    'Verified '.$done.'/'.$total.' files'
+                );
+                $this->jobs->event($id,'info','VERIFICATION_FILE_COMPLETED',[
+                    'file_index'=>$fileIndex,'total_files'=>$total,
+                    'path'=>$currentPath,'file_bytes'=>$size,
+                    'elapsed_seconds'=>round($seconds,2),
+                    'read_mib_per_second'=>round($size/$seconds/1048576,2),
+                    'overall_bytes_read'=>$bytesCompleted,'overall_bytes'=>$bytesTotal
+                ]);
+                $currentPath=null;
             }
-            if($done!==$total)
+            if($done!==$total || $bytesCompleted!==$bytesTotal)
                 throw new \DomainException('Candidate list changed during verification.');
+            $step='publishing';
+            $this->jobs->verificationProgress(
+                $id,$token,$total,$total,$bytesTotal,$bytesTotal,
+                'Publishing verified hashes and rebuilding duplicate groups',
+                'publishing_verified_results'
+            );
+            $this->jobs->event($id,'info','VERIFICATION_PUBLISH_STARTED',[
+                'verified_files'=>$total,'verified_bytes'=>$bytesTotal,
+                'hashing_elapsed_seconds'=>round(microtime(true)-$started,2),
+                'description'=>'Publishing hashes and rebuilding duplicate groups atomically.'
+            ]);
             // Apply all results and rebuild groups as a single database update.
-            $this->db->transactional(function(Connection $db) use ($id,$runId,$token,$total):void {
+            $this->db->transactional(function(Connection $db) use ($id,$runId,$token,$total,$bytesTotal,$started):void {
                 $this->jobs->assertRunning($id,$token);
                 if((int)$db->fetchOne(
                     "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=".
@@ -99,12 +193,16 @@ final class DuplicateVerificationWorker
                 );
                 $db->executeStatement(
                     "UPDATE jobs SET state='completed',phase='completed',progress_current=?,".
-                    "progress_total=?,finished_at=?,heartbeat_at=?,active_profile_id=NULL ".
+                    "progress_total=?,progress_bytes_current=?,progress_bytes_total=?,".
+                    "progress_detail=?,last_progress_at=?,".
+                    "finished_at=?,heartbeat_at=?,active_profile_id=NULL ".
                     "WHERE id=? AND worker_token=? AND state='running'",
-                    [$total,$total,$now,$now,$id,$token]
+                    [$total,$total,$bytesTotal,$bytesTotal,
+                        'SHA-256 verification completed',$now,$now,$now,$id,$token]
                 );
                 $this->jobs->event($id,'info','DUPLICATES_VERIFIED',[
-                    'candidate_files'=>$count,'verified_groups'=>$groups,
+                    'candidate_files'=>$count,'candidate_bytes'=>$bytesTotal,
+                    'verified_groups'=>$groups,'elapsed_seconds'=>round(microtime(true)-$started,2),
                     'method'=>'sha256','full_rescan'=>false
                 ]);
                 $db->delete('duplicate_verification_hashes',['job_id'=>$id]);
@@ -115,7 +213,18 @@ final class DuplicateVerificationWorker
             throw $ex;
         } catch(\Throwable $ex) {
             $this->jobs->stop($id,$token,'failed','VERIFICATION_FAILED',[
-                'reason'=>mb_substr($ex->getMessage(),0,200)
+                'reason'=>mb_substr($ex->getMessage(),0,2000),
+                'exception_type'=>get_class($ex),
+                'stage'=>$step,
+                'file_index'=>$fileIndex,'total_files'=>$total,
+                'file_path'=>$currentPath,
+                'file_bytes_read'=>$fileBytesRead,
+                'files_completed'=>$done,
+                'bytes_completed'=>$bytesCompleted+$fileBytesRead,
+                'bytes_total'=>$bytesTotal,
+                'elapsed_seconds'=>round(microtime(true)-$started,2),
+                'worker_host'=>(string)(gethostname()?:'unknown'),
+                'worker_pid'=>getmypid()
             ]);
             throw $ex;
         } finally {

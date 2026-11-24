@@ -42,6 +42,11 @@ try{
         'CREATE TABLE duplicate_groups (id INT PRIMARY KEY,run_id INT)',
         'CREATE TABLE duplicate_group_members (id INT PRIMARY KEY,group_id INT,file_entry_id INT)'
     ] as $sql)$db->executeStatement($sql);
+    $db->executeStatement('ALTER TABLE jobs ADD COLUMN progress_bytes_current BIGINT NOT NULL DEFAULT 0');
+    $db->executeStatement('ALTER TABLE jobs ADD COLUMN progress_bytes_total BIGINT DEFAULT NULL');
+    $db->executeStatement('ALTER TABLE jobs ADD COLUMN progress_detail VARCHAR(255) DEFAULT NULL');
+    $db->executeStatement('ALTER TABLE jobs ADD COLUMN last_progress_at DATETIME DEFAULT NULL');
+    $db->executeStatement('ALTER TABLE jobs ADD COLUMN last_failure_reason TEXT DEFAULT NULL');
     $db->executeStatement("INSERT INTO scan_profiles(id,name) VALUES(1,'Music')");
     $db->executeStatement("INSERT INTO scan_runs(id,profile_id,state) VALUES(1,1,'completed')");
     $db->insert('directories',['id'=>1,'path'=>realpath($folder),'run_id'=>1,'is_ignored'=>0]);

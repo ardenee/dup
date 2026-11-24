@@ -37,6 +37,11 @@ try {
         'CREATE TABLE audit_events(id INTEGER PRIMARY KEY AUTOINCREMENT,actor_id INT,action TEXT,entity_type TEXT,entity_id TEXT,correlation_id TEXT,outcome TEXT,context TEXT,created_at TEXT)',
         'CREATE TABLE duplicate_verification_hashes(job_id INT,file_entry_id INT,sha256 TEXT,PRIMARY KEY(job_id,file_entry_id))'
     ] as $sql)$db->executeStatement($sql);
+    $db->executeStatement('ALTER TABLE jobs ADD COLUMN progress_bytes_current BIGINT NOT NULL DEFAULT 0');
+    $db->executeStatement('ALTER TABLE jobs ADD COLUMN progress_bytes_total BIGINT DEFAULT NULL');
+    $db->executeStatement('ALTER TABLE jobs ADD COLUMN progress_detail VARCHAR(255) DEFAULT NULL');
+    $db->executeStatement('ALTER TABLE jobs ADD COLUMN last_progress_at DATETIME DEFAULT NULL');
+    $db->executeStatement('ALTER TABLE jobs ADD COLUMN last_failure_reason TEXT DEFAULT NULL');
     $db->insert('scan_profiles',['id'=>1,'name'=>'Music']);
     $db->insert('scan_runs',['id'=>1,'profile_id'=>1,'state'=>'completed','duplicate_groups'=>1]);
     $db->insert('directories',['id'=>1,'run_id'=>1,'path'=>realpath($root),'is_ignored'=>0]);
@@ -64,6 +69,26 @@ try {
     $job=$jobs->claimNext($id);
     checked($job && $job['kind']==='duplicate-verify','Stage job not enqueued');
     $worker->run($job);
+    $telemetry=$db->fetchAssociative(
+        'SELECT progress_bytes_current,progress_bytes_total,progress_detail,last_progress_at FROM jobs WHERE id=?',[$id]
+    );
+    checked((int)$telemetry['progress_bytes_current']===9600 &&
+        (int)$telemetry['progress_bytes_total']===9600 &&
+        $telemetry['progress_detail']==='SHA-256 verification completed' &&
+        $telemetry['last_progress_at']!==null,
+        'SHA-256 byte-level progress not stored or finalized.');
+    foreach(['VERIFICATION_PREFLIGHT'=>1,'VERIFICATION_STARTED'=>1,
+        'VERIFICATION_FILE_STARTED'=>3,'VERIFICATION_FILE_COMPLETED'=>3,
+        'VERIFICATION_PUBLISH_STARTED'=>1,'DUPLICATES_VERIFIED'=>1] as $event=>$expected) {
+        checked((int)$db->fetchOne('SELECT COUNT(*) FROM job_events WHERE job_id=? AND code=?',
+            [$id,$event])===$expected,'Missing verification event context: '.$event);
+    }
+    $firstEvent=json_decode((string)$db->fetchOne(
+        "SELECT context FROM job_events WHERE job_id=? AND code='VERIFICATION_FILE_COMPLETED' ORDER BY id LIMIT 1",
+        [$id]),true);
+    checked($firstEvent['file_index']===1 && $firstEvent['overall_bytes_read']===3200 &&
+        isset($firstEvent['read_mib_per_second']) && isset($firstEvent['path']),
+        'Per-file diagnostic context omitted file/byte/speed details.');
     checked((string)$db->fetchOne('SELECT state FROM jobs WHERE id=?',[$id])==='completed',
         'Stage job did not complete');
     checked((string)$db->fetchOne('SELECT verification_method FROM scan_runs WHERE id=1')==='sha256',
@@ -97,6 +122,16 @@ try {
     }
     checked((string)$db->fetchOne('SELECT state FROM jobs WHERE id=?',[$again])==='failed',
         'Changed stage not recorded as failed');
+    $reason=(string)$db->fetchOne('SELECT last_failure_reason FROM jobs WHERE id=?',[$again]);
+    checked(str_contains($reason,'changed') || str_contains($reason,'Candidate'),
+        'Failure reason missing from job detail record.');
+    $context=json_decode((string)$db->fetchOne(
+        "SELECT context FROM job_events WHERE job_id=? AND code='VERIFICATION_FAILED'",
+        [$again]),true);
+    checked(is_array($context) && ($context['stage']??null)==='reading' &&
+        isset($context['file_index'],$context['total_files'],$context['file_path']) &&
+        isset($context['elapsed_seconds'],$context['worker_host'],$context['worker_pid']),
+        'Failure event lacks the exact file/stage/process diagnostic data.');
     checked((string)$db->fetchOne('SELECT verification_method FROM scan_runs WHERE id=1')==='',
         'Failed stage modified verification marker');
     checked((int)$db->fetchOne('SELECT COUNT(*) FROM duplicate_verification_hashes')===0,

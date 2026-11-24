@@ -1,6 +1,7 @@
 {% extends 'base.html.twig' %}
 {% from '_action_icons.html.twig' import icon %}
 {% from '_table_headers.html.twig' import sort as sort_heading %}
+{% from 'duplicates/_format.html.twig' import bytes %}
 {% block title %}Jobs{% endblock %}
 {% block section %}Jobs{% endblock %}
 {% block body %}
@@ -87,8 +88,22 @@
             <td><span class="status" data-field="state">{{ job.state }}</span></td>
             <td><div data-field="progress-text" class="muted">{{ job.progress_current|number_format }}
                 {% if job.progress_total is not null %}/ {{ job.progress_total|number_format }}{% endif %}</div>
+              {% if job.progress_bytes_total is not null %}
+                <div class="job-byte-progress" data-field="bytes-text">
+                  {{ bytes(job.progress_bytes_current|default(0)) }} / {{ bytes(job.progress_bytes_total) }} read
+                </div>
+                <div class="job-progress-detail" data-field="progress-detail"
+                     title="{{ job.progress_detail|default('') }}">{{ job.progress_detail|default('') }}</div>
+                <progress class="job-bytes-bar" data-field="bytes-bar"
+                  max="{{ job.progress_bytes_total > 0 ? job.progress_bytes_total : 1 }}"
+                  value="{{ job.progress_bytes_current > 0 ? job.progress_bytes_current : 0 }}"></progress>
+              {% else %}
+                <div data-field="bytes-text" class="job-byte-progress" hidden></div>
+                <div data-field="progress-detail" class="job-progress-detail" hidden></div>
+                <progress class="job-bytes-bar" data-field="bytes-bar" hidden></progress>
+              {% endif %}
               <progress max="{{ job.progress_total > 0 ? job.progress_total : 1 }}"
-                value="{{ job.progress_current < (job.progress_total > 0 ? job.progress_total : 1) ? job.progress_current : (job.progress_total > 0 ? job.progress_total : 0) }}"
+                value="{{ job.state == 'completed' and job.progress_total > 0 ? job.progress_total : (job.progress_total > 0 and job.progress_current < job.progress_total ? job.progress_current : (job.progress_total > 0 ? job.progress_total : 0)) }}"
                 data-field="progress-bar"></progress></td>
             <td data-field="heartbeat" class="muted">{{ job.heartbeat_at ? job.heartbeat_at ~ ' UTC' : '—' }}</td>
             <td>
@@ -146,7 +161,7 @@
       <p class="muted">Live process and job activity, checked independently.</p></div>
     <span class="status" data-worker-field="state"
       role="status" aria-live="polite">{{ {
-        'working':'Processing jobs', 'ready':'Ready', 'stalled':'Job heartbeat overdue',
+        'working':'Worker responding', 'ready':'Ready', 'stalled':'Job heartbeat overdue',
         'waiting':'Waiting for worker', 'not_reporting':'No recent worker activity'
       }[worker_state]|default('Unknown') }}</span>
   </div>
@@ -155,9 +170,9 @@
       <div><span class="muted">Workers reporting</span>
         <strong data-worker-field="active">{{ worker.active|default(0)|number_format }}</strong>
         <small>Process heartbeat in the last 90 seconds</small></div>
-      <div><span class="muted">Jobs reporting progress</span>
+      <div><span class="muted">Jobs with a recent heartbeat</span>
         <strong data-worker-field="jobs_responding">{{ worker.jobs_responding|default(0)|number_format }}</strong>
-        <small>Active job heartbeat in the last 3 minutes</small></div>
+        <small>Worker check-in within 3 minutes; not proof that file bytes are advancing</small></div>
       <div><span class="muted">Queued / unfinished</span>
         <strong><span data-worker-field="queued_jobs">{{ worker.queued_jobs|default(0) }}</span>
           / <span data-worker-field="jobs_running">{{ worker.jobs_running|default(0) }}</span></strong>
@@ -172,8 +187,8 @@
     </div>
     <p class="worker-status-guidance" data-worker-guidance aria-live="polite">
       {% if worker_state == 'working' %}
-        Job activity is current. A long scan can keep the worker process busy between its own heartbeats;
-        do not recover or restart an actively progressing scan.
+        A job has reported a recent heartbeat. This confirms the worker is checking in,
+        but does not by itself prove that file processing is advancing. Inspect its byte progress and latest event.
       {% elseif worker_state == 'ready' %}
         The CLI worker is responding and ready to process queued jobs.
       {% elseif worker_state == 'stalled' %}
@@ -214,5 +229,5 @@
     {% endif %}
   </div>
 </section>
-<script type="module" src="{{ asset('assets/jobs.js') }}"></script>
+<script type="module" src="{{ asset('assets/jobs.js') }}?v=0.7.12"></script>
 {% endblock %}

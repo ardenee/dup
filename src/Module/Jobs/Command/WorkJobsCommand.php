@@ -86,9 +86,10 @@ final class WorkJobsCommand extends Command
             $this->heartbeat->touch();
             $scheduled=$this->schedules->dispatchDue();
             if($scheduled) $output->writeln('<info>Scheduled scan jobs: '.implode(',',$scheduled).'</info>');
-            $recovered=$this->jobs->recoverStalled(600);
-            if($recovered)
-                $output->writeln('<comment>Marked '.$recovered.' stalled job(s) failed.</comment>');
+            // Do not automatically invalidate running filesystem or hashing
+            // jobs solely because their database heartbeat is old. A worker
+            // may be blocked inside a file read, native I/O or a transaction.
+            // Explicit maintenance can recover such jobs after inspection.
             $processed=0;
             while($processed<$max && !$this->stopping) {
                 $job=$this->jobs->claimNext($jobId);
