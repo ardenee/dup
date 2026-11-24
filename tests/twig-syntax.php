@@ -18,6 +18,8 @@ $files = [
     'accounts/index.html.twig',
     'jobs/index.html.twig',
     'actions/index.html.twig',
+    'actions/_pager.html.twig',
+    'actions/rename-detail.html.twig',
     'actions/detail.html.twig',
     'actions/move.html.twig',
     'profiles/settings/ignore-folders.html.twig',

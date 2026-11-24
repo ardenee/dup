@@ -67,7 +67,7 @@
   {% if batches is empty %}<div class="empty-state">No renaming jobs have been queued.</div>
   {% else %}<div class="table-wrap"><table><thead><tr><th>Batch</th><th>Profile</th><th>Status</th><th>Renamed</th><th>Failed</th><th>Created (UTC)</th></tr></thead>
     <tbody>{% for batch in batches %}
-      <tr><td>#{{ batch.id }}</td><td>{{ batch.profile_name }}</td><td><span class="status">{{ batch.state }}</span></td><td>{{ batch.renamed }}</td><td>{{ batch.failed }}</td><td>{{ batch.requested_at }}</td></tr>
+      <tr><td><a class="text-link" href="{{ path('app_action_detail',{id:batch.id}) }}">#{{ batch.id }}</a></td><td>{{ batch.profile_name }}</td><td><span class="status">{{ batch.state }}</span></td><td>{{ batch.renamed }}</td><td>{{ batch.failed }}</td><td>{{ batch.requested_at }}</td></tr>
     {% endfor %}</tbody></table></div>{% endif %}
 </section>
 <script type="module" src="{{ asset('assets/rename.js') }}"></script>

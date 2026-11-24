@@ -2,23 +2,89 @@
 {% block title %}File actions{% endblock %}
 {% block section %}File actions{% endblock %}
 {% block body %}
-<div class="page-heading"><div><div class="eyebrow">SAFE FILE OPERATIONS</div><h1>File action history</h1>
-<p class="muted">Recorded quarantine, move, restore and rename operations. Permanent deletion is not enabled.</p></div>
-<a href="{{ path('app_duplicates') }}" class="secondary link-button">Browse duplicates</a></div>
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">AUDITED FILE OPERATIONS</div>
+    <h1>File action history</h1>
+    <p class="muted">All recorded quarantine, link, move, restore and rename batches, including failures. Permanent deletion is disabled.</p>
+  </div>
+  <a href="{{ path('app_duplicates') }}" class="secondary link-button">Browse duplicates</a>
+</div>
 <section class="panel">
-<div class="panel-heading"><h2>Recent action batches</h2><span class="muted">Last {{ batches|length }}</span></div>
-{% if batches is empty %}
-<div class="empty-state">No file actions have been planned yet. Select a verified duplicate to create a preview.</div>
-{% else %}
-<div class="table-wrap"><table><thead><tr>
-<th>Batch</th><th>Profile / file</th><th>Status</th><th>Requested (UTC)</th><th>Result</th></tr></thead>
-<tbody>{% for batch in batches %}<tr>
-<td>{% if batch.action_kind == 'rename' %}<a href="{{ path('app_rename') }}">#{{ batch.id }} · Rename</a>{% elseif batch.action_kind == 'move' %}<a href="{{ path('app_move_detail',{id:batch.id}) }}">#{{ batch.id }} · Move</a>{% else %}<a href="{{ path('app_action_detail',{id:batch.id}) }}">#{{ batch.id }} · Quarantine</a>{% endif %}</td>
-<td><strong>{{ batch.profile_name }}</strong><div><code>{{ batch.source_path }}</code></div></td>
-<td><span class="status">{{ batch.state|replace({'_':' '}) }}</span></td>
-<td>{{ batch.requested_at }}</td>
-<td>{{ batch.error_code ?? '—' }}</td>
-</tr>{% endfor %}</tbody></table></div>
-{% endif %}
+  <form method="get" action="{{ path('app_actions') }}" class="search-form">
+    <div class="field">
+      <label for="action-profile">Scan profile</label>
+      <select id="action-profile" name="profile">
+        <option value="">All profiles</option>
+        {% for item in profiles %}
+          <option value="{{ item.id }}" {{ profile == item.id ? 'selected' : '' }}>{{ item.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="action-kind">Operation</label>
+      <select id="action-kind" name="kind">
+        <option value="">All operations</option>
+        {% for option,label in {'quarantine':'Quarantine','link':'Link','move':'Move','rename':'Rename'} %}
+          <option value="{{ option }}" {{ kind == option ? 'selected' : '' }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="action-state">Batch status</label>
+      <select id="action-state" name="state">
+        <option value="">All statuses</option>
+        {% for option in states %}
+          <option value="{{ option }}" {{ state == option ? 'selected' : '' }}>{{ option|replace({'_':' '})|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="search-actions">
+      <button type="submit" class="primary">Filter</button>
+      <a href="{{ path('app_actions') }}" class="secondary link-button">Clear</a>
+    </div>
+  </form>
+</section>
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Recorded batches</h2>
+    <span class="muted">{{ page.total|number_format }} matching batches</span>
+  </div>
+  {% if page.rows is empty %}
+    <div class="empty-state">No action batches match this selection.</div>
+    {% if page.total > 0 %}<div class="result-toolbar"><a href="{{ path('app_actions',filters) }}">Return to first page</a></div>{% endif %}
+  {% else %}
+    {% include 'actions/_pager.html.twig' %}
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>Batch / operation</th><th>Profile / source file</th><th>Files</th>
+        <th>Batch status</th><th>Requested (UTC)</th><th>Completed (UTC)</th><th>Result</th>
+      </tr></thead>
+      <tbody>
+      {% for batch in page.rows %}
+        <tr>
+          <td>
+            <a class="text-link" href="{{ batch.action_kind == 'move' ? path('app_move_detail',{id:batch.id}) : path('app_action_detail',{id:batch.id}) }}">#{{ batch.id }} &mdash; {{ batch.action_kind|capitalize }}</a>
+          </td>
+          <td><strong>{{ batch.profile_name }}</strong>
+            <div><code>{{ batch.source_path ?? 'Not recorded' }}</code></div>
+          </td>
+          <td>{{ batch.item_count|number_format }}
+            {% if batch.failed_items > 0 %}<small class="muted">{{ batch.failed_items }} failed</small>{% endif %}
+          </td>
+          <td><span class="status">{{ batch.state|replace({'_':' '}) }}</span></td>
+          <td>{{ batch.requested_at }}</td>
+          <td>{{ batch.completed_at ?? 'Pending' }}</td>
+          <td>{{ batch.error_code ?? '—' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+      <tfoot><tr><td colspan="4">Showing {{ page.rows|length }} of {{ page.total|number_format }} matching batches</td><td colspan="3">25 batches per page, newest first</td></tr></tfoot>
+    </table></div>
+    {% include 'actions/_pager.html.twig' %}
+  {% endif %}
+  <div class="result-toolbar">
+    <span class="muted">Each batch opens its recorded details; no filesystem changes occur by browsing history.</span>
+  </div>
 </section>
 {% endblock %}

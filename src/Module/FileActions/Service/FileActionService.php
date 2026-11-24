@@ -188,19 +188,6 @@ final class FileActionService
         );
     }
 
-    public function history(): array
-    {
-        return $this->db->fetchAllAssociative(
-            'SELECT b.id,b.action_kind,b.state,b.requested_at,b.completed_at,b.error_code,' .
-            'MIN(i.source_path) AS source_path,MIN(i.target_path) AS target_path,' .
-            'COUNT(i.id) AS item_count,p.name AS profile_name ' .
-            'FROM file_action_batches b JOIN file_action_items i ON i.batch_id=b.id ' .
-            'JOIN scan_profiles p ON p.id=b.profile_id ' .
-            'GROUP BY b.id,b.action_kind,b.state,b.requested_at,b.completed_at,' .
-            'b.error_code,p.name ORDER BY b.id DESC LIMIT 100'
-        );
-    }
-
     public function audit(?int $actorId,string $code,int $batchId,string $outcome,array $context=[]): void
     {
         $this->db->insert('audit_events',[

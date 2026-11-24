@@ -1,0 +1,11 @@
+<nav class="result-toolbar" aria-label="Action history pages">
+  <span class="muted">Showing {{ page.rows|length }} of {{ page.total|number_format }} recorded batches</span>
+  <div class="pagination">
+    {% if page.previous %}
+      <a href="{{ path('app_actions',filters|merge({after:page.previous})) }}" rel="prev">Previous (newer)</a>
+    {% endif %}
+    {% if page.next %}
+      <a href="{{ path('app_actions',filters|merge({before:page.next})) }}" rel="next">Next (older)</a>
+    {% endif %}
+  </div>
+</nav>

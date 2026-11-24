@@ -4,6 +4,7 @@ namespace App\Module\FileActions\Controller;
 
 use App\Module\Accounts\Domain\Account;
 use App\Module\FileActions\Service\FileActionService;
+use App\Module\FileActions\Repository\FileActionHistoryRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -19,9 +20,39 @@ final class FileActionController extends AbstractController
     }
 
     #[Route('/actions',name:'app_actions',methods:['GET'])]
-    public function index(FileActionService $actions): Response
+    public function index(Request $request,FileActionHistoryRepository $history): Response
     {
-        return $this->render('actions/index.html.twig',['batches'=>$actions->history()]);
+        $kind=(string)$request->query->get('kind','');
+        if($kind!=='' && !in_array($kind,['quarantine','link','move','rename'],true))
+            throw $this->createNotFoundException('Invalid action type.');
+        $state=(string)$request->query->get('state','');
+        $states=$history->states();
+        if($state!=='' && !in_array($state,$states,true))
+            throw $this->createNotFoundException('Invalid action state.');
+        $profile=$this->positiveQueryId($request,'profile');
+        $before=$this->positiveQueryId($request,'before');
+        $after=$this->positiveQueryId($request,'after');
+        if($before!==null && $after!==null)
+            throw $this->createNotFoundException('Only one paging cursor is allowed.');
+        $profiles=$history->profiles();
+        if($profile!==null && !in_array($profile,array_map(
+            static fn(array $row)=>(int)$row['id'],$profiles
+        ),true)) throw $this->createNotFoundException('Unknown profile.');
+        return $this->render('actions/index.html.twig',[
+            'page'=>$history->page($profile,$kind?:null,$state?:null,$before,$after),
+            'profiles'=>$profiles,'states'=>$states,
+            'profile'=>$profile,'kind'=>$kind,'state'=>$state,
+            'filters'=>['profile'=>$profile,'kind'=>$kind,'state'=>$state]
+        ]);
+    }
+
+    private function positiveQueryId(Request $request,string $field): ?int
+    {
+        $raw=$request->query->get($field);
+        if($raw===null || $raw==='') return null;
+        $id=filter_var($raw,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+        if($id===false) throw $this->createNotFoundException('Invalid '.$field.' parameter.');
+        return $id;
     }
 
     #[Route('/actions/preview/{id<\\d+>}',name:'app_action_preview',methods:['POST'])]
@@ -55,11 +86,17 @@ final class FileActionController extends AbstractController
     }
 
     #[Route('/actions/{id<\\d+>}',name:'app_action_detail',methods:['GET'])]
-    public function detail(int $id,FileActionService $actions): Response
+    public function detail(
+        int $id,FileActionService $actions,FileActionHistoryRepository $history
+    ): Response
     {
         $batch=$actions->find($id);
         if(!$batch) throw $this->createNotFoundException();
-        if($batch['action_kind']==='rename') return $this->redirectToRoute('app_rename');
+        if($batch['action_kind']==='rename') {
+            $rename=$history->renameDetails($id);
+            if(!$rename) throw $this->createNotFoundException();
+            return $this->render('actions/rename-detail.html.twig',['batch'=>$rename]);
+        }
         if($batch['action_kind']==='move')
             return $this->redirectToRoute('app_move_detail',['id'=>$id]);
         return $this->render('actions/detail.html.twig',['batch'=>$batch]);

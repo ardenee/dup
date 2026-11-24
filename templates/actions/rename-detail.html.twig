@@ -1,0 +1,47 @@
+{% extends 'base.html.twig' %}
+{% block title %}Rename batch #{{ batch.id }}{% endblock %}
+{% block section %}File actions / Rename #{{ batch.id }}{% endblock %}
+{% block body %}
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">AUDITED FILE RENAME</div>
+    <h1>Rename batch #{{ batch.id }}</h1>
+    <p class="muted">{{ batch.profile_name }} &mdash; {{ batch.items|length }} files &mdash; <span class="status">{{ batch.state|replace({'_':' '}) }}</span></p>
+  </div>
+  <a href="{{ path('app_actions') }}" class="secondary link-button">File action history</a>
+</div>
+<section class="panel">
+  <div class="panel-heading"><h2>Recorded changes</h2><span class="muted">Read-only history</span></div>
+  <div class="panel-content">
+    <dl class="details">
+      <div><dt>Requested by</dt><dd>{{ batch.actor_name ?? 'Unknown' }}</dd></div>
+      <div><dt>Requested (UTC)</dt><dd>{{ batch.requested_at }}</dd></div>
+      <div><dt>Completed (UTC)</dt><dd>{{ batch.completed_at ?? 'Not completed' }}</dd></div>
+      <div><dt>Batch status</dt><dd>{{ batch.state|replace({'_':' '}) }}</dd></div>
+      <div><dt>Batch error</dt><dd>{{ batch.error_code ?? 'None' }}</dd></div>
+    </dl>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Original path</th><th>Requested new path</th><th>Size</th><th>Item status</th><th>Result</th></tr></thead>
+    <tbody>
+    {% for item in batch.items %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td><code>{{ item.source_path }}</code></td>
+        <td><code>{{ item.target_path ?? 'Not recorded' }}</code></td>
+        <td>{{ item.expected_size is not null ? (item.expected_size|number_format ~ ' bytes') : 'Unknown' }}</td>
+        <td><span class="status">{{ item.state|replace({'_':' '}) }}</span></td>
+        <td>{{ item.result_code ?? '—' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6">No items were recorded for this batch.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% if batch.state == 'needs_review' %}
+  <div class="notice notice-warning"><strong>Manual review required.</strong> Inspect the recorded source and destination paths and the job diagnostics. DUP will not overwrite a conflicting path.</div>
+{% elseif batch.state in ['queued','executing'] %}
+  <p>See the <a href="{{ path('app_jobs') }}">Job monitor</a> for progress and errors.</p>
+{% endif %}
+{% endblock %}
