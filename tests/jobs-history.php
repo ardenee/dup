@@ -13,7 +13,7 @@ foreach([
     'CREATE TABLE scan_profiles(id INT PRIMARY KEY,name TEXT)',
     'CREATE TABLE scan_runs(id INT PRIMARY KEY,state TEXT)',
     'CREATE TABLE jobs(id INT PRIMARY KEY,kind TEXT,profile_id INT,run_id INT,file_action_batch_id INT,'.
-        'state TEXT,phase TEXT,progress_current INT,progress_total INT,created_at TEXT,history_prunable_at TEXT,'.
+        'state TEXT,phase TEXT,progress_current INT,progress_total INT,created_at TEXT,history_prunable_at TEXT,active_profile_id INT,'.
         'started_at TEXT,finished_at TEXT,heartbeat_at TEXT,error_code TEXT,attempts INT)',
     'CREATE TABLE job_events(id INT PRIMARY KEY,job_id INT,severity TEXT,code TEXT,context TEXT,created_at TEXT)'
 ] as $sql)$db->executeStatement($sql);
@@ -95,7 +95,8 @@ $html=$twig->render('jobs/index.html.twig',$app+[
     'selected_state'=>'','job_filters'=>[]
 ]);
 foreach(['Job history','job-profile','job-state','Older jobs','Job details and events',
-    'Scan duplicate results','50 jobs on this page','125 matching jobs'] as $needle)
+    'Scan duplicate results','50 jobs on this page','125 matching jobs',
+    'Delete job #','Clean old history'] as $needle)
     assertJobs(str_contains($html,$needle),'Job monitor UI missing '.$needle);
 assertJobs(!str_contains($html,'/app_job_events'),'Raw events JSON remains primary workflow');
 $detailHtml=$twig->render('jobs/detail.html.twig',$app+$details);
@@ -130,4 +131,25 @@ assertJobs($onlyScan['total']===63 && count($onlyScan['rows'])===50,
 $moreScans=$repo->page(null,null,$onlyScan['next'],null,'id','desc','scan');
 assertJobs($moreScans['total']===63 && count($moreScans['rows'])===13 &&
     $moreScans['previous']!==null,'Filtered job cursor did not preserve type.');
-echo "PASS 125 jobs, profile/state filters, keyset pagination, 125 readable events, links, escaping and safe cancellation\n";
+$pending=$details;
+$pending['job']['kind']='duplicate-verify';
+$pending['job']['state']='cancelling';
+$pending['job']['heartbeat_at']='2026-11-22 18:24:02';
+$pending['job']['active_profile_id']=1;
+$pendingHtml=$twig->render('jobs/detail.html.twig',$app+$pending+[
+    'stale_cutoff'=>'2026-11-24 15:00:00',
+    'worker_status'=>['active'=>0,'jobs_responding'=>0]
+]);
+assertJobs(str_contains($pendingHtml,'Finish stalled cancellation') &&
+    str_contains($pendingHtml,'resolve_stale_job_') &&
+    str_contains($pendingHtml,'does not kill the process'),
+    'A stuck verification cancellation has no manual resolution workflow.');
+$active=$twig->render('jobs/detail.html.twig',$app+$pending+[
+    'stale_cutoff'=>'2026-11-24 15:00:00',
+    'worker_status'=>['active'=>1,'jobs_responding'=>0],
+    'job_owner_active'=>true
+]);
+assertJobs(!str_contains($active,'Finish stalled cancellation') &&
+    str_contains($active,'originally claimed this job is still'),
+    'An active worker must block resolution.');
+echo "PASS 125 jobs, profile/state filters, keyset pagination, 125 readable events, management actions and safe cancellation\n";

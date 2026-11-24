@@ -66,6 +66,7 @@ final class JobHistoryRepository
             'j.progress_bytes_current,j.progress_bytes_total,j.progress_detail,'.
             'j.last_progress_at,j.last_failure_reason,'.
             'j.history_prunable_at,j.run_id,j.file_action_batch_id,j.profile_id,'.
+            'j.active_profile_id,'.
             'p.name AS profile_name,r.state AS run_state',
             $where,$params,'j.id',self::SORTS[$sort],strtoupper($direction),
             self::PAGE_SIZE,$before,$after,in_array($sort,['id','progress'],true)

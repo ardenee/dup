@@ -60,6 +60,14 @@ async function refresh(manual=false) {
     for (const job of payload.jobs) {
       const row=rows.get(Number(job.id));
       if (!row) continue;
+      // A changed state can reveal different actions (cancel / retry / delete).
+      // Refresh the server-rendered controls instead of retaining stale buttons.
+      if (row.dataset.renderedState !== job.state &&
+          (doneStates.has(job.state) || job.state === "cancelling" ||
+           row.dataset.renderedState === "cancelling")) {
+        window.location.reload();
+        return;
+      }
       setText(row,"phase",String(job.phase ?? "").replaceAll("_"," "));
       setText(row,"state",job.state);
       setText(row,"heartbeat",job.heartbeat_at ? `${job.heartbeat_at} UTC` : "—");

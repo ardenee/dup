@@ -58,7 +58,7 @@ final class JobsController extends AbstractController
             array_map(static fn(array $p):int=>(int)$p['id'],$profiles),true))
             throw $this->createNotFoundException('Unknown profile.');
         $page=$history->page($profile,$state?:null,$before,$after,$sort,$dir,$kind?:null);
-        return $this->render('jobs/index.html.twig',[
+        return $this->render('jobs/index.html.twig',['stale_cutoff'=>gmdate('Y-m-d H:i:s',time()-600),
             'is_dsm'=>\App\Core\Setup\HostEnvironment::isSynology(dirname(__DIR__,4)),
             'worker'=>$heartbeat->report(),
             'jobs'=>$page['rows'],'page'=>$page,
@@ -70,7 +70,8 @@ final class JobsController extends AbstractController
     }
 
     #[Route('/jobs/{id<\\d+>}',name:'app_job_detail',methods:['GET'])]
-    public function detail(int $id,Request $request,JobHistoryRepository $history,JobHistoryCleanup $cleanup):Response
+    public function detail(int $id,Request $request,JobHistoryRepository $history,JobHistoryCleanup $cleanup,
+        WorkerHeartbeat $heartbeat,WorkerMaintenance $maintenance):Response
     {
         $before=$this->positive($request,'before');
         $after=$this->positive($request,'after');
@@ -88,6 +89,9 @@ final class JobsController extends AbstractController
         return $this->render('jobs/detail.html.twig',$details+[
             'cleanup'=>$cleanup->inspect($id),'event_sort'=>$sort,'event_dir'=>$dir,
             'is_dsm'=>\App\Core\Setup\HostEnvironment::isSynology(dirname(__DIR__,4)),
+            'stale_cutoff'=>gmdate('Y-m-d H:i:s',time()-600),
+            'worker_status'=>$heartbeat->report(),
+            'job_owner_active'=>$maintenance->ownerActive($id),
             'event_severity'=>$severity,'event_filters'=>array_filter([
                 'id'=>$id,'sort'=>$sort,'dir'=>$dir,'severity'=>$severity
             ],static fn($v)=>$v!=='')
@@ -160,6 +164,26 @@ final class JobsController extends AbstractController
             $this->addFlash('warning',$ex->getMessage());
         }
         return $this->redirectToRoute('app_jobs');
+    }
+
+    #[Route('/jobs/{id<\d+>}/resolve',name:'app_job_resolve',methods:['POST'])]
+    public function resolve(int $id,Request $request,WorkerMaintenance $maintenance):Response
+    {
+        if(!$this->isCsrfTokenValid('resolve_stale_job_'.$id,
+            (string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid resolve-job token.');
+        if($request->request->get('confirm')!=='RESOLVE')
+            throw $this->createAccessDeniedException('Explicit confirmation required.');
+        $actor=$this->getUser();
+        if(!$actor instanceof Account)throw $this->createAccessDeniedException();
+        try {
+            $state=$maintenance->resolveOne($id,$actor->id);
+            $this->addFlash('success','Job #'.$id.' has been marked '.$state.
+                '. Its worker lease is released. Original scan results and diagnostic events were retained.');
+        } catch(\DomainException $ex) {
+            $this->addFlash('warning',$ex->getMessage());
+        }
+        return $this->redirectToRoute('app_job_detail',['id'=>$id]);
     }
 
     #[Route('/jobs/{id<\d+>}/retry',name:'app_job_retry',methods:['POST'])]

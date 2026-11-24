@@ -401,3 +401,9 @@ tr.local-row-filtered{display:none!important}
 .job-byte-progress[hidden],.job-progress-detail[hidden],.job-bytes-bar[hidden]{display:none!important}
 .job-diagnostic-note{padding:18px 22px;line-height:1.5}
 .stats-grid .stat progress{width:100%;height:8px;margin-top:6px}
+
+.job-monitor-links{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.job-manage-actions{flex-wrap:wrap;align-items:center}
+.job-manage-actions form{display:inline-flex;margin:0}
+.job-cancel-hint{display:block;max-width:200px;line-height:1.35;margin-top:5px}
+#resolve-stalled{scroll-margin-top:20px}

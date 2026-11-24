@@ -215,7 +215,10 @@ final class JobStore
                     );
                 if($job['kind']==='scan')
                     $db->executeStatement("UPDATE scan_runs SET state='cancelled',finished_at=? WHERE id=?",[$now,$job['run_id']]);
-                $this->event($id,'warning','SCAN_CANCELLED_QUEUED');
+                $this->event($id,'warning','JOB_CANCELLED_BEFORE_START',[
+                    'description'=>'Cancelled while waiting; no worker had started this job.',
+                    'kind'=>$job['kind']
+                ]);
                 return true;
             }
             $kind=$db->fetchOne('SELECT kind FROM jobs WHERE id=?',[$id]);
@@ -225,7 +228,12 @@ final class JobStore
                 "UPDATE jobs SET state='cancelling' WHERE id=? AND state='running'",[$id]
             );
             if($running===1) {
-                $this->event($id,'warning','CANCELLATION_REQUESTED');
+                $this->event($id,'warning','CANCELLATION_REQUESTED',[
+                    'description'=>'Cooperative cancellation requested. The running worker must '.
+                        'acknowledge this at its next checkpoint.',
+                    'next_step'=>'If the worker does not respond, resolve the stalled cancellation '.
+                        'from this job once its heartbeat has expired and the worker is stopped.'
+                ]);
                 return true;
             }
             return $db->fetchOne('SELECT state FROM jobs WHERE id=?',[$id])==='cancelling';
@@ -303,48 +311,76 @@ final class JobStore
         });
     }
 
-    public function recoverStalled(int $seconds=600): int
+    /**
+     * Resolve expired job leases. Targeted resolution permits one job to be
+     * recovered without modifying unrelated stalled jobs.
+     *
+     * This changes DB lease state, not the OS process. Caller MUST establish
+     * worker absence before using it; late worker checkpoints reject the lease.
+     */
+    public function recoverStalled(int $seconds=600,?int $onlyId=null): int
     {
-        $cutoff=gmdate('Y-m-d H:i:s',time()-max(30,$seconds));
-        $rows=$this->db->fetchAllAssociative(
-            "SELECT id,run_id,kind,file_action_batch_id,phase,heartbeat_at," .
+        $seconds=max(30,$seconds);
+        $cutoff=gmdate('Y-m-d H:i:s',time()-$seconds);
+        $sql="SELECT id,run_id,kind,state,file_action_batch_id,phase,heartbeat_at," .
             "progress_current,progress_total,progress_bytes_current,progress_bytes_total," .
             "progress_detail,last_progress_at,started_at FROM jobs " .
-            "WHERE state IN ('running','cancelling') " .
-            "AND (heartbeat_at IS NULL OR heartbeat_at<?)",[$cutoff]
-        );
+            "WHERE state IN ('running','cancelling') ".
+            "AND (heartbeat_at IS NULL OR heartbeat_at<?)";
+        $params=[$cutoff];
+        if($onlyId!==null) {
+            $sql.=' AND id=?';
+            $params[]=$onlyId;
+        }
+        $rows=$this->db->fetchAllAssociative($sql,$params);
         $count=0;
         foreach($rows as $row) {
             $id=(int)$row['id'];
+            $wasCancelling=$row['state']==='cancelling';
+            $state=$wasCancelling?'cancelled':'failed';
+            $code=$wasCancelling?'CANCEL_RESOLVED_AFTER_STALL':'WORKER_STALLED';
+            $phase=$wasCancelling?'cancelled':'stalled';
+            $reason=($wasCancelling?
+                    'Cancellation was already requested, but the worker did not acknowledge it. ':
+                    'Worker heartbeat expired before completion. ').
+                'Last phase: '.(string)$row['phase'].
+                '; last heartbeat: '.(string)($row['heartbeat_at']??'never').
+                '; completed files: '.(int)$row['progress_current'].
+                '/'.(int)($row['progress_total']??0).
+                '; hashed bytes: '.(int)($row['progress_bytes_current']??0).
+                '/'.(int)($row['progress_bytes_total']??0);
+            $now=gmdate('Y-m-d H:i:s');
             $changed=$this->db->executeStatement(
-                "UPDATE jobs SET state='failed',phase='stalled',error_code='WORKER_STALLED'," .
-                "last_failure_reason=?,active_profile_id=NULL,finished_at=? WHERE id=? " .
-                "AND state IN ('running','cancelling') AND (heartbeat_at IS NULL OR heartbeat_at<?)",
-                ['Worker job heartbeat expired. Last phase: '.(string)$row['phase'].
-                    '; last heartbeat: '.(string)($row['heartbeat_at']??'never').
-                    '; completed files: '.(int)$row['progress_current'].
-                    '/'.(int)($row['progress_total']??0).
-                    '; hashed bytes: '.(int)($row['progress_bytes_current']??0).
-                    '/'.(int)($row['progress_bytes_total']??0),
-                    gmdate('Y-m-d H:i:s'),$id,$cutoff]
+                "UPDATE jobs SET state=?,phase=?,error_code=?,".
+                "last_failure_reason=?,active_profile_id=NULL,worker_token=NULL,finished_at=? ".
+                "WHERE id=? AND state=? AND (heartbeat_at IS NULL OR heartbeat_at<?)",
+                [$state,$phase,$code,$reason,$now,$id,$row['state'],$cutoff]
             );
             if($changed!==1) continue;
             if($row['kind']==='duplicate-verify')
                 $this->db->delete('duplicate_verification_hashes',['job_id'=>$id]);
-            if($row['kind']==='scan')
+            if($row['kind']==='scan') {
                 $this->db->executeStatement(
-                    "UPDATE scan_runs SET state='failed',finished_at=?,error_count=error_count+1 WHERE id=?",
-                    [gmdate('Y-m-d H:i:s'),(int)$row['run_id']]
+                    'UPDATE scan_runs SET state=?,finished_at=?,error_count=error_count+1 WHERE id=?',
+                    [$state,$now,(int)$row['run_id']]
                 );
-            if(in_array($row['kind'],['file-action','file-restore','file-rename','file-move','file-move-restore','file-link','file-unlink','bulk-link','bulk-quarantine','bulk-restore','bulk-unlink','file-delete'],true))
+            }
+            if(in_array($row['kind'],['file-action','file-restore','file-rename',
+                'file-move','file-move-restore','file-link','file-unlink',
+                'bulk-link','bulk-quarantine','bulk-restore','bulk-unlink','file-delete'],true))
                 $this->db->executeStatement(
-                    "UPDATE file_action_batches SET state='needs_review',error_code='WORKER_STALLED' " .
+                    "UPDATE file_action_batches SET state='needs_review',error_code='WORKER_STALLED' ".
                     "WHERE id=? AND state IN ('queued','executing','restore_queued','restore_executing')",
                     [(int)$row['file_action_batch_id']]
                 );
-            $this->event($id,'error','WORKER_STALLED',[
-                'explanation'=>'No job heartbeat was recorded within the recovery window. '.
+            $this->event($id,$wasCancelling?'warning':'error',$code,[
+                'explanation'=>$wasCancelling?
+                    'Cancellation was pending and the worker stopped reporting. '.
+                    'The expired lease was cleared administratively; this does not terminate an OS process.':
+                    'No job heartbeat was recorded within the recovery window. '.
                     'This does not identify why the process stopped responding.',
+                'previous_state'=>$row['state'],
+                'final_state'=>$state,
                 'phase'=>$row['phase'],
                 'last_heartbeat_at'=>$row['heartbeat_at'],
                 'last_progress_at'=>$row['last_progress_at'],
@@ -354,9 +390,9 @@ final class JobStore
                 'bytes_hashed'=>(int)($row['progress_bytes_current']??0),
                 'bytes_total'=>$row['progress_bytes_total']===null?null:(int)$row['progress_bytes_total'],
                 'job_started_at'=>$row['started_at'],
-                'timeout_seconds'=>max(30,$seconds),
-                'recovery'=>'Job marked failed and its lease released; no source files were changed.',
-                'recommended_check'=>'Inspect service/process logs and verify source-folder I/O before retrying.'
+                'timeout_seconds'=>$seconds,
+                'recovery'=>'Job lease released and a terminal state recorded; no source files were deleted.',
+                'recommended_check'=>'Check the worker service state and inspect process logs before retrying.'
             ]);
             $count++;
         }

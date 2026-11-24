@@ -62,12 +62,43 @@
           <input type="hidden" name="return_to" value="detail">
           <button class="secondary" type="submit">Cancel job</button>
         </form>
-      {% elseif job.state == 'running' and job.kind not in ['scan','rebuild-duplicates'] %}
+      {% elseif job.state == 'cancelling' %}
+        <span class="status">Cancellation requested — awaiting worker acknowledgement</span>
+      {% elseif job.state == 'running' and job.kind not in ['scan','rebuild-duplicates','duplicate-verify'] %}
         <span class="muted">File operations cannot be interrupted during execution.</span>
       {% endif %}
     </div>
   </div>
 </section>
+{% if job.state in ['running','cancelling'] and job.kind in ['scan','rebuild-duplicates','duplicate-verify'] %}
+<section class="panel panel-content" id="resolve-stalled">
+  <h2>{{ job.state == 'cancelling' ? 'Finish an unresponsive cancellation' : 'Resolve an unresponsive job' }}</h2>
+  <p>A cancellation request asks the worker to stop at its next checkpoint.
+    If the worker is hung or has exited, the job can remain in this state indefinitely.</p>
+  {% set overdue = job.heartbeat_at is null or job.heartbeat_at < stale_cutoff|default('') %}
+  {% set owner_idle = not job_owner_active|default(false) %}
+  {% if not overdue %}
+    <p class="notice notice-warning">The last heartbeat is less than 10 minutes old.
+      Try refreshing the Job Monitor and allow cooperative cancellation to finish.</p>
+  {% elseif not owner_idle %}
+    <p class="notice notice-warning">The worker that originally claimed this job is still
+      reporting. Resolve is blocked until that process stops or acknowledges cancellation.</p>
+  {% else %}
+    <p class="notice notice-warning"><strong>Worker heartbeat expired.</strong>
+      This does not prove the operating-system process has exited. Before resolving, verify
+      that the DUP worker process/service is stopped (on DSM, use Package Center).
+      Otherwise its file read may still be in progress.
+      The operation below releases the database lease; it does not kill the process.
+      No source file is deleted and stored scan results remain untouched.</p>
+    <form method="post" action="{{ path('app_job_resolve',{id:job.id}) }}"
+        onsubmit="return confirm('Have you stopped the old DUP worker process? Resolve job #{{ job.id }} as {{ job.state == 'cancelling' ? 'cancelled' : 'failed' }} and release its database lease?')">
+      <input type="hidden" name="_token" value="{{ csrf_token('resolve_stale_job_' ~ job.id) }}">
+      <input type="hidden" name="confirm" value="RESOLVE">
+      <button class="secondary" type="submit">{{ job.state == 'cancelling' ? 'Finish stalled cancellation' : 'Resolve stalled job' }}</button>
+    </form>
+  {% endif %}
+</section>
+{% endif %}
 {% if job.state == 'failed' and job.error_code == 'WORKER_STALLED' %}
 <section class="notice notice-warning job-diagnostic-note">
   <strong>Worker timeout, not a verified hash failure.</strong>
@@ -100,12 +131,14 @@
     This action cannot be undone.</p>
   <form method="post" action="{{ path('app_job_remove',{id:job.id}) }}">
     <input type="hidden" name="_token" value="{{ csrf_token('remove_job_' ~ job.id) }}">
-    <div class="field"><label for="job-delete-confirm">Type DELETE</label>
-      <input id="job-delete-confirm" name="confirm" required pattern="DELETE" autocomplete="off"></div>
-    <button class="secondary" type="submit">Remove job and events</button>
+    <input type="hidden" name="confirm" value="DELETE">
+    <button class="secondary" type="submit"
+      onclick="return confirm('Delete this completed job log and its events? Scan results will remain available.')">
+      Delete job and events
+    </button>
   </form>
 </section>
-{% elseif cleanup.blocked_reason %}
+{% elseif cleanup.blocked_reason and job.state not in ['queued','running','cancelling'] %}
   <div class="notice notice-warning">Removing this job log is unavailable:
     {{ cleanup.blocked_reason }}</div>
 {% endif %}

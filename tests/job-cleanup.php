@@ -30,6 +30,14 @@ $db->insert('jobs',[
     'id'=>3,'kind'=>'scan','profile_id'=>1,'run_id'=>4,
     'active_profile_id'=>1,'state'=>'running'
 ]);
+$db->insert('jobs',[
+    'id'=>5,'kind'=>'duplicate-verify','profile_id'=>1,'run_id'=>4,
+    'state'=>'failed','finished_at'=>'2020-02-03 01:00:00'
+]);
+$db->insert('job_events',[
+    'job_id'=>5,'severity'=>'error','code'=>'WORKER_STALLED',
+    'context'=>'{}','created_at'=>'2020-02-03'
+]);
 // An action job can only be cleaned after a separate verified, audited batch
 // retirement has marked its recovery history as resolved.
 $db->insert('jobs',[
@@ -47,6 +55,13 @@ ckJobClean(!$clean->inspect(2)['can_remove'],'File-action job must be protected.
 ckJobClean($clean->inspect(4)['can_remove'],
     'A marked fully-resolved action job should be removable.');
 ckJobClean(!$clean->inspect(3)['can_remove'],'Running job must be protected.');
+ckJobClean($clean->inspect(5)['can_remove'],
+    'A failed SHA-256 verification job should have removable history.');
+$clean->remove(5,9,'DELETE');
+ckJobClean(!$db->fetchOne('SELECT id FROM jobs WHERE id=5'),
+    'A failed verification job could not be deleted.');
+ckJobClean(!$db->fetchOne('SELECT id FROM job_events WHERE job_id=5'),
+    'Verification events survived a confirmed deletion.');
 foreach([2,3] as $id) {
     try {
         $clean->remove($id,9,'DELETE');
@@ -95,6 +110,6 @@ ckJobClean((int)$db->fetchOne('SELECT COUNT(*) FROM jobs WHERE id IN (2,3,700)')
     'Recent/protected job logs were lost.');
 ckJobClean((int)$db->fetchOne('SELECT COUNT(*) FROM scan_runs WHERE id=4')===1,
     'Pruning jobs affected scan results.');
-ckJobClean((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action LIKE 'JOB_HISTORY_%'")===3,
+ckJobClean((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action LIKE 'JOB_HISTORY_%'")===4,
     'Cleanup audit records missing.');
 echo "PASS job deletion, audited 500-row prune, current scan preservation, action/active guards and confirmation\n";

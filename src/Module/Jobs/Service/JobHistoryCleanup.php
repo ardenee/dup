@@ -58,7 +58,7 @@ final class JobHistoryCleanup
             ]);
             // FK job_events.job_id is ON DELETE CASCADE.
             $deleted=$db->executeStatement(
-                "DELETE FROM jobs WHERE id=? AND (kind IN ('scan','rebuild-duplicates') ".
+                "DELETE FROM jobs WHERE id=? AND (kind IN ('scan','rebuild-duplicates','duplicate-verify') ".
                 "OR history_prunable_at IS NOT NULL) ".
                 "AND state IN ('completed','failed','cancelled') AND active_profile_id IS NULL ".
                 "AND file_action_batch_id IS NULL",[$id]
@@ -72,7 +72,7 @@ final class JobHistoryCleanup
         if(!in_array($days,self::DAYS,true))
             throw new \DomainException('Choose a retention period.');
         return (int)$this->db->fetchOne(
-            "SELECT COUNT(*) FROM jobs WHERE (kind IN ('scan','rebuild-duplicates') ".
+            "SELECT COUNT(*) FROM jobs WHERE (kind IN ('scan','rebuild-duplicates','duplicate-verify') ".
             "OR history_prunable_at IS NOT NULL) ".
             "AND state IN ('completed','failed','cancelled') AND active_profile_id IS NULL ".
             "AND file_action_batch_id IS NULL AND finished_at<?",
@@ -89,7 +89,7 @@ final class JobHistoryCleanup
         return $this->db->transactional(function(Connection $db) use ($days,$actorId):int {
             $cutoff=gmdate('Y-m-d H:i:s',time()-$days*86400);
             $candidates=$db->fetchFirstColumn(
-                "SELECT id FROM jobs WHERE (kind IN ('scan','rebuild-duplicates') ".
+                "SELECT id FROM jobs WHERE (kind IN ('scan','rebuild-duplicates','duplicate-verify') ".
                 "OR history_prunable_at IS NOT NULL) ".
                 "AND state IN ('completed','failed','cancelled') AND active_profile_id IS NULL ".
                 "AND file_action_batch_id IS NULL AND finished_at<? ORDER BY id LIMIT 500",

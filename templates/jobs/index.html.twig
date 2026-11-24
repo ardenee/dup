@@ -56,8 +56,11 @@
 </section>
 <section class="panel">
   <div class="panel-heading">
-    <div><h2>Job history</h2><p class="muted">50 jobs per page. Click a column heading to sort all matching jobs; use the filters above to narrow the results.</p></div>
-    <span class="muted">{{ page.total|number_format }} matching</span>
+    <div><h2>Job history</h2><p class="muted">50 jobs per page. Sort and filter all matching jobs. Use the stop icon to request cancellation, the recovery icon to resolve an overdue job, and the trash icon to delete finished job history.</p></div>
+    <div class="job-monitor-links">
+      <span class="muted">{{ page.total|number_format }} matching</span>
+      <a class="secondary link-button" href="{{ path('app_job_cleanup') }}">Clean old history</a>
+    </div>
   </div>
   {% if jobs is empty %}
     <div class="empty-state">No jobs match these filters.
@@ -78,7 +81,7 @@
         </tr></thead>
         <tbody>
         {% for job in jobs %}
-          <tr data-job-id="{{ job.id }}">
+          <tr data-job-id="{{ job.id }}" data-rendered-state="{{ job.state }}">
             <td>
               <a class="text-link" href="{{ path('app_job_detail',{id:job.id}) }}"><strong>#{{ job.id }}</strong></a>
               <div class="muted">{{ job.profile_name ?? 'No profile' }}</div>
@@ -123,27 +126,63 @@
               {% else %}<span class="muted" data-field="error"></span>{% endif %}
             </td>
             <td>
-              {% set cancellable = job.state == 'queued' or (job.state == 'running' and job.kind in ['scan','rebuild-duplicates','duplicate-verify']) %}
-              {% if cancellable %}
-                <form method="post" action="{{ path('app_job_cancel',{id:job.id}) }}">
-                  <input type="hidden" name="_token" value="{{ csrf_token('cancel_job_' ~ job.id) }}">
-                  <button class="action-icon-button is-destructive" type="submit"
-                    title="Cancel queued job" aria-label="Cancel job {{ job.id }}">{{ icon('stop') }}</button>
-                </form>
-              {% elseif job.state in ['failed','cancelled'] and job.kind in ['scan','duplicate-verify'] %}
-                <form method="post" action="{{ path('app_job_retry',{id:job.id}) }}"
-                  onsubmit="return confirm('Queue a new {{ job.kind == 'scan' ? 'scan' : 'duplicate verification' }} for this profile?')">
-                  <input type="hidden" name="_token" value="{{ csrf_token('retry_job_' ~ job.id) }}">
-                  <button class="action-icon-button" type="submit"
-                    title="Retry as a new job" aria-label="Retry job {{ job.id }}">{{ icon('restore') }}</button>
-                </form>
-              {% elseif job.state == 'running' %}
-                <span class="muted">In progress</span>
-              {% elseif (job.kind in ['scan','rebuild-duplicates','duplicate-verify'] or job.history_prunable_at) and job.state in ['completed','failed','cancelled'] %}
-                <a class="action-icon-button is-destructive" href="{{ path('app_job_detail',{id:job.id}) }}#remove-job"
-                   title="Remove completed job log" aria-label="Remove log for job {{ job.id }}">{{ icon('trash') }}</a>
-              {% else %}
-                <span class="muted">Recovery history protected</span>
+              {% set scan_kind = job.kind in ['scan','rebuild-duplicates','duplicate-verify'] %}
+              {% set is_finished = job.state in ['completed','failed','cancelled'] %}
+              {% set can_remove = is_finished and job.active_profile_id is null
+                and job.file_action_batch_id is null and (scan_kind or job.history_prunable_at) %}
+              {% set overdue = job.heartbeat_at is null or job.heartbeat_at < stale_cutoff|default('') %}
+              <div class="action-icon-group job-manage-actions" data-job-actions>
+                {% if job.state == 'queued' or (job.state == 'running' and scan_kind) %}
+                  <form method="post" data-job-cancel action="{{ path('app_job_cancel',{id:job.id}) }}"
+                    onsubmit="return confirm('Request cancellation of job #{{ job.id }}?')">
+                    <input type="hidden" name="_token" value="{{ csrf_token('cancel_job_' ~ job.id) }}">
+                    <button class="action-icon-button is-destructive" type="submit"
+                      title="Request cancellation of job #{{ job.id }}" aria-label="Cancel job {{ job.id }}">{{ icon('stop') }}</button>
+                  </form>
+                {% endif %}
+                {% if job.state == 'cancelling' and scan_kind and overdue %}
+                  <form method="post" data-job-resolve action="{{ path('app_job_resolve',{id:job.id}) }}"
+                    onsubmit="return confirm('Confirm the DUP worker is stopped. Finish cancellation of job #{{ job.id }} and release its lease? This does not kill an OS process.')">
+                    <input type="hidden" name="_token" value="{{ csrf_token('resolve_stale_job_' ~ job.id) }}">
+                    <input type="hidden" name="confirm" value="RESOLVE">
+                    <button class="action-icon-button is-destructive" type="submit"
+                      title="Finish stalled cancellation of job #{{ job.id }}"
+                      aria-label="Finish stalled cancellation of job {{ job.id }}">{{ icon('stop') }}</button>
+                  </form>
+                {% elseif job.state in ['running','cancelling'] and scan_kind and overdue %}
+                  <a class="action-icon-button" data-job-resolve href="{{ path('app_job_detail',{id:job.id}) }}#resolve-stalled"
+                     title="Review why stalled job #{{ job.id }} cannot yet be resolved"
+                     aria-label="Review stalled job {{ job.id }}">{{ icon('details') }}</a>
+                {% endif %}
+                {% if job.state in ['failed','cancelled'] and job.kind in ['scan','duplicate-verify'] %}
+                  <form method="post" action="{{ path('app_job_retry',{id:job.id}) }}"
+                    onsubmit="return confirm('Queue a new {{ job.kind == 'scan' ? 'scan' : 'SHA-256 verification' }} job?')">
+                    <input type="hidden" name="_token" value="{{ csrf_token('retry_job_' ~ job.id) }}">
+                    <button class="action-icon-button" type="submit"
+                      title="Retry job #{{ job.id }} as a new job" aria-label="Retry job {{ job.id }}">{{ icon('restore') }}</button>
+                  </form>
+                {% endif %}
+                {% if can_remove %}
+                  <form method="post" action="{{ path('app_job_remove',{id:job.id}) }}"
+                    onsubmit="return confirm('Remove job #{{ job.id }} and its event history? Stored scan results are retained. This cannot be undone.')">
+                    <input type="hidden" name="_token" value="{{ csrf_token('remove_job_' ~ job.id) }}">
+                    <input type="hidden" name="confirm" value="DELETE">
+                    <button class="action-icon-button is-destructive" type="submit"
+                      title="Delete job #{{ job.id }} and its event log" aria-label="Delete job history {{ job.id }}">{{ icon('trash') }}</button>
+                  </form>
+                {% elseif is_finished and job.file_action_batch_id %}
+                  <a class="action-icon-button" href="{{ path('app_action_detail',{id:job.file_action_batch_id}) }}"
+                     title="File-action recovery history must be resolved before deleting this log"
+                     aria-label="Review recovery history for job {{ job.id }}">{{ icon('details') }}</a>
+                {% endif %}
+              </div>
+              {% if job.state == 'cancelling' %}
+                <small class="muted job-cancel-hint" data-job-hint>
+                  Cancellation requested — waiting for worker acknowledgement.
+                  {% if overdue %}Job heartbeat overdue; open resolve action.{% endif %}
+                </small>
+              {% elseif job.state == 'running' and not scan_kind %}
+                <small class="muted">File operation executing; review its action history.</small>
               {% endif %}
             </td>
           </tr>
@@ -229,5 +268,5 @@
     {% endif %}
   </div>
 </section>
-<script type="module" src="{{ asset('assets/jobs.js') }}?v=0.7.12"></script>
+<script type="module" src="{{ asset('assets/jobs.js') }}?v=0.7.13"></script>
 {% endblock %}
