@@ -111,7 +111,7 @@ final class JobsController extends AbstractController
         return $this->render('jobs/worker-log.html.twig',[
             'log'=>$logs->latest(),
             'supervisor_log'=>$logs->latest(true),
-            'debug'=>$debug->read($id),
+            'debug'=>$debug->read($id),'storage'=>$debug->status(),
             'selected_job'=>$id
         ],new Response(status:200,headers:['Cache-Control'=>'private, no-store']));
     }

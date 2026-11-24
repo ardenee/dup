@@ -19,8 +19,24 @@ final class ProfilesController extends AbstractController
     #[Route('/profiles',name:'app_profiles',methods:['GET'])]
     public function index(ProfileRepository $repository): Response
     {
+        $profiles=$repository->profiles();
+        $cutoff=time()-600;
+        $unresponsive=0;
+        $busy=0;
+        foreach($profiles as &$profile) {
+            $profile['job_overdue']=in_array($profile['active_state']??null,
+                ['running','cancelling'],true) && (
+                empty($profile['active_heartbeat']) ||
+                (strtotime((string)$profile['active_heartbeat'].' UTC')?:0)<$cutoff
+            );
+            if($profile['job_overdue'])$unresponsive++;
+            if(in_array($profile['active_state']??null,['queued','running','cancelling'],true))
+                $busy++;
+        }
+        unset($profile);
         return $this->render('profiles/index.html.twig',[
-            'profiles'=>$repository->profiles(),'types'=>$repository->types()
+            'profiles'=>$profiles,'types'=>$repository->types(),
+            'unresponsive_count'=>$unresponsive,'busy_count'=>$busy
         ]);
     }
 

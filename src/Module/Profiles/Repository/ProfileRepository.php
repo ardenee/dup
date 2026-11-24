@@ -28,6 +28,7 @@ final class ProfileRepository
             "s2.state IN ('completed','archived')) AS completed_scans, ".
             "(SELECT COUNT(*) FROM scan_runs s WHERE s.profile_id=p.id AND s.state IN ('completed','archived')) AS retained_runs,".
             "(SELECT MAX(s.finished_at) FROM scan_runs s WHERE s.profile_id=p.id AND s.state IN ('completed','archived')) AS last_saved_at,".
+            'j.id AS active_job_id,j.kind AS active_kind,j.heartbeat_at AS active_heartbeat, '.
             'j.state AS active_state,j.phase AS active_phase, '.
             's.interval_minutes AS schedule_interval,s.next_run_at AS schedule_next, '.
             's.last_error AS schedule_error,s.last_attempt_at AS schedule_attempt '.

@@ -13,6 +13,25 @@
     <a class="secondary link-button" href="{{ path('app_worker_log',{job:selected_job|default(0)}) }}">Refresh logs</a>
   </div>
 </div>
+{% if storage is defined %}
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Diagnostic storage check</h2>
+    <span class="status">{{ storage.status|replace({'_':' '}) }}</span>
+  </div>
+  <div class="panel-content">
+    <p>{{ storage.help }}</p>
+    <dl class="details diagnostic-storage-details">
+      <div><dt>Diagnostic directory</dt><dd><code>{{ storage.directory }}</code></dd></div>
+      <div><dt>Directory exists / readable</dt><dd>{{ storage.directory_exists ? 'Yes' : 'No' }} / {{ storage.directory_readable ? 'Yes' : 'No' }}</dd></div>
+      <div><dt>Worker lifecycle log exists / readable</dt><dd>{{ storage.worker_log_exists ? 'Yes' : 'No' }} / {{ storage.worker_log_readable ? 'Yes' : 'No' }}</dd></div>
+      <div><dt>Latest worker log write</dt><dd>{{ storage.worker_log_updated ? storage.worker_log_updated ~ ' UTC' : 'No readable log' }}</dd></div>
+      <div><dt>Web PHP account</dt><dd>{{ storage.web_user }}</dd></div>
+      <div><dt>PHP open_basedir</dt><dd>{{ storage.open_basedir }}</dd></div>
+    </dl>
+  </div>
+</section>
+{% endif %}
 <section class="panel">
   <div class="panel-heading"><div>
     <h2>Debug trace</h2>

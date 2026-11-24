@@ -9,6 +9,7 @@ DUP is a web-based duplicate-file scanner and manager for **Windows, Linux, and 
 - Browse current and historical scans, search indexed files, and preview/download supported file types. **Sort and filter** large, paginated data tables across all matching records (duplicates, search, scan history, jobs, file actions and rename previews). Smaller configuration tables also support sortable columns and quick row filtering.
 - Rename (with cleanup rules and Find/Replace), move, delete and link duplicate files, individually or in bulk.
 - Set **File Exists** separately for each profile: Fail, Append Number or Overwrite.
+- **Scan profiles:** Compact, sortable/filterable scan profile management combines scan configuration, completed scans, scheduling, duplicate results, status and a horizontal action toolbar. A job with a heartbeat overdue by ten minutes is clearly labelled unresponsive and can be diagnosed or explicitly resolved from the profile row without deleting historical scans. The administrator-only Worker diagnostics page shows diagnostic storage permissions and worker file-log availability.
 - **Detailed debug logs:** SHA-256 verification and worker lifecycle steps are recorded to private rotating JSONL files without database writes. Logs include SQL before/after timings, candidate queries, file checks, per-file hashing and byte updates, exception stack traces, memory and PID. Open **Job Monitor → Debug log** for a particular job or **Worker diagnostics** to view and download logs. DSM additionally mirrors CLI stderr/PHP fatals and supervisor restarts into separate admin-readable log files. The debug viewer does not query the database and remains available when an SQL operation is blocked.
 - **Synology worker supervision:** Restart CLI workers after unexpected PHP exits, record exit code and unfinished job failure details by worker PID, and show a bounded, admin-only process log under Job Monitor → Worker diagnostics. The supervisor checks the CLI PHP version and pdo_mysql/mbstring extensions before starting. SHA-256 candidate verification reads candidate paths in pages of 64 and logs each access/check step.
 - Manage background jobs directly: cancel queued or running scans, resolve an overdue cancellation whose worker no longer reports, retry failures, or delete finished scan/verification job logs with confirmation. Stale resolutions are audited, never terminate OS processes and do not delete scan results.
@@ -26,7 +27,7 @@ DUP is a web-based duplicate-file scanner and manager for **Windows, Linux, and 
 
 ## Windows or Linux installation
 
-1. Extract the generic **DUP-Web-0.7.15.zip** package into a private directory.
+1. Extract the generic **DUP-Web-0.7.16.zip** package into a private directory.
 2. Point Apache, IIS, or Nginx at its **dup/public/** directory. Never publicly expose src, vendor, config, var, or private environment files.
 3. Open **https://your-host/setup.php**. Provide the database connection and create the first administrator. A missing database can be created if the supplied database account has the required privileges.
 4. Sign in, create a scan profile, select accessible folders, and start a scan.
@@ -43,7 +44,7 @@ Use HTTPS for remote access. The web and worker accounts must have the appropria
 ## Synology DSM 7 installation
 
 1. Install Web Station, PHP 8.2 or later and MariaDB 10, and enable the necessary PHP extensions.
-2. Open **DSM Package Center → Manual Install** and select **DUP-DSM7-0.7.15.spk**.
+2. Open **DSM Package Center → Manual Install** and select **DUP-DSM7-0.7.16.spk**.
 3. Open DUP at **/dup/** over HTTPS. Complete the setup wizard for a new installation, or sign in after an existing DUP v2 upgrade.
 4. Configure scan profiles, file-access permissions and schedules. The DSM package manages its background worker.
 
@@ -56,7 +57,7 @@ On DSM, the web process uses the http group. The background worker must also hav
 The release packages are built using:
 
 - Python: packaging/build_release.py (generic ZIP)
-- Python: packaging/build_dsm_release.py --version 0.7.15 (Synology SPK)
+- Python: packaging/build_dsm_release.py --version 0.7.16 (Synology SPK)
 
 The published ZIP and SPK contain the application and required dependencies, but do not include the repository test suite, runtime data or developer utilities.
 

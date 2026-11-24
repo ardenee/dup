@@ -21,6 +21,47 @@ final class JobDebugLog
         $this->directory=dirname(__DIR__,4).'/var/log/dup-jobs';
     }
 
+    /**
+     * Read-only health check for the private debug directory.
+     * Reports meaningful permission failures without requiring the database
+     * or modifying files from the web-facing process.
+     */
+    public function status():array
+    {
+        $dir=$this->directory;
+        $file=$this->path(0);
+        $exists=is_dir($dir);
+        $readable=$exists && is_readable($dir) && is_executable($dir);
+        $logExists=is_file($file);
+        $logReadable=$logExists && is_readable($file);
+        $user='unknown';
+        if(function_exists('posix_geteuid') && function_exists('posix_getpwuid')) {
+            $info=@posix_getpwuid(posix_geteuid());
+            if(is_array($info) && isset($info['name']))$user=(string)$info['name'];
+        }
+        return [
+            'directory'=>$dir,'directory_exists'=>$exists,
+            'directory_readable'=>$readable,
+            'worker_log_exists'=>$logExists,'worker_log_readable'=>$logReadable,
+            'worker_log_updated'=>$logReadable ?
+                (($mtime=@filemtime($file))?gmdate('Y-m-d H:i:s',$mtime):null):null,
+            'web_user'=>$user,'open_basedir'=>(string)(ini_get('open_basedir')?:'Not restricted'),
+            'status'=>!$exists?'not_created':
+                (!$readable?'permission_denied':
+                (!$logExists?'awaiting_worker_log':
+                (!$logReadable?'log_permission_denied':'ready'))),
+            'help'=>!$exists?
+                'No worker has created this directory yet. If the package service is running, check the DSM supervisor log.':
+                (!$readable?
+                'The web PHP account cannot traverse the private log directory. Check the http group and directory permissions.':
+                (!$logExists?
+                'No worker lifecycle log has been written. Existing jobs from before instrumentation cannot acquire new logs.':
+                (!$logReadable?
+                'The worker log exists, but Web Station cannot read it. Verify group read access for the http group.':
+                'Private debug storage is readable from the web application. This does not prove the worker is processing jobs.')))
+        ];
+    }
+
     /** No caller-supplied log path is ever accepted. */
     public function path(int $id):string
     {
