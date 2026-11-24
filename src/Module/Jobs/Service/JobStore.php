@@ -18,7 +18,8 @@ final class JobStore
 
     public function __construct(
         private readonly Connection $db,
-        private readonly DirectoryBrowser $browser
+        private readonly DirectoryBrowser $browser,
+        private readonly ?JobDebugLog $debug=null
     ) {}
 
     public function queueScan(int $profileId): int
@@ -202,15 +203,30 @@ final class JobStore
                (int)($owner['worker_pid']??0)!==$pid ||
                (string)($owner['worker_host']??'')!==$host)
                 continue;
-            $this->db->transactional(function(Connection $db) use ($job,$id,$pid,$host,$exitCode,&$count):void {
+            $diagnostic=$job['kind']==='duplicate-verify'?
+                ($this->debug??new JobDebugLog())->latestFailure($id):null;
+            $this->db->transactional(function(Connection $db) use ($job,$id,$pid,$host,$exitCode,$diagnostic,&$count):void {
                 $wasCancelling=$job['state']==='cancelling';
                 $terminal=$wasCancelling?'cancelled':'failed';
-                $code=$wasCancelling?'CANCELLATION_WORKER_EXITED':'WORKER_PROCESS_EXITED';
+                // Do not overwrite a traceable root cause with the
+                // supervisor's generic process-exit code.
+                $eventCode=$wasCancelling?'CANCELLATION_WORKER_EXITED':'WORKER_PROCESS_EXITED';
+                $code=(!$wasCancelling && is_string($diagnostic['error_code']??null))?
+                    $diagnostic['error_code']:
+                    WorkerFailureCode::exited((string)$job['kind'],$exitCode,$wasCancelling);
                 $now=gmdate('Y-m-d H:i:s');
-                $reason='The CLI worker process exited (PID '.$pid.', exit status '.
-                    $exitCode.') while this job was '.(string)$job['state'].
-                    '. Last recorded work: '.(string)($job['progress_detail']??'not available').
-                    '. Review DSM worker.log for the underlying PHP error.';
+                $rootCause=$diagnostic?
+                    ' Root error ['.$diagnostic['error_code'].'] at '.
+                    ($diagnostic['operation']??'unknown operation').
+                    '; trace '.($diagnostic['trace_id']??'not assigned').
+                    '; '.($diagnostic['exception_type']??'Exception').
+                    ': '.mb_substr((string)($diagnostic['exception_message']??'Unknown'),0,900).
+                    '; source '.($diagnostic['source_file']??'unknown').
+                    ':'.($diagnostic['source_line']??'?').'.':
+                    ' No structured cause found in the independent log; check Worker diagnostics, CLI output and PHP fatal errors.';
+                $reason='CLI worker PID '.$pid.' exited with status '.$exitCode.
+                    ' while job was '.$job['state'].'. Last recorded work: '.
+                    (string)($job['progress_detail']??'not available').'.'.$rootCause;
                 $updated=$db->executeStatement(
                     'UPDATE jobs SET state=?,phase=?,error_code=?,last_failure_reason=?,'.
                     'active_profile_id=NULL,worker_token=NULL,finished_at=? '.
@@ -233,12 +249,23 @@ final class JobStore
                     'bulk-link','bulk-quarantine','bulk-restore','bulk-unlink','file-delete'],true))
                     $db->executeStatement(
                         "UPDATE file_action_batches SET state='needs_review',".
-                        "error_code='WORKER_PROCESS_EXITED' ".
+                        "error_code=? ".
                         "WHERE id=? AND state IN ('queued','executing','restore_queued','restore_executing')",
-                        [(int)$job['file_action_batch_id']]
+                        [$code,(int)$job['file_action_batch_id']]
                     );
                 $this->event($id,$wasCancelling?'warning':'error',$code,[
+                    'lifecycle_event'=>$eventCode,
+                    'job_kind'=>$job['kind'],
                     'description'=>'Worker process exited before recording a terminal result.',
+                    'root_error_code'=>$code,
+                    'trace_id'=>$diagnostic['trace_id']??null,
+                    'operation'=>$diagnostic['operation']??null,
+                    'stage'=>$diagnostic['stage']??null,
+                    'exception_type'=>$diagnostic['exception_type']??null,
+                    'exception_message'=>$diagnostic['exception_message']??null,
+                    'source_file'=>$diagnostic['source_file']??null,
+                    'source_line'=>$diagnostic['source_line']??null,
+                    'independent_log_event'=>$diagnostic['log_event']??null,
                     'worker_host'=>$host,'worker_pid'=>$pid,'exit_code'=>$exitCode,
                     'previous_state'=>$job['state'],'resolved_state'=>$terminal,
                     'last_heartbeat_at'=>$job['heartbeat_at'],
@@ -377,11 +404,15 @@ final class JobStore
             $now=gmdate('Y-m-d H:i:s');
             $reason=isset($details['reason']) && is_string($details['reason'])?
                 mb_substr($details['reason'],0,2000):null;
+            $storedCode=isset($details['failure_code']) &&
+                is_string($details['failure_code']) &&
+                preg_match('/^DUP-[A-Z-]+-[0-9]{3,5}$/D',$details['failure_code'])?
+                $details['failure_code']:$errorCode;
             $changed=$db->executeStatement(
                 "UPDATE jobs SET state=?,phase=?,error_code=?,active_profile_id=NULL," .
                 "last_failure_reason=?,finished_at=?,heartbeat_at=? WHERE id=? AND worker_token=? " .
                 "AND state IN ('running','cancelling')",
-                [$state,$state,$errorCode,$reason,$now,$now,$id,$token]
+                [$state,$state,$storedCode,$reason,$now,$now,$id,$token]
             );
             if($changed!==1) return; // Stale worker has already been recovered.
             if($db->fetchOne('SELECT kind FROM jobs WHERE id=?',[$id])==='scan')
@@ -389,7 +420,11 @@ final class JobStore
                     "UPDATE scan_runs SET state=?,finished_at=?,error_count=error_count+1 " .
                     "WHERE id=(SELECT run_id FROM jobs WHERE id=?)",[$state,$now,$id]
                 );
-            $this->event($id,$state==='cancelled'?'warning':'error',$errorCode,$details);
+            $eventCode=$state==='failed' && $storedCode!==$errorCode?
+                $storedCode:$errorCode;
+            if($eventCode!==$errorCode)
+                $details['lifecycle_event']=$errorCode;
+            $this->event($id,$state==='cancelled'?'warning':'error',$eventCode,$details);
         });
     }
 
@@ -420,7 +455,7 @@ final class JobStore
             $id=(int)$row['id'];
             $wasCancelling=$row['state']==='cancelling';
             $state=$wasCancelling?'cancelled':'failed';
-            $code=$wasCancelling?'CANCEL_RESOLVED_AFTER_STALL':'WORKER_STALLED';
+            $code=WorkerFailureCode::stalled((string)$row['kind'],$wasCancelling);
             $phase=$wasCancelling?'cancelled':'stalled';
             $reason=($wasCancelling?
                     'Cancellation was already requested, but the worker did not acknowledge it. ':
@@ -451,11 +486,13 @@ final class JobStore
                 'file-move','file-move-restore','file-link','file-unlink',
                 'bulk-link','bulk-quarantine','bulk-restore','bulk-unlink','file-delete'],true))
                 $this->db->executeStatement(
-                    "UPDATE file_action_batches SET state='needs_review',error_code='WORKER_STALLED' ".
+                    "UPDATE file_action_batches SET state='needs_review',error_code=? ".
                     "WHERE id=? AND state IN ('queued','executing','restore_queued','restore_executing')",
-                    [(int)$row['file_action_batch_id']]
+                    [$code,(int)$row['file_action_batch_id']]
                 );
             $this->event($id,$wasCancelling?'warning':'error',$code,[
+                'job_kind'=>$row['kind'],
+                'lifecycle_event'=>$wasCancelling?'CANCEL_RESOLVED_AFTER_STALL':'WORKER_STALLED',
                 'explanation'=>$wasCancelling?
                     'Cancellation was pending and the worker stopped reporting. '.
                     'The expired lease was cleared administratively; this does not terminate an OS process.':

@@ -13,6 +13,7 @@
     <a class="secondary link-button" href="{{ path('app_profiles') }}">Scan profiles</a>
     <a class="secondary link-button" href="{{ path('app_duplicates') }}">Browse duplicates</a>
     <a class="secondary link-button" href="{{ path('app_worker_log') }}">Worker diagnostics</a>
+    <a class="secondary link-button" href="{{ path('app_job_error_codes') }}">Error code reference</a>
     <a class="secondary link-button" href="{{ path('app_job_cleanup') }}">Clean old jobs</a>
   </div>
 </div>
@@ -278,5 +279,5 @@
     {% endif %}
   </div>
 </section>
-<script type="module" src="{{ asset('assets/jobs.js') }}?v=0.7.17"></script>
+<script type="module" src="{{ asset('assets/jobs.js') }}?v=0.7.18"></script>
 {% endblock %}

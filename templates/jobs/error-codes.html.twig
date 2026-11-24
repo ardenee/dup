@@ -1,0 +1,59 @@
+{% extends 'base.html.twig' %}
+{% block title %}Error code reference{% endblock %}
+{% block section %}Jobs / Error codes{% endblock %}
+{% block body %}
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">DIAGNOSTICS</div>
+    <h1>Error code reference</h1>
+    <p class="muted">Search stable error codes by component, operation or failure cause.
+      The same failure condition keeps its code across jobs; each occurrence has its own trace ID.</p>
+  </div>
+  <a class="secondary link-button" href="{{ path('app_jobs') }}">Back to Job Monitor</a>
+</div>
+<section class="panel">
+  <form method="get" action="{{ path('app_job_error_codes') }}" class="job-filter">
+    <div class="field">
+      <label for="error-code-query">Error code or description</label>
+      <input type="search" id="error-code-query" name="code"
+        placeholder="DUP-HASH-105, VERIFY, database, permission…" value="{{ search }}"
+        maxlength="64" autocomplete="off">
+    </div>
+    <div class="job-filter-actions">
+      <button class="primary" type="submit">Find error code</button>
+      <a class="secondary link-button" href="{{ path('app_job_error_codes') }}">Clear</a>
+    </div>
+  </form>
+  <div class="panel-content">
+    <p class="muted">{{ catalog_total|number_format }} registered error conditions.
+      Verification failures, hashing/file-access errors and background-worker exits are
+      covered. Other older application operations may still show legacy codes.</p>
+  </div>
+  {% if search == '' %}
+    <div class="empty-state">
+      Enter a code from Job Monitor to see the precise operation and failure condition.
+      For a particular occurrence, open its job details to see the trace ID, exception and source line.
+    </div>
+  {% elseif matches is empty %}
+    <div class="empty-state">No registered diagnostic code matches <code>{{ search }}</code>.
+      Older versions and modules not yet converted may use legacy codes.</div>
+  {% else %}
+    <div class="table-wrap">
+      <table class="error-code-reference-table">
+        <thead>
+          <tr><th scope="col">Stable error code</th><th scope="col">Component, operation and failure</th></tr>
+        </thead>
+        <tbody>
+          {% for code, explanation in matches %}
+            <tr>
+              <td><code>{{ code }}</code></td>
+              <td>{{ explanation }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="table-footer">{{ matches|length|number_format }} matching error codes</div>
+  {% endif %}
+</section>
+{% endblock %}

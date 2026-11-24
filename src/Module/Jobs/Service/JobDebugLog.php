@@ -277,6 +277,64 @@ final class JobDebugLog
         return $text===''?null:$text;
     }
 
+    /**
+     * Recover the original failure recorded BEFORE a SQL recovery attempt.
+     * Reads only bounded, private JSONL files; does not query the database.
+     * Prefer the first root exception over later cleanup/reporting failures.
+     */
+    public function latestFailure(int $jobId):?array
+    {
+        $content=$this->export($jobId);
+        if(!is_string($content))return null;
+        $rows=explode("\n",$content);
+        $candidate=null;
+        $root=null;
+        foreach($rows as $line) {
+            $row=json_decode($line,true);
+            if(!is_array($row))continue;
+            $event=(string)($row['event']??'');
+            if(!in_array($event,[
+                'verification.failure',
+                'verification.exception',
+                'worker.job.exception',
+                'worker.php_fatal'
+            ],true))continue;
+            $data=$row['data']??null;
+            if(!is_array($data))continue;
+            $code=$data['error_code']??null;
+            if(!is_string($code) || !preg_match('/^DUP-[A-Z-]+-[0-9]{3,5}$/D',$code)) {
+                $code=match($event) {
+                    'worker.php_fatal'=>'DUP-WORKER-002',
+                    'worker.job.exception'=>'DUP-WORKER-003',
+                    default=>'DUP-VERIFY-99999'
+                };
+            }
+            $finding=[
+                'error_code'=>$code,
+                'trace_id'=>is_string($data['trace_id']??null)?$data['trace_id']:null,
+                'operation'=>is_string($data['operation']??null)?$data['operation']:$event,
+                'stage'=>is_string($data['stage']??null)?$data['stage']:
+                    (is_string($data['step']??null)?$data['step']:'unknown'),
+                'exception_type'=>is_string($data['exception_type']??null)?
+                    $data['exception_type']:(is_string($data['exception']??null)?$data['exception']:null),
+                'exception_message'=>is_string($data['exception_message']??null)?
+                    $data['exception_message']:(is_string($data['message']??null)?$data['message']:
+                    (is_string($data['error']??null)?$data['error']:null)),
+                'source_file'=>is_string($data['source_file']??null)?
+                    $data['source_file']:(is_string($data['file']??null)?$data['file']:null),
+                'source_line'=>is_numeric($data['source_line']??null)?
+                    (int)$data['source_line']:(is_numeric($data['line']??null)?(int)$data['line']:null),
+                'logged_at'=>$row['utc']??null,
+                'log_event'=>$event
+            ];
+            // Last occurrence of the root verification error wins; cleanup
+            // cannot accidentally replace the original error classification.
+            if($event==='verification.failure')$root=$finding;
+            else $candidate=$finding;
+        }
+        return $root??$candidate;
+    }
+
     /** Remove all rotated logs when an administrator deletes job history. */
     public function purge(int $jobId):void
     {

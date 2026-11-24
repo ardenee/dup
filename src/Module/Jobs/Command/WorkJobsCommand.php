@@ -4,6 +4,8 @@ namespace App\Module\Jobs\Command;
 
 use App\Module\Jobs\Service\JobStore;
 use App\Module\Jobs\Service\JobDebugLog;
+use App\Core\Diagnostics\DiagnosticFailure;
+use App\Module\Duplicates\Service\VerificationFailureCode;
 use App\Module\Profiles\Service\ScanScheduleService;
 use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Scans\Service\ScanEngine;
@@ -97,6 +99,8 @@ final class WorkJobsCommand extends Command
             if($activeId!==null && is_array($last) &&
                in_array($last['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR],true)) {
                 $this->debug->write($activeId,'error','worker.php_fatal',[
+                    'error_code'=>'DUP-WORKER-002',
+                    'operation'=>'PHP fatal error at worker shutdown',
                     'message'=>$last['message'],'file'=>$last['file'],
                     'line'=>$last['line']
                 ]);
@@ -152,7 +156,11 @@ final class WorkJobsCommand extends Command
                         default => throw new \LogicException('Unknown job type.')
                     };
                 } catch(\Throwable $ex) {
+                    $errorCode=$ex instanceof DiagnosticFailure?
+                        $ex->errorCode():'DUP-WORKER-003';
                     $this->debug->write($id,'error','worker.job.exception',[
+                        'error_code'=>$errorCode,
+                        'operation'=>VerificationFailureCode::explain($errorCode)??'Outer worker exception',
                         'exception'=>get_class($ex),'message'=>$ex->getMessage(),
                         'file'=>$ex->getFile(),'line'=>$ex->getLine(),
                         'trace'=>$ex->getTraceAsString()

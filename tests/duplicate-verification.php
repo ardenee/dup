@@ -126,7 +126,7 @@ try {
     checked(str_contains($reason,'changed') || str_contains($reason,'Candidate'),
         'Failure reason missing from job detail record.');
     $context=json_decode((string)$db->fetchOne(
-        "SELECT context FROM job_events WHERE job_id=? AND code='VERIFICATION_FAILED'",
+        "SELECT context FROM job_events WHERE job_id=? AND code='DUP-HASH-105'",
         [$again]),true);
     checked(is_array($context) && in_array(($context['stage']??null),['checking_file_access','reading_file'],true) &&
         isset($context['file_index'],$context['total_files'],$context['file_path']) &&

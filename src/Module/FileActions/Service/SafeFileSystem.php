@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Module\FileActions\Service;
 
 use App\Module\Jobs\Service\JobStore;
+use App\Core\Diagnostics\CodedDomainFailure;
 use App\Module\Profiles\Service\DirectoryBrowser;
 
 /** Cross-platform, no shell commands, no hard deletes or cross-device copies. */
@@ -14,13 +15,15 @@ final class SafeFileSystem
     {
         if($filename==='' || $filename==='.' || $filename==='..' ||
            strpbrk($filename,"/\\\0")!==false)
-            throw new \DomainException('Invalid file name in recorded scan.');
+            throw new CodedDomainFailure('DUP-FS-101','Invalid file name in recorded scan.');
         $real=$this->browser->canonicalDirectory($directory);
         if($real===null || !$this->samePath($real,$directory))
-            throw new \DomainException('The recorded source directory moved or is no longer permitted.');
+            throw new CodedDomainFailure('DUP-FS-102','The recorded source directory moved or is no longer permitted.');
         $path=$real.DIRECTORY_SEPARATOR.$filename;
-        if(is_link($path) || !is_file($path))
-            throw new \DomainException('Source file is absent or is now a symbolic link.');
+        if(is_link($path))
+            throw new CodedDomainFailure('DUP-FS-103','Source path is now a symbolic link.');
+        if(!is_file($path))
+            throw new CodedDomainFailure('DUP-FS-104','Source file is absent.');
         return $path;
     }
 

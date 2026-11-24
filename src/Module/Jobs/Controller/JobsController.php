@@ -4,7 +4,9 @@ namespace App\Module\Jobs\Controller;
 
 use App\Module\Jobs\Service\JobStore;
 use App\Module\Jobs\Service\JobDebugLog;
+use App\Module\Jobs\Service\WorkerFailureCode;
 use App\Module\Jobs\Service\VerificationCancelSignal;
+use App\Module\Duplicates\Service\VerificationFailureCode;
 use App\Module\Jobs\Service\WorkerMaintenance;
 use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Jobs\Service\JobHistoryCleanup;
@@ -72,6 +74,24 @@ final class JobsController extends AbstractController
         ]);
     }
 
+    #[Route('/jobs/error-codes',name:'app_job_error_codes',methods:['GET'])]
+    public function errorCodes(Request $request):Response
+    {
+        $search=strtoupper(trim((string)$request->query->get('code','')));
+        if(strlen($search)>64 || ($search!=='' && !preg_match('/^[A-Z0-9-]+$/D',$search)))
+            throw $this->createNotFoundException('Invalid diagnostic code search.');
+        $catalog=VerificationFailureCode::catalog()+WorkerFailureCode::catalog();
+        ksort($catalog);
+        $matches=$search===''?[]:
+            array_filter($catalog,static fn(string $description,string $code):bool=>
+                str_contains($code,$search) ||
+                str_contains(strtoupper($description),$search),
+                ARRAY_FILTER_USE_BOTH);
+        return $this->render('jobs/error-codes.html.twig',[
+            'search'=>$search,'matches'=>$matches,'catalog_total'=>count($catalog)
+        ]);
+    }
+
     #[Route('/jobs/{id<\\d+>}',name:'app_job_detail',methods:['GET'])]
     public function detail(int $id,Request $request,JobHistoryRepository $history,JobHistoryCleanup $cleanup,
         WorkerHeartbeat $heartbeat,WorkerMaintenance $maintenance):Response
@@ -91,6 +111,8 @@ final class JobsController extends AbstractController
         if(!$details) throw $this->createNotFoundException('Job does not exist.');
         return $this->render('jobs/detail.html.twig',$details+[
             'cleanup'=>$cleanup->inspect($id),'event_sort'=>$sort,'event_dir'=>$dir,
+            'failure_explanation'=>VerificationFailureCode::explain((string)($details['job']['error_code']??''))??
+                WorkerFailureCode::explain((string)($details['job']['error_code']??'')),
             'is_dsm'=>\App\Core\Setup\HostEnvironment::isSynology(dirname(__DIR__,4)),
             'stale_cutoff'=>gmdate('Y-m-d H:i:s',time()-600),
             'worker_status'=>$heartbeat->report(),

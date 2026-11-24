@@ -6,6 +6,9 @@ use App\Module\Jobs\Service\JobStore;
 use App\Module\Jobs\Service\JobDebugLog;
 use App\Module\Jobs\Service\LostLease;
 use App\Module\Jobs\Service\ScanCancelled;
+use App\Core\Diagnostics\CodedDomainFailure;
+use App\Core\Diagnostics\CodedRuntimeFailure;
+use App\Core\Diagnostics\CodedInvalidArgumentFailure;
 use App\Module\FileActions\Service\SafeFileSystem;
 use App\Module\Scans\Service\FileHasher;
 use Doctrine\DBAL\Connection;
@@ -23,39 +26,48 @@ final class DuplicateVerificationWorker
 
     public function run(array $job):void
     {
-        if($job['kind']!=='duplicate-verify') throw new \LogicException('Invalid job kind.');
+        if($job['kind']!=='duplicate-verify') throw new CodedInvalidArgumentFailure('DUP-VERIFY-301','Invalid job kind.');
         $id=(int)$job['id'];$runId=(int)$job['run_id'];
         $profileId=(int)$job['profile_id'];$token=(string)$job['worker_token'];
         $step='preflight';$currentPath=null;$fileIndex=0;$done=0;
         $total=0;$bytesTotal=0;$bytesCompleted=0;$fileBytesRead=0;
         $started=microtime(true);
+        $traceId=VerificationFailureCode::trace($id);
         $debug=$this->debug??new JobDebugLog();
         $debug->write($id,'info','verification.worker.start',[
-            'profile_id'=>$profileId,'run_id'=>$runId,
+            'trace_id'=>$traceId,'profile_id'=>$profileId,'run_id'=>$runId,
             'php_version'=>PHP_VERSION,'php_sapi'=>PHP_SAPI,
             'memory_limit'=>ini_get('memory_limit'),'file'=>'DuplicateVerificationWorker',
             'note'=>'File-backed logs work even while the SQL connection is blocked.'
         ]);
         try {
+            $step='preflight_event';
             $debug->write($id,'debug','preflight.db.start',['query'=>'scan_runs.current']);
             $this->jobs->event($id,'info','VERIFICATION_PREFLIGHT',[
                 'description'=>'Checking current scan and enumerating candidate files.',
+                'trace_id'=>$traceId,
                 'profile_id'=>$profileId,'run_id'=>$runId
             ]);
+            $step='preflight_lookup';
             $run=$this->db->fetchAssociative(
                 "SELECT id,profile_id,state FROM scan_runs WHERE id=?",[$runId]
             );
-            if(!$run || $run['state']!=='completed' ||
-               (int)$run['profile_id']!==$profileId ||
-               (int)$this->db->fetchOne(
-                   "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=? AND state='completed'",
-                   [$profileId]
-               )!==$runId)
-                throw new \DomainException('The selected scan is no longer current.');
+            if(!$run)throw new CodedDomainFailure('DUP-VERIFY-302','Selected scan record is missing.');
+            if($run['state']!=='completed')
+                throw new CodedDomainFailure('DUP-VERIFY-303','Selected scan is not completed.');
+            if((int)$run['profile_id']!==$profileId)
+                throw new CodedDomainFailure('DUP-VERIFY-304','Selected scan belongs to another profile.');
+            $step='preflight_latest';
+            if((int)$this->db->fetchOne(
+                "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=? AND state='completed'",
+                [$profileId]
+            )!==$runId)
+                throw new CodedDomainFailure('DUP-VERIFY-305','A newer scan is now the current completed scan.');
             $debug->write($id,'debug','preflight.db.end',[
                 'elapsed_ms'=>round((microtime(true)-$started)*1000,2),
                 'run_state'=>$run['state']??'absent'
             ]);
+            $step='candidate_count';
             $debug->write($id,'debug','candidate.count.db.start',[
                 'query'=>'distinct candidate files/count and total bytes',
                 'run_id'=>$runId
@@ -79,7 +91,9 @@ final class DuplicateVerificationWorker
             $total=(int)($stats['file_count']??0);
             $bytesTotal=(int)($stats['total_bytes']??0);
             if($total<2)
-                throw new \DomainException('There are no accessible candidate duplicate files to verify.');
+                throw new CodedDomainFailure('DUP-VERIFY-306',
+                    'There are no accessible candidate duplicate files to verify.');
+            $step='initial_progress';
             $debug->write($id,'debug','progress.initial.db.start',[
                 'files_total'=>$total,'bytes_total'=>$bytesTotal
             ]);
@@ -90,13 +104,16 @@ final class DuplicateVerificationWorker
             $debug->write($id,'debug','progress.initial.db.end',[
                 'elapsed_ms'=>round((microtime(true)-$startProgress)*1000,2)
             ]);
+            $step='verification_started_event';
             $this->jobs->event($id,'info','VERIFICATION_STARTED',[
                 'description'=>'Hashing only the previously detected candidate duplicate files.',
+                'trace_id'=>$traceId,
                 'profile_id'=>$profileId,'run_id'=>$runId,
                 'candidate_files'=>$total,'candidate_bytes'=>$bytesTotal,
                 'algorithm'=>'sha256'
             ]);
             $debug->write($id,'info','verification.candidates.ready',[
+                'trace_id'=>$traceId,
                 'files'=>$total,'bytes'=>$bytesTotal,
                 'elapsed_ms'=>round((microtime(true)-$started)*1000,2)
             ]);
@@ -105,11 +122,12 @@ final class DuplicateVerificationWorker
             // avoids holding a live MySQL result cursor during I/O.
             $lastFileId=0;
             do {
+                $step='candidate_lease';
                 $debug->write($id,'debug','candidate.page.begin',[
                     'after_file_id'=>$lastFileId,'files_complete'=>$done
                 ]);
                 $this->jobs->assertRunning($id,$token);
-                $step='finding_candidate_files';
+                $step='candidate_progress';
                 $debug->write($id,'debug','candidate.progress.db.start',[
                     'after_file_id'=>$lastFileId
                 ]);
@@ -119,12 +137,15 @@ final class DuplicateVerificationWorker
                     'locating_verification_candidates'
                 );
                 $debug->write($id,'debug','candidate.progress.db.end');
+                $step='candidate_event';
                 $this->jobs->event($id,'info','VERIFICATION_CANDIDATE_LOOKUP',[
-                    'files_completed'=>$done,'candidate_files'=>$total,
+                    'trace_id'=>$traceId,'files_completed'=>$done,'candidate_files'=>$total,
                     'last_indexed_file_id'=>$lastFileId
                 ]);
+                $step='finding_candidate_files';
                 $lookupStarted=microtime(true);
                 $debug->write($id,'debug','candidate.page.sql.start',[
+                    'trace_id'=>$traceId,
                     'query'=>'distinct candidate files, keyset 64',
                     'run_id'=>$runId,'after_file_id'=>$lastFileId
                 ]);
@@ -141,27 +162,29 @@ final class DuplicateVerificationWorker
                     'elapsed_ms'=>round((microtime(true)-$lookupStarted)*1000,2),
                     'row_count'=>count($page),'last_file_id'=>$lastFileId
                 ]);
+                $step='candidate_page_event';
                 $this->jobs->event($id,'info','VERIFICATION_CANDIDATE_PAGE_READY',[
-                    'count'=>count($page),
+                    'trace_id'=>$traceId,'count'=>count($page),
                     'elapsed_seconds'=>round(microtime(true)-$lookupStarted,3),
                     'files_completed'=>$done
                 ]);
-                $step='reading';
                 foreach($page as $row) {
                     $lastFileId=(int)$row['id'];
 
+                $step='file_lease';
                 $this->jobs->assertRunning($id,$token);
                 $fileIndex=$done+1;
                 $currentPath=rtrim((string)$row['directory'],'/\\').DIRECTORY_SEPARATOR.(string)$row['filename'];
-                $step='checking_file_access';
+                $step='file_opening_event';
                 $debug->write($id,'debug','file.path.check.start',[
                     'file_index'=>$fileIndex,'path'=>$currentPath
                 ]);
                 $this->jobs->event($id,'info','VERIFICATION_FILE_OPENING',[
-                    'file_index'=>$fileIndex,'total_files'=>$total,
+                    'trace_id'=>$traceId,'file_index'=>$fileIndex,'total_files'=>$total,
                     'path'=>$currentPath,
                     'description'=>'Checking source file permissions and verifying the saved path.'
                 ]);
+                $step='checking_file_access';
                 $currentPath=$this->fs->checkedPath((string)$row['directory'],(string)$row['filename']);
                 $debug->write($id,'debug','file.path.check.end',[
                     'file_index'=>$fileIndex,'path'=>$currentPath
@@ -177,18 +200,22 @@ final class DuplicateVerificationWorker
                 $lastLogAt=$fileStarted;
                 $lastLogBytes=0;
                 $detail='File '.$fileIndex.'/'.$total.': '.(string)$row['filename'];
+                $step='file_initial_progress';
                 $this->jobs->verificationProgress(
                     $id,$token,$done,$total,$bytesCompleted,$bytesTotal,$detail
                 );
+                $step='file_started_event';
                 $this->jobs->event($id,'info','VERIFICATION_FILE_STARTED',[
                     'file_index'=>$fileIndex,'total_files'=>$total,
                     'path'=>$currentPath,'file_bytes'=>$size,
                     'bytes_completed_before_file'=>$bytesCompleted
                 ]);
                 $debug->write($id,'info','file.hash.start',[
+                    'trace_id'=>$traceId,
                     'file_index'=>$fileIndex,'path'=>$currentPath,
                     'size_bytes'=>$size,'mtime_epoch'=>$mtime
                 ]);
+                $step='reading_file';
                 $digest=FileHasher::digest(
                     $currentPath,'sha256',$size,$mtime,
                     fn()=>$this->jobs->assertRunning($id,$token),
@@ -239,6 +266,7 @@ final class DuplicateVerificationWorker
                     'elapsed_ms'=>round((microtime(true)-$fileStarted)*1000,2),
                     'bytes_read'=>$fileBytesRead,'size_bytes'=>$size
                 ]);
+                $step='staging_hash';
                 $debug->write($id,'debug','hash.stage.db.start',[
                     'file_index'=>$fileIndex
                 ]);
@@ -251,10 +279,12 @@ final class DuplicateVerificationWorker
                 $done++;
                 $bytesCompleted+=$size;
                 $seconds=max(0.001,microtime(true)-$fileStarted);
+                $step='file_completion_progress';
                 $this->jobs->verificationProgress(
                     $id,$token,$done,$total,$bytesCompleted,$bytesTotal,
                     'Verified '.$done.'/'.$total.' files'
                 );
+                $step='file_completion_event';
                 $this->jobs->event($id,'info','VERIFICATION_FILE_COMPLETED',[
                     'file_index'=>$fileIndex,'total_files'=>$total,
                     'path'=>$currentPath,'file_bytes'=>$size,
@@ -266,30 +296,36 @@ final class DuplicateVerificationWorker
                 }
             } while(count($page)===64);
             if($done!==$total || $bytesCompleted!==$bytesTotal)
-                throw new \DomainException('Candidate list changed during verification.');
+                throw new CodedDomainFailure('DUP-VERIFY-307',
+                    'Candidate list or byte count changed during verification.');
             $step='publishing';
             $debug->write($id,'info','publish.start',[
+                'trace_id'=>$traceId,
                 'files_verified'=>$done,'bytes_verified'=>$bytesCompleted,
                 'elapsed_seconds'=>round(microtime(true)-$started,3)
             ]);
+            $step='publishing_progress';
             $this->jobs->verificationProgress(
                 $id,$token,$total,$total,$bytesTotal,$bytesTotal,
                 'Publishing verified hashes and rebuilding duplicate groups',
                 'publishing_verified_results'
             );
+            $step='publishing_event';
             $this->jobs->event($id,'info','VERIFICATION_PUBLISH_STARTED',[
                 'verified_files'=>$total,'verified_bytes'=>$bytesTotal,
                 'hashing_elapsed_seconds'=>round(microtime(true)-$started,2),
                 'description'=>'Publishing hashes and rebuilding duplicate groups atomically.'
             ]);
             // Apply all results and rebuild groups as a single database update.
+            $step='publishing';
             $this->db->transactional(function(Connection $db) use ($id,$runId,$token,$total,$bytesTotal,$started):void {
                 $this->jobs->assertRunning($id,$token);
                 if((int)$db->fetchOne(
                     "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=".
                     "(SELECT profile_id FROM scan_runs WHERE id=?) AND state='completed'",[$runId]
                 )!==$runId)
-                    throw new \DomainException('A newer scan was completed during verification.');
+                    throw new CodedDomainFailure('DUP-VERIFY-308',
+                        'A newer scan was completed during verification.');
                 $this->jobs->progress($id,$token,'publishing_verified_results',$total,$total);
                 $rows=$db->executeQuery(
                     'SELECT file_entry_id,sha256 FROM duplicate_verification_hashes '.
@@ -304,7 +340,8 @@ final class DuplicateVerificationWorker
                     );
                     $count++;
                 }
-                if($count!==$total) throw new \RuntimeException('Published hash count mismatch.');
+                if($count!==$total)
+                    throw new CodedRuntimeFailure('DUP-VERIFY-309','Published hash count mismatch.');
                 $groups=$this->rebuilder->rebuild($runId,'sha256',
                     fn(int $progress)=>$this->jobs->assertRunning($id,$token)
                 );
@@ -335,45 +372,75 @@ final class DuplicateVerificationWorker
             ]);
         } catch(ScanCancelled $ex) {
             $debug->write($id,'warning','verification.cancelled',[
-                'step'=>$step,'message'=>$ex->getMessage()
+                'step'=>$step,'message'=>$ex->getMessage(),
+                'error_code'=>VerificationFailureCode::identify($step,$ex)['error_code'],
+                'trace_id'=>$traceId
             ]);
             $this->jobs->stop($id,$token,'cancelled','VERIFICATION_CANCELLED');
         } catch(LostLease $ex) {
             $debug->write($id,'error','verification.lease_lost',[
+                ...VerificationFailureCode::detail($step,$ex,$traceId),
                 'step'=>$step,'message'=>$ex->getMessage()
             ]);
             throw $ex;
         } catch(\Throwable $ex) {
-            $debug->write($id,'error','verification.exception',[
-                'step'=>$step,'exception'=>get_class($ex),
-                'error'=>$ex->getMessage(),'file'=>$ex->getFile(),
-                'line'=>$ex->getLine(),'trace'=>$ex->getTraceAsString(),
+            $error=VerificationFailureCode::detail($step,$ex,$traceId);
+            $debug->write($id,'error','verification.failure',[
+                ...$error,
+                'trace'=>$ex->getTraceAsString(),
                 'current_file'=>$currentPath,'file_index'=>$fileIndex,
                 'bytes_read'=>$fileBytesRead,'files_completed'=>$done
             ]);
-            $this->jobs->stop($id,$token,'failed','VERIFICATION_FAILED',[
-                'reason'=>mb_substr($ex->getMessage(),0,2000),
-                'exception_type'=>get_class($ex),
-                'stage'=>$step,
-                'file_index'=>$fileIndex,'total_files'=>$total,
-                'file_path'=>$currentPath,
-                'file_bytes_read'=>$fileBytesRead,
-                'files_completed'=>$done,
-                'bytes_completed'=>$bytesCompleted+$fileBytesRead,
-                'bytes_total'=>$bytesTotal,
-                'elapsed_seconds'=>round(microtime(true)-$started,2),
-                'worker_host'=>(string)(gethostname()?:'unknown'),
-                'worker_pid'=>getmypid()
-            ]);
+            // The source failure is recorded in the FILE before attempting
+            // another SQL UPDATE. If the database is itself failing, the
+            // worker-exit handler can recover the true cause from this trace.
+            try {
+                $this->jobs->stop($id,$token,'failed','VERIFICATION_FAILED',[
+                    ...$error,
+                    'failure_code'=>$error['error_code'],
+                    'reason'=>'['.$error['error_code'].'] '.$error['operation'].
+                        '; trace '.$traceId.': '.mb_substr($ex->getMessage(),0,1400),
+                    'file_index'=>$fileIndex,'total_files'=>$total,
+                    'file_path'=>$currentPath,
+                    'file_bytes_read'=>$fileBytesRead,
+                    'files_completed'=>$done,
+                    'bytes_completed'=>$bytesCompleted+$fileBytesRead,
+                    'bytes_total'=>$bytesTotal,
+                    'elapsed_seconds'=>round(microtime(true)-$started,2),
+                    'worker_host'=>(string)(gethostname()?:'unknown'),
+                    'worker_pid'=>getmypid()
+                ]);
+            } catch(\Throwable $reportingError) {
+                $debug->write($id,'error','verification.failure_persist_failed',[
+                    'trace_id'=>$traceId,'root_error_code'=>$error['error_code'],
+                    'exception_type'=>get_class($reportingError),
+                    'message'=>$reportingError->getMessage(),
+                    'file'=>$reportingError->getFile(),
+                    'line'=>$reportingError->getLine()
+                ]);
+            }
             throw $ex;
         } finally {
             $debug->write($id,'debug','verification.cleanup.start',[
-                'step'=>$step,'files_completed'=>$done
+                'trace_id'=>$traceId,'step'=>$step,'files_completed'=>$done
             ]);
-            // Staged evidence is no longer needed on any outcome. Do not touch
-            // the published scan entries outside the commit transaction.
-            $this->db->delete('duplicate_verification_hashes',['job_id'=>$id]);
-            $debug->write($id,'debug','verification.cleanup.end');
+            // Preserve the ORIGINAL failure if cleanup also fails. A bad
+            // database connection must never overwrite its own first error.
+            try {
+                $this->db->delete('duplicate_verification_hashes',['job_id'=>$id]);
+                $debug->write($id,'debug','verification.cleanup.end',['trace_id'=>$traceId]);
+            } catch(\Throwable $cleanupError) {
+                $debug->write($id,'error','verification.cleanup_failed',[
+                    'trace_id'=>$traceId,
+                    'error_code'=>VerificationFailureCode::detail(
+                        'cleanup',$cleanupError,$traceId
+                    )['error_code'],
+                    'exception_type'=>get_class($cleanupError),
+                    'message'=>$cleanupError->getMessage(),
+                    'source_file'=>$cleanupError->getFile(),
+                    'source_line'=>$cleanupError->getLine()
+                ]);
+            }
         }
     }
 }

@@ -103,7 +103,7 @@ verifyWorker($db->fetchOne('SELECT state FROM jobs WHERE id=5')==='failed' &&
 verifyWorker((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action='STALE_JOBS_RECOVERED'")===1,
     'Recovery operation was not audited.');
 $stallContext=json_decode((string)$db->fetchOne(
-    "SELECT context FROM job_events WHERE job_id=5 AND code='WORKER_STALLED'"),true);
+    "SELECT context FROM job_events WHERE job_id=5 AND code='DUP-SCAN-WORKER-023'"),true);
 verifyWorker(is_array($stallContext) &&
     ($stallContext['timeout_seconds']??null)===600 &&
     ($stallContext['files_completed']??null)===110 &&

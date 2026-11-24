@@ -111,7 +111,7 @@ $heartbeat->stop();
 checkCancel($resolved==='cancelled','A pending cancellation must finish cancelled, not failed.');
 $job=$db->fetchAssociative('SELECT state,phase,error_code,worker_token,active_profile_id,finished_at FROM jobs WHERE id=8');
 checkCancel($job['state']==='cancelled' && $job['phase']==='cancelled' &&
-    $job['error_code']==='CANCEL_RESOLVED_AFTER_STALL' &&
+    $job['error_code']==='DUP-VERIFY-WORKER-022' &&
     $job['worker_token']===null && $job['active_profile_id']===null &&
     $job['finished_at']!==null,
     'Resolving cancellation did not release its worker lease and profile lock.');
@@ -120,7 +120,7 @@ checkCancel($db->fetchOne('SELECT state FROM scan_runs WHERE id=4')==='completed
 checkCancel((int)$db->fetchOne('SELECT COUNT(*) FROM duplicate_verification_hashes WHERE job_id=8')===0,
     'Staged verification hashes were not cleaned.');
 $context=json_decode((string)$db->fetchOne(
-    "SELECT context FROM job_events WHERE job_id=8 AND code='CANCEL_RESOLVED_AFTER_STALL'"
+    "SELECT context FROM job_events WHERE job_id=8 AND code='DUP-VERIFY-WORKER-022'"
 ),true);
 checkCancel(($context['final_state']??null)==='cancelled' &&
     ($context['files_total']??null)===26 &&

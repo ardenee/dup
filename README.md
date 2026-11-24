@@ -10,6 +10,7 @@ DUP is a web-based duplicate-file scanner and manager for **Windows, Linux, and 
 - Rename (with cleanup rules and Find/Replace), move, delete and link duplicate files, individually or in bulk.
 - Set **File Exists** separately for each profile: Fail, Append Number or Overwrite.
 - **Scan profiles:** Compact, sortable/filterable scan profile management combines scan configuration, completed scans, scheduling, duplicate results, status and a horizontal action toolbar. A job with a heartbeat overdue by ten minutes is clearly labelled unresponsive and can be diagnosed or explicitly resolved from the profile row without deleting historical scans. The administrator-only Worker diagnostics page shows diagnostic storage permissions and worker file-log availability.
+- **Distinct, traceable error codes:** Every migrated failure type is identified by a stable component-specific code (e.g. `DUP-HASH-105` for a changed file size versus `DUP-VERIFY-11001` for a candidate database-query error). Worker crash/timeout/cancellation failures are separately coded for all 15 job types. The failed job stores its actual root code, exception, source file/line and an occurrence-specific trace ID; it no longer replaces the cause with `WORKER_PROCESS_EXITED`. The Job Monitor links codes to **Error Code Reference**. Older and not-yet-migrated subsystems can still have legacy codes.
 - **Responsive SHA-256 cancellation (DSM):** Cancelling a running verification signals only its owning DSM worker through a private supervisor control file. The supervisor attempts TERM and, after eight seconds without exit, KILL, then records the job's terminal state and restarts the worker. If a job was already stuck cancelling, the Job Monitor and detail page expose a force-stop action, alongside manual recovery for an already-dead worker. Generic hosting continues to use cooperative cancellation.
 - **Verified debug logging:** Worker startup checks that its independent log is writable *before claiming any job* and reports failures to stderr/DSM service output instead of silently losing diagnostics. In **Job Monitor → Worker diagnostics**, **Test debug logging now** writes a test record from Web Station PHP and confirms it can be read back, displaying any failure. The interface lists the most recent per-job logs directly; CLI worker.boot is a separate check confirming the background process can write. The two accounts may have different permissions.
 - **Detailed debug logs:** SHA-256 verification and worker lifecycle steps are recorded to private rotating JSONL files without database writes. Logs include SQL before/after timings, candidate queries, file checks, per-file hashing and byte updates, exception stack traces, memory and PID. Open **Job Monitor → Debug log** for a particular job or **Worker diagnostics** to view and download logs. DSM additionally mirrors CLI stderr/PHP fatals and supervisor restarts into separate admin-readable log files. The debug viewer does not query the database and remains available when an SQL operation is blocked.
@@ -29,7 +30,7 @@ DUP is a web-based duplicate-file scanner and manager for **Windows, Linux, and 
 
 ## Windows or Linux installation
 
-1. Extract the generic **DUP-Web-0.7.17.zip** package into a private directory.
+1. Extract the generic **DUP-Web-0.7.18.zip** package into a private directory.
 2. Point Apache, IIS, or Nginx at its **dup/public/** directory. Never publicly expose src, vendor, config, var, or private environment files.
 3. Open **https://your-host/setup.php**. Provide the database connection and create the first administrator. A missing database can be created if the supplied database account has the required privileges.
 4. Sign in, create a scan profile, select accessible folders, and start a scan.
@@ -46,7 +47,7 @@ Use HTTPS for remote access. The web and worker accounts must have the appropria
 ## Synology DSM 7 installation
 
 1. Install Web Station, PHP 8.2 or later and MariaDB 10, and enable the necessary PHP extensions.
-2. Open **DSM Package Center → Manual Install** and select **DUP-DSM7-0.7.17.spk**.
+2. Open **DSM Package Center → Manual Install** and select **DUP-DSM7-0.7.18.spk**.
 3. Open DUP at **/dup/** over HTTPS. Complete the setup wizard for a new installation, or sign in after an existing DUP v2 upgrade.
 4. Configure scan profiles, file-access permissions and schedules. The DSM package manages its background worker.
 
@@ -59,7 +60,7 @@ On DSM, the web process uses the http group. The background worker must also hav
 The release packages are built using:
 
 - Python: packaging/build_release.py (generic ZIP)
-- Python: packaging/build_dsm_release.py --version 0.7.17 (Synology SPK)
+- Python: packaging/build_dsm_release.py --version 0.7.18 (Synology SPK)
 
 The published ZIP and SPK contain the application and required dependencies, but do not include the repository test suite, runtime data or developer utilities.
 
