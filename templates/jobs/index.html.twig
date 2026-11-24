@@ -114,6 +114,9 @@
               <div class="action-icon-group">
                 <a class="action-icon-button" href="{{ path('app_job_detail',{id:job.id}) }}"
                    title="Job details and events" aria-label="Details and events for job {{ job.id }}">{{ icon('details') }}</a>
+                <a class="action-icon-button" href="{{ path('app_worker_log',{job:job.id}) }}"
+                   title="View detailed file debug log for job #{{ job.id }}"
+                   aria-label="View debug trace for job {{ job.id }}">{{ icon('history') }}</a>
                 {% if job.run_id and job.run_state in ['completed','archived'] %}
                   <a class="action-icon-button" href="{{ path('app_duplicates',{run:job.run_id}) }}"
                      title="Scan duplicate results" aria-label="Duplicate results for scan {{ job.run_id }}">{{ icon('eye') }}</a>
@@ -265,5 +268,5 @@
     {% endif %}
   </div>
 </section>
-<script type="module" src="{{ asset('assets/jobs.js') }}?v=0.7.14"></script>
+<script type="module" src="{{ asset('assets/jobs.js') }}?v=0.7.15"></script>
 {% endblock %}

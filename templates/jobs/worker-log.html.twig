@@ -4,45 +4,111 @@
 {% block body %}
 <div class="page-heading">
   <div>
-    <div class="eyebrow">BACKGROUND JOBS / TROUBLESHOOTING</div>
+    <div class="eyebrow">SCAN & WORKER DEBUGGING</div>
     <h1>Worker diagnostics</h1>
-    <p class="muted">Read the latest process output and PHP errors to identify why a scan or SHA-256 verification stopped. This page does not restart or modify jobs.</p>
+    <p class="muted">Detailed file-backed logs are recorded independently of job events and database updates. Use them to identify the last completed step when a scan stops responding.</p>
   </div>
   <div class="profile-page-actions">
     <a class="secondary link-button" href="{{ path('app_jobs') }}">Job Monitor</a>
-    <a class="secondary link-button" href="{{ path('app_worker_log') }}">Refresh log</a>
+    <a class="secondary link-button" href="{{ path('app_worker_log',{job:selected_job|default(0)}) }}">Refresh logs</a>
   </div>
 </div>
 <section class="panel">
-  <div class="panel-heading"><h2>Process status</h2>
-    <span class="status">{{ worker.state|replace({'_':' '}) }}</span></div>
-  <dl class="details">
-    <div><dt>Processes reporting recently</dt><dd>{{ worker.active|default(0) }}</dd></div>
-    <div><dt>Jobs with recent heartbeats</dt><dd>{{ worker.jobs_responding|default(0) }}</dd></div>
-    <div><dt>Unfinished jobs</dt><dd>{{ worker.jobs_running|default(0) }}</dd></div>
-    <div><dt>Last process heartbeat</dt><dd>{{ worker.last_heartbeat|default('None') }}</dd></div>
-    <div><dt>Last job heartbeat</dt><dd>{{ worker.last_job_heartbeat|default('None') }}</dd></div>
-  </dl>
+  <div class="panel-heading"><div>
+    <h2>Debug trace</h2>
+    <p class="muted">Every SHA-256 verification records SQL timing, file access checks, byte progress, exceptions, and worker state to a private rotating log.</p>
+  </div>
+  {% if debug.available %}
+    <a class="secondary link-button" href="{{ path('app_job_debug_download',{job:selected_job|default(0)}) }}">
+      Download full JSONL debug log
+    </a>
+  {% endif %}</div>
+  <form class="report-filters job-debug-controls" action="{{ path('app_worker_log') }}" method="get">
+    <div class="field"><label for="worker-debug-job">Job number</label>
+      <input id="worker-debug-job" name="job" type="number" min="0"
+        value="{{ selected_job|default(0) }}" required>
+      <small class="muted">0 = worker lifecycle; enter a number from Job Monitor for file-level details.</small>
+    </div>
+    <button class="primary" type="submit">View debug log</button>
+  </form>
+  <div class="panel-content">
+    <p class="muted">Log file: <code>{{ debug.path }}</code>
+      {% if debug.last_updated is defined %} — Last update: {{ debug.last_updated }} UTC{% endif %}
+      {% if debug.truncated is defined and debug.truncated %} — Older entries omitted from this preview; use Download for rotated history.{% endif %}
+    </p>
+  </div>
+  {% if debug.available and debug.rows is not empty %}
+    <div class="table-wrap">
+      <table data-local-table="job debug records">
+        <thead><tr>
+          <th>When (UTC)</th><th>Level</th><th>Step / event</th><th>Detailed context</th>
+        </tr></thead>
+        <tbody>
+          {% for row in debug.rows %}
+            <tr>
+              <td class="mono">{{ row.utc }}</td>
+              <td><span class="{{ row.level == 'error' ? 'health-bad' : (row.level == 'warning' ? 'status' : 'health-good') }}">{{ row.level|upper }}</span></td>
+              <td><strong>{{ row.event }}</strong><small class="muted"> PID {{ row.worker_pid|default('?') }} · {{ row.memory_mib|default('?') }} MiB</small></td>
+              <td class="debug-event-context">
+                {% for key,value in row.data|default({}) %}
+                  <div><strong>{{ key|replace({'_':' '})|capitalize }}:</strong>
+                    {% if value is iterable %}<code>{{ value|json_encode }}</code>
+                    {% else %}{{ value is same as(null) ? '—' : value }}{% endif %}
+                  </div>
+                {% else %}
+                  <span class="muted">No additional context</span>
+                {% endfor %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="table-footer"><span>{{ debug.rows|length }} recent diagnostic entries shown · 250 maximum per view</span>
+      <a href="{{ path('app_job_debug_download',{job:selected_job|default(0)}) }}">Download rotated history</a>
+    </div>
+  {% else %}
+    <div class="empty-state">{{ debug.message|default('No diagnostic entries recorded.') }}
+      <p>Logs begin with jobs run after installation of the debug-logging release. Older job events cannot be retroactively reconstructed.</p>
+    </div>
+  {% endif %}
 </section>
+<p class="muted">This diagnostic page deliberately makes no database queries, so you can read the file logs
+  even when a scanner is blocked inside an SQL operation. For current worker heartbeats,
+  visit <a href="{{ path('app_jobs') }}">Job Monitor</a> or
+  <a href="{{ path('app_system') }}">System Health</a>.</p>
 <section class="panel">
-  <div class="panel-heading"><div><h2>DSM worker service log</h2>
-    <p class="muted">Path: <code>{{ log.path }}</code></p></div>
+  <div class="panel-heading"><div><h2>DSM service output</h2>
+    <p class="muted">CLI output, PHP errors and fatal exceptions: <code>{{ log.path }}</code></p></div>
     {% if log.available %}
       <span class="muted">Last modified: {{ log.last_updated ?? 'Unknown' }} UTC</span>
     {% endif %}
   </div>
   {% if log.available %}
     <div class="panel-content">
-      <p class="muted">Most recent log lines (up to 140, limited to 64 KiB).
-        {% if log.truncated %}Older lines are omitted.{% endif %}
-        Worker exit status, restart attempts, PHP fatal errors and missing CLI extensions appear here.</p>
+      <p class="muted">Recent process output and PHP fatal errors (up to 140 lines, 64 KiB).
+        {% if log.truncated %}Older lines omitted.{% endif %}</p>
       <pre class="worker-log-text">{{ log.text }}</pre>
     </div>
   {% else %}
     <div class="panel-content"><p>{{ log.reason }}</p>
-      <p class="muted">The DSM CLI process and Web Station PHP profile may have different permissions.
-        On generic Windows or Linux hosting, consult the configured worker service or task scheduler logs.</p></div>
+      <p class="muted">Web Station and the background worker may run under different accounts.
+        If the service log is inaccessible here, the new per-job debug logs above can still record the last completed PHP operation.</p></div>
   {% endif %}
 </section>
-<p class="muted">Worker output can contain source paths and errors. Access is restricted to DUP administrators.</p>
+{% if supervisor_log is defined %}
+<section class="panel">
+  <div class="panel-heading"><h2>DSM supervisor events</h2>
+    <span class="muted"><code>{{ supervisor_log.path }}</code></span></div>
+  {% if supervisor_log.available %}
+    <div class="panel-content">
+      <p class="muted">Worker process startup, exit statuses and restart attempts.</p>
+      <pre class="worker-log-text">{{ supervisor_log.text }}</pre>
+    </div>
+  {% else %}
+    <div class="panel-content"><p class="muted">{{ supervisor_log.reason }}</p></div>
+  {% endif %}
+</section>
+{% endif %}
+<p class="muted">Logs can contain source paths and error traces. This page and downloads require administrator access.</p>
 {% endblock %}

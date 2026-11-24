@@ -4,6 +4,11 @@
 {% block title %}Job #{{ job.id }}{% endblock %}
 {% block section %}Job monitor / #{{ job.id }}{% endblock %}
 {% block body %}
+<div class="job-detail-debug-link">
+  <a class="secondary link-button" href="{{ path('app_worker_log',{job:job.id}) }}">
+    View detailed debug trace
+  </a>
+</div>
 <div class="page-heading">
   <div>
     <div class="eyebrow">BACKGROUND JOB DETAILS</div>
@@ -106,7 +111,7 @@
   whether the process was stopped, a storage read blocked, or the worker became unreachable.
   The last recorded file and byte counts above are evidence, not a completion estimate.
   Inspect the DUP worker service log and <a href="{{ path('app_system') }}">System health</a> or
-  <a href="{{ path('app_worker_log') }}">Worker diagnostics</a>
+  <a href="{{ path('app_worker_log',{job:job.id}) }}">Job debug log</a>
   before retrying.
   {% if is_dsm|default(false) %}
     <p>Synology worker log: <code>/var/packages/dup/var/worker.log</code></p>

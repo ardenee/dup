@@ -17,7 +17,10 @@ final class JobHistoryCleanup
     private const STATES=['completed','failed','cancelled'];
     public const DAYS=[30,90,180,365];
 
-    public function __construct(private readonly Connection $db) {}
+    public function __construct(
+        private readonly Connection $db,
+        private readonly ?JobDebugLog $debug=null
+    ) {}
 
     public function inspect(int $id):array|false
     {
@@ -65,6 +68,7 @@ final class JobHistoryCleanup
             );
             if($deleted!==1) throw new \DomainException('The job changed during cleanup.');
         });
+        $this->debug?->purge($id);
     }
 
     public function estimate(int $days):int
@@ -86,7 +90,8 @@ final class JobHistoryCleanup
         if($confirm!=='PRUNE')
             throw new \DomainException('Type PRUNE to remove old job logs.');
         $this->estimate($days); // validate bounded retention values
-        return $this->db->transactional(function(Connection $db) use ($days,$actorId):int {
+        $removedIds=[];
+        $result=$this->db->transactional(function(Connection $db) use ($days,$actorId,&$removedIds):int {
             $cutoff=gmdate('Y-m-d H:i:s',time()-$days*86400);
             $candidates=$db->fetchFirstColumn(
                 "SELECT id FROM jobs WHERE (kind IN ('scan','rebuild-duplicates','duplicate-verify') ".
@@ -113,8 +118,11 @@ final class JobHistoryCleanup
                 'days'=>$days,'job_count'=>$affected,'first_job_id'=>min($ids),
                 'last_job_id'=>max($ids)
             ]);
+            $removedIds=$ids;
             return $affected;
         });
+        foreach($removedIds as $id)$this->debug?->purge((int)$id);
+        return $result;
     }
 
     private function record(int $actorId,string $action,array $context):void

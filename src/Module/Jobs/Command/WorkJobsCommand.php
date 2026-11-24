@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Module\Jobs\Command;
 
 use App\Module\Jobs\Service\JobStore;
+use App\Module\Jobs\Service\JobDebugLog;
 use App\Module\Profiles\Service\ScanScheduleService;
 use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Scans\Service\ScanEngine;
@@ -39,7 +40,8 @@ final class WorkJobsCommand extends Command
         private readonly FileDeletionWorker $deletions,
         private readonly RenameWorker $renames,
         private readonly Connection $db,
-        private readonly WorkerHeartbeat $heartbeat
+        private readonly WorkerHeartbeat $heartbeat,
+        private readonly JobDebugLog $debug
     ) {parent::__construct();}
 
     protected function configure(): void
@@ -73,6 +75,25 @@ final class WorkJobsCommand extends Command
             return Command::INVALID;
         }
         $this->stopping=false;
+        $this->debug->write(0,'info','worker.boot',[
+            'php_version'=>PHP_VERSION,'sapi'=>PHP_SAPI,'memory_limit'=>ini_get('memory_limit'),
+            'php_ini'=>php_ini_loaded_file(),'extensions'=>[
+                'pdo_mysql'=>extension_loaded('pdo_mysql'),
+                'mbstring'=>extension_loaded('mbstring'),
+                'hash'=>extension_loaded('hash')
+            ],'loop'=>$loop
+        ]);
+        $activeId=null;
+        register_shutdown_function(function()use(&$activeId):void {
+            $last=error_get_last();
+            if($activeId!==null && is_array($last) &&
+               in_array($last['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR],true)) {
+                $this->debug->write($activeId,'error','worker.php_fatal',[
+                    'message'=>$last['message'],'file'=>$last['file'],
+                    'line'=>$last['line']
+                ]);
+            }
+        });
         if($loop && function_exists('pcntl_async_signals') && function_exists('pcntl_signal')) {
             pcntl_async_signals(true);
             pcntl_signal(SIGTERM,fn() => $this->stopping=true);
@@ -92,9 +113,22 @@ final class WorkJobsCommand extends Command
             // Explicit maintenance can recover such jobs after inspection.
             $processed=0;
             while($processed<$max && !$this->stopping) {
+                $claimStart=microtime(true);
+                $this->debug->write(0,'debug','worker.claim.db.start',[
+                    'requested_job_id'=>$jobId
+                ]);
                 $job=$this->jobs->claimNext($jobId);
+                $this->debug->write(0,'debug','worker.claim.db.end',[
+                    'elapsed_ms'=>round((microtime(true)-$claimStart)*1000,2),
+                    'job_id'=>$job['id']??null
+                ]);
                 if(!$job) break;
                 $id=(int)$job['id'];
+                $activeId=$id;
+                $this->debug->write($id,'info','worker.job.claimed',[
+                    'kind'=>$job['kind'],'run_id'=>$job['run_id']??null,
+                    'profile_id'=>$job['profile_id']??null
+                ]);
                 $output->writeln('<info>Running '.$job['kind'].' job #'.$id.'...</info>');
                 try {
                     match($job['kind']) {
@@ -110,11 +144,18 @@ final class WorkJobsCommand extends Command
                         default => throw new \LogicException('Unknown job type.')
                     };
                 } catch(\Throwable $ex) {
+                    $this->debug->write($id,'error','worker.job.exception',[
+                        'exception'=>get_class($ex),'message'=>$ex->getMessage(),
+                        'file'=>$ex->getFile(),'line'=>$ex->getLine(),
+                        'trace'=>$ex->getTraceAsString()
+                    ]);
                     $output->writeln('<error>Job #'.$id.' failed: '.$ex->getMessage().'</error>');
                     $failed=true;
                 }
                 $state=(string)$this->db->fetchOne('SELECT state FROM jobs WHERE id=?',[$id]);
+                $this->debug->write($id,'info','worker.job.finished',['state'=>$state]);
                 $output->writeln('Job #'.$id.' finished with state: '.$state);
+                $activeId=null;
                 if($state==='failed') $failed=true;
                 $processed++;
                 if($jobId!==null) break;
@@ -126,6 +167,9 @@ final class WorkJobsCommand extends Command
             sleep($processed===0?$delay:1);
         } while(!$this->stopping);
         } finally {
+            $this->debug->write(0,'info','worker.shutdown',[
+                'stop_requested'=>$this->stopping,'active_job'=>$activeId
+            ]);
             $this->heartbeat->stop();
         }
         if(!$loop) $output->writeln('Processed: '.$processed.', failures: '.($failed?'yes':'none'));

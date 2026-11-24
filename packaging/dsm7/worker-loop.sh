@@ -3,6 +3,16 @@ set -eu
 APP="${1:?private application directory required}"
 VAR="${2:?persistent runtime directory required}"
 umask 077
+DIAG="$VAR/runtime/log/dup-jobs"
+OUTPUT="$DIAG/worker-output.log"
+# Expose only diagnostics to the Web Station 'http' group. Private config
+# files remain owner-only; parent folders provide traversal, not listing.
+mkdir -p "$DIAG"
+if id -nG | tr ' ' '\n' | grep -qx 'http'; then
+    chgrp http "$VAR/runtime" "$VAR/runtime/log" "$DIAG" 2>/dev/null || :
+    chmod 0710 "$VAR/runtime" "$VAR/runtime/log" 2>/dev/null || :
+    chmod 0750 "$DIAG" 2>/dev/null || :
+fi
 
 # The package service runs THIS shell as its stable PID. It supervises the
 # separate PHP worker, reaps it, records unexpected exits and restarts it.
@@ -10,7 +20,22 @@ umask 077
 child=""
 stopping=0
 log() {
-    printf '%s DUP worker: %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*"
+    line=$(printf '%s DUP worker: %s' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*")
+    printf '%s\n' "$line"
+    # Mirror supervisor events into the admin-readable private log directory.
+    # Keep at most 2 MiB + one rotation, independent of worker PHP/database.
+    file="$DIAG/supervisor.log"
+    if [ -d "$DIAG" ]; then
+        if [ -f "$file" ]; then
+            count=$(wc -c < "$file" 2>/dev/null || printf '0')
+            if [ "$count" -ge 2097152 ]; then
+                mv -f "$file" "$file.1" 2>/dev/null || :
+            fi
+        fi
+        printf '%s\n' "$line" >> "$file" 2>/dev/null || :
+        chmod 0640 "$file" 2>/dev/null || :
+        chgrp http "$file" 2>/dev/null || :
+    fi
 }
 stop_child() {
     stopping=1
@@ -62,8 +87,16 @@ while [ "$stopping" -eq 0 ]; do
     fi
 
     log "starting PHP worker: $PHP"
-    "$PHP" "$APP/bin/console" dup:jobs:work --loop --idle-sleep=5 --max-jobs=1 --env=prod --no-ansi &
+    if [ -f "$OUTPUT" ]; then
+        count=$(wc -c < "$OUTPUT" 2>/dev/null || printf '0')
+        if [ "$count" -ge 2097152 ]; then
+            mv -f "$OUTPUT" "$OUTPUT.1" 2>/dev/null || :
+        fi
+    fi
+    "$PHP" "$APP/bin/console" dup:jobs:work --loop --idle-sleep=5 --max-jobs=1 --env=prod --no-ansi >> "$OUTPUT" 2>&1 &
     child="$!"
+    chmod 0640 "$OUTPUT" 2>/dev/null || :
+    chgrp http "$OUTPUT" 2>/dev/null || :
     pid="$child"
     status=0
     wait "$pid" || status="$?"

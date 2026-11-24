@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Module\Jobs\Controller;
 
 use App\Module\Jobs\Service\JobStore;
+use App\Module\Jobs\Service\JobDebugLog;
 use App\Module\Jobs\Service\WorkerMaintenance;
 use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Jobs\Service\JobHistoryCleanup;
@@ -101,11 +102,34 @@ final class JobsController extends AbstractController
 
 
     #[Route('/jobs/worker-log',name:'app_worker_log',methods:['GET'])]
-    public function workerLog(WorkerLogReader $logs,WorkerHeartbeat $heartbeat):Response
-    {
+    public function workerLog(
+        Request $request,WorkerLogReader $logs,JobDebugLog $debug
+    ):Response {
+        $id=filter_var($request->query->get('job','0'),FILTER_VALIDATE_INT,
+            ['options'=>['min_range'=>0]]);
+        if($id===false)throw $this->createNotFoundException('Invalid diagnostic job ID.');
         return $this->render('jobs/worker-log.html.twig',[
-            'log'=>$logs->latest(),'worker'=>$heartbeat->report()
+            'log'=>$logs->latest(),
+            'supervisor_log'=>$logs->latest(true),
+            'debug'=>$debug->read($id),
+            'selected_job'=>$id
         ],new Response(status:200,headers:['Cache-Control'=>'private, no-store']));
+    }
+
+    #[Route('/jobs/debug-log/download',name:'app_job_debug_download',methods:['GET'])]
+    public function downloadDebug(Request $request,JobDebugLog $debug):Response
+    {
+        $id=filter_var($request->query->get('job','0'),FILTER_VALIDATE_INT,
+            ['options'=>['min_range'=>0]]);
+        if($id===false)throw $this->createNotFoundException('Invalid diagnostic job ID.');
+        $content=$debug->export($id);
+        if($content===null)throw $this->createNotFoundException('No debug log available.');
+        return new Response($content,200,[
+            'Content-Type'=>'application/x-ndjson; charset=utf-8',
+            'Content-Disposition'=>'attachment; filename="dup-debug-'.($id===0?'worker':'job-'.$id).'.jsonl"',
+            'X-Content-Type-Options'=>'nosniff',
+            'Cache-Control'=>'private, no-store'
+        ]);
     }
 
     #[Route('/jobs/cleanup',name:'app_job_cleanup',methods:['GET','POST'])]

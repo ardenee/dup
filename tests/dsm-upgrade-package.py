@@ -6,13 +6,13 @@ import tarfile
 from pathlib import Path
 
 root = Path(__file__).resolve().parent.parent
-spk = Path(sys.argv[1] if len(sys.argv) > 1 else root / "dist" / "DUP-DSM7-0.7.14.spk")
+spk = Path(sys.argv[1] if len(sys.argv) > 1 else root / "dist" / "DUP-DSM7-0.7.15.spk")
 with tarfile.open(spk, "r") as outer:
     info = outer.extractfile("INFO").read()
     hook = outer.extractfile("scripts/postupgrade").read()
     privilege = outer.extractfile("conf/privilege").read()
     source = outer.extractfile("package.tgz").read()
-    assert b'version="0.7.14"' in info, "Incorrect package version"
+    assert b'version="0.7.15"' in info, "Incorrect package version"
     assert b'"run-as": "package"' in privilege, "Expected restricted package runtime"
     assert hook == (root / "packaging" / "dsm7" / "scripts" / "postupgrade").read_bytes().replace(b"\r\n", b"\n")
     supervisor = (root / "packaging" / "dsm7" / "worker-loop.sh").read_bytes()
@@ -20,6 +20,8 @@ with tarfile.open(spk, "r") as outer:
                   b"mbstring", b"wait ", b"trap ", b"restarting worker"):
         assert check in supervisor, f"DSM crash supervisor missing {check!r}"
     assert b'exec "$PHP"' not in supervisor
+    for check in (b'worker-output.log',b'supervisor.log',b'chgrp http',b'chmod 0640'):
+        assert check in supervisor, f"Admin-readable DSM diagnostics missing {check!r}"
 
     for safety in (b"setup.complete", b".env.local", b"find_php", b"doctrine:migrations:migrate",
                    b"cache:clear", b"exit 1"):
@@ -49,6 +51,8 @@ with tarfile.open(fileobj=io.BytesIO(source), mode="r:gz") as inner:
         "app/src/Module/Jobs/Service/WorkerMaintenance.php",
         "app/src/Module/Jobs/Service/WorkerHeartbeat.php",
         "app/src/Module/Jobs/Service/WorkerLogReader.php",
+        "app/src/Module/Jobs/Service/JobDebugLog.php",
+        "app/templates/jobs/worker-log.html.twig",
         "app/src/Module/Jobs/Command/WorkerExitedCommand.php",
         "app/templates/jobs/worker-log.html.twig",
         "webapp/assets/jobs.js",
@@ -62,4 +66,4 @@ with tarfile.open(fileobj=io.BytesIO(source), mode="r:gz") as inner:
     assert not any(name.startswith(("webapp/vendor/", "webapp/src/", "webapp/migrations/"))
                    or name.endswith((".env.local", ".sqlite", ".db"))
                    for name in names), "Private runtime data exposed in webapp"
-print("PASS DSM 0.7.14 upgrade version, guarded migrations, new features, restricted privileges and public/private split")
+print("PASS DSM 0.7.15 upgrade version, guarded migrations, new features, restricted privileges and public/private split")

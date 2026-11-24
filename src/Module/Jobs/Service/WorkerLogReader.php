@@ -9,12 +9,15 @@ namespace App\Module\Jobs\Service;
 final class WorkerLogReader
 {
     public const DSM_PATH='/var/packages/dup/var/worker.log';
+    public const SUPERVISOR_PATH='/var/packages/dup/var/runtime/log/dup-jobs/supervisor.log';
+    public const CLI_PATH='/var/packages/dup/var/runtime/log/dup-jobs/worker-output.log';
     private const MAX_BYTES=65536;
     private const MAX_LINES=140;
 
-    public function latest():array
+    public function latest(bool $supervisor=false):array
     {
-        $path=self::DSM_PATH;
+        $path=$supervisor?self::SUPERVISOR_PATH:
+            (is_readable(self::CLI_PATH)?self::CLI_PATH:self::DSM_PATH);
         if(PHP_OS_FAMILY!=='Linux' || !is_file($path) || !is_readable($path))
             return [
                 'available'=>false,'path'=>$path,'text'=>'',

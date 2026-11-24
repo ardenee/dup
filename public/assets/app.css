@@ -408,6 +408,20 @@ tr.local-row-filtered{display:none!important}
 .job-cancel-hint{display:block;max-width:200px;line-height:1.35;margin-top:5px}
 #resolve-stalled{scroll-margin-top:20px}
 
+/* Independently recorded per-job debug log with compact, accessible context. */
+.job-debug-controls{display:flex;gap:12px;align-items:end;padding:14px 20px;
+  flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.job-debug-controls .field{min-width:180px;max-width:370px}
+.job-debug-controls input{min-width:155px}
+.debug-event-context{min-width:280px;overflow-wrap:anywhere;font-size:12px;line-height:1.6}
+.debug-event-context>div{margin-bottom:3px}
+.debug-event-context code{white-space:pre-wrap;overflow-wrap:anywhere}
+.job-detail-debug-link{display:flex;justify-content:end;margin-bottom:12px}
+@media(max-width:640px){
+  .job-debug-controls{flex-direction:column;align-items:stretch}
+  .job-debug-controls .field{max-width:none}
+  .debug-event-context{min-width:190px}
+}
 /* Limited, administrator-only worker process output for troubleshooting. */
 .worker-log-text{display:block;max-height:620px;overflow:auto;overflow-wrap:anywhere;
   white-space:pre-wrap;line-height:1.5;font-size:12px;padding:16px;
