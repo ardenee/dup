@@ -92,7 +92,7 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>DUP 0.7.6 · First-run setup</title>
+  <title>DUP 0.7.9 · First-run setup</title>
   <link rel="stylesheet" href="assets/app.css">
   <link rel="icon" type="image/png" sizes="120x120" href="assets/dup.png">
 </head>
@@ -120,7 +120,7 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
   <section class="panel panel-content">
     <h2>1. Server readiness</h2>
     <p>PHP <?= show($preflight['php']??PHP_VERSION) ?> · <?= show($preflight['platform']??PHP_OS_FAMILY) ?>.
-    <?= $https?'Secure HTTPS connection':'Localhost development connection' ?>.</p>
+    <?= $https?'Secure HTTPS connection':'Localhost connection' ?>.</p>
     <?php if(!empty($preflight['missing'])): ?>
       <div class="notice notice-error">Missing required PHP extensions: <?= show(implode(', ',$preflight['missing'])) ?>.</div>
     <?php endif; ?>
@@ -138,7 +138,7 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
     <div class="field"><label for="driver">Database type</label>
       <select id="driver" name="driver">
         <option value="mysql" <?= $old('driver','mysql')==='mysql'?'selected':'' ?>>MariaDB / MySQL (recommended)</option>
-        <option value="sqlite" <?= $old('driver')==='sqlite'?'selected':'' ?>>SQLite (small local or development use)</option>
+        <option value="sqlite" <?= $old('driver')==='sqlite'?'selected':'' ?>>SQLite (small local installations)</option>
       </select></div>
     <div class="setup-fields">
       <div class="field"><label for="db_host">Database host</label>
@@ -170,7 +170,7 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
     <p class="muted">This action creates the database if needed, initializes the schema and administrator account, writes a private configuration file, then permanently closes the installer.</p>
   </form>
 <?php endif; ?>
-<footer class="app-footer">DUP 0.7.6 · <a href="assets/license.txt">MIT License</a></footer>
+<footer class="app-footer">DUP 0.7.9 · <a href="assets/license.txt">MIT License</a></footer>
 </div>
 </body>
 </html>

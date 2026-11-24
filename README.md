@@ -1,89 +1,62 @@
 # DUP
 
-DUP is a web-based duplicate-file scanner and manager for Windows, Linux and Synology DSM. The same PHP application, scan engine, database and job worker run on all three platforms. DSM is a packaging/integration option, not a requirement of the application.
+DUP is a web-based duplicate-file scanner and manager for **Windows, Linux, and Synology DSM 7**. It uses PHP, a database and a background job worker. Synology packaging is optional; the core application is platform-independent.
 
-**Current development version: 0.7.9.** This is a major rebuild of DUP and a development preview, not a production-ready upgrade. The Synology package retains the original package ID `dup` and the `/dup/` URL. The new database schema does not migrate older profile data automatically. An upgrade must be tested using disposable data before replacing an existing installation.
+## Features
 
-**Licence:** MIT for DUP source code. Bundled dependencies retain their respective licences.
+- Create scan profiles with source and move folders, file-type filters, minimum file sizes, per-profile ignored folders and automatic scan schedules.
+- Find duplicates using file size, CRC32 (three-part or full), or SHA-256. Optionally verify candidate duplicate groups using SHA-256 without rescanning unrelated files.
+- Browse current and historical scans, search indexed files, and preview/download supported file types.
+- Rename (with cleanup rules and Find/Replace), move, delete and link duplicate files, individually or in bulk.
+- Set **File Exists** separately for each profile: Fail, Append Number or Overwrite.
+- Monitor jobs and worker health; view reports, scan history and detailed action logs. Clean up old scan results, finished jobs and resolved action records.
+- Manage administrator and read-only accounts, and view system diagnostics including required PHP extensions and database schema status.
 
-## What DUP does
-
-- Creates and edits scan profiles for source folders, move destinations, file types and matching settings; shows the number of retained completed scans, enables/disables profiles, and offers independent per-profile automatic scan schedules (hourly, every 6/12 hours, daily or weekly). A running background worker enqueues due scans without an external cron task; schedule errors and next-run times appear in Profiles.
-- Browses filesystem folders available to the server's PHP account, without a separate allowlist configured during installation
-- Runs persistent background scan jobs with progress, heartbeat, cancellation, and error reporting. The Job monitor supports profile/status filtering, paginated old jobs, readable events, direct links to scan results, and restore/action batches. Completed scan and recalculation job logs can be individually removed or pruned by retention age (30/90/180/365 days), without deleting scanned file results. File-action job logs remain protected until their batches are fully resolved and the corresponding history is explicitly retired; then they become eligible for the same job-log cleanup. Running filesystem operations cannot be cancelled mid-change.
-- Supports file-size, original CRC32 3 Part, full CRC32 and streamed SHA-256 matching. Size and CRC32 groups are candidate matches. The optional **Verify duplicates (SHA-256)** operation reads only files in those already-found groups and re-evaluates them using full-file hashes without repeating the full scan.
-- Retains indexed files from ignored folders so ignore rules can be changed without a full rescan. **Ignored folders** are editable per profile, alongside optional global defaults inherited by all profiles; updating a profile queues duplicate recalculation only for that profile.
-- Indexes ordinary, directory and dangling symbolic-link metadata (including the raw target) without following links or counting them as potential duplicate savings; link records can be searched and exported
-- Preserves prior successful scan snapshots if a later scan fails
-- Provides general/duplicate/moved/linked/quarantined-file index searches, paginated cross-scan file-action history (including restores), and duplicate browsing with collapsible matching files. From the Duplicates page itself, choose a profile and a saved scan in the adjacent selectors; no detour through Reports is needed. The Dashboard also links straight to recent scan results. Historical duplicates remain paginated but read-only, and profiles with no current snapshot open their latest retained historical scan. Reports and CSV exports remain available.
-- Filters and pages file-action batch history by profile, operation and status, with recorded per-file rename results and errors. Completed renames and fully restored file-action batches can be individually removed or pruned by retention period; partially restored, pending or uncertain recovery records are never automatically deleted. Finished job events and global audit entries remain initially; finished jobs associated with safely retired action history can then be removed separately from Job monitor.
-- Lets administrators remove individual old scans from Reports > Scan run, or prune eligible historical scans from Reports > Clean old scans (30/90/180/365 days), with confirmation and per-scan validation. Cleanup is database-only; it deletes indexed files, directories and duplicate groups for eligible old runs, without touching the filesystem. Each profile’s latest completed scan is always preserved during bulk pruning. Clearing the current scan individually archives older runs so they cannot silently become current; a fresh scan repopulates current results. Jobs, events, and audits remain; scans referenced by file-action/recovery records cannot be removed.
-- Shows authenticated System health diagnostics with PHP version/SAPI/config/memory, required PHP extensions individually highlighted as loaded or missing, database name/engine/server version, latest installed and available schema migrations plus pending count, DSM version when available, worker/queue health, automatic schedule errors, and links to related profiles, jobs and unresolved file actions. Dashboard metric cards likewise link to their source pages.
-- Uses consistent icon-based action controls with tooltips on the Dashboard, Profiles, Job Monitor, Scan History, Rename and Accounts pages. The file-management screens provide compact View, Download, Rename, Move, Link and **Delete** action icons with tooltips, plus bulk selection (up to 50 files). Delete permanently removes selected files after explicit confirmation and does not require an unselected survivor. Move preserves folder structure and can be restored; symbolic Link requires SHA-256-verified duplicates. Existing historical quarantine batches remain available for restoration but new Quarantine actions are no longer offered.
-- Provides filename cleanup, selected-file and manual Rename, with paired Find/Replace controls applied after initial cleanup. Each scan profile independently sets its **File Exists** policy (Fail, Append Number or Overwrite) in Profiles > Edit. Move and Rename use that profile's saved preference; manual renames can append a number when a target exists, and batch rename previews retain their approved names. Overwrite permanently replaces the approved destination while keeping a temporary backup for error rollback; it does not silently replace files appearing after preview.
-- Includes indexed file viewing, read-only image/PDF/text previews and streamed downloads, rejecting stale scan records and symbolic links
-- Allows administrators to add, edit or remove unused file-type presets without resetting scan history
-- Allows administrators to create, edit, disable, enable, change roles/passwords and permanently **Delete** account logins, while retaining audit events. Deleting your current account or the final active administrator is not permitted. Read-only users can browse, search and view/download indexed files without mutation rights.
-- Restores configurable file viewer preferences: enable/disable previews, approved image extensions, HTML-escaped text extensions and PDF inline viewing, without changing downloads or scan data.
-
-Permanent Delete removes only approved current-scan files, and cannot restore them. Overwrite permanently replaces an approved destination and cleans up its temporary rollback backup after success; restoring a Move does not restore the previously overwritten destination. These operations have DEV regression tests, but must still be verified against Synology-specific permissions and filesystem behavior before release. Historical scan results remain read-only, and old quarantine actions remain accessible through history and restore tools.
+**Important:** Delete permanently removes the selected file. Overwrite permanently replaces an existing destination after the user approves it. These actions cannot be undone. A moved source can be returned to its original path, but restoring a move does not recover a destination that was overwritten. Maintain backups and review affected files before confirming destructive actions.
 
 ## Requirements
 
-PHP 8.2 or later, with PDO, mbstring, intl, openssl, XML/DOM, hash, ctype, iconv and json. Enable pdo_mysql for MariaDB/MySQL (recommended), or pdo_sqlite for a small local setup. System health displays the actual required extensions and their loaded status for the running PHP profile. MySQL 8 and MariaDB 10 are supported targets.
+- PHP **8.2 or later**, with PDO, mbstring, intl, iconv, openssl, XML/DOM, ctype and hash. Enable pdo_mysql for MariaDB/MySQL.
+- MariaDB 10 or MySQL 8 is recommended; pdo_sqlite is supported for small local installations.
+- PHP-enabled web server and a PHP CLI worker with access to the scan folders. File actions need appropriate write/delete permissions.
+- **Synology DSM 7:** Install **Web Station**, **PHP 8.2+** and **MariaDB 10** first. Enable pdo_mysql in DUP's Web Station PHP profile.
 
-The PHP web account must be able to read the folders it browses. The background worker needs filesystem access to the scan sources; Move, Rename, Link and Delete operations additionally require appropriate write/delete permissions. Grant access only to directories the application is intended to manage. Filesystem permissions, not the setup wizard, govern access. No scanner folder selection is required at installation.
+## Windows or Linux installation
 
-## Install on a Windows or Linux web server
+1. Extract the generic **DUP-Web-0.7.9.zip** package into a private directory.
+2. Point Apache, IIS, or Nginx at its **dup/public/** directory. Never publicly expose src, vendor, config, var, or private environment files.
+3. Open **https://your-host/setup.php**. Provide the database connection and create the first administrator. A missing database can be created if the supplied database account has the required privileges.
+4. Sign in, create a scan profile, select accessible folders, and start a scan.
+5. Configure the background worker with a service manager, Task Scheduler, or cron. From the private application directory, a persistent worker runs with:
 
-1. Extract the generic web ZIP into a private application directory.
-2. Configure the web server to serve the application's `public/` directory with PHP enabled. Never expose `src/`, `vendor/`, `config/`, `var/` or `.env.local` over HTTP.
-3. Provide a MariaDB/MySQL account with permission to create and manage the selected database. You do not need to create the database manually: the installer creates it when missing.
-4. Open `https://your-host/setup.php`. Enter the desired database name (for example `dup2`), database credentials, and initial DUP administrator account. A missing database is created automatically; an existing populated database is never overwritten. No filesystem paths are required during installation.
-5. Sign in, create a scan profile, browse for a source and destination folder, then start a scan.
+        php bin/console dup:jobs:work --loop --idle-sleep=5 --max-jobs=1 --env=prod
 
-The installer connects to MariaDB without selecting a schema if the requested database does not yet exist, then issues `CREATE DATABASE` with a validated, quoted database name. The supplied MariaDB user must have `CREATE` privilege to create a new database and the necessary schema permissions to initialize it. Prefer a dedicated database account with narrowly scoped privileges rather than permanently saving the MariaDB root account. If creation is denied, the wizard reports the privilege error instead of requiring a manual phpMyAdmin step.
+   For scheduled, single-run processing instead use:
 
-The installer writes private configuration, creates the schema and administrator, and closes itself after successful setup. It refuses to overwrite existing private configuration or a database containing tables or views. Since the first administrator is created through the setup page, complete setup on a trusted server/network and do not leave an unconfigured installation publicly accessible.
+        php bin/console dup:jobs:work --max-jobs=1 --env=prod
 
-Non-local HTTP page requests redirect to HTTPS; insecure form submissions are rejected. Localhost HTTP is supported for development. Reverse proxies must pass the original HTTPS scheme to PHP or explicitly configure trusted proxy IPs using `DUP_TRUSTED_HTTPS_PROXIES`. The optional `DUP_HTTPS_PORT` variable sets a non-standard HTTPS port.
+Use HTTPS for remote access. The web and worker accounts must have the appropriate source and move-folder permissions.
 
-For Windows, configure PHP on Apache or IIS/FastCGI and allow the relevant service account to access media drives and writable runtime storage. For Linux, use Apache or Nginx with PHP-FPM; a sample configuration is in `packaging/platform/`.
+## Synology DSM 7 installation
 
-## Synology DSM 7
+1. Install Web Station, PHP 8.2 or later and MariaDB 10, and enable the necessary PHP extensions.
+2. Open **DSM Package Center → Manual Install** and select **DUP-DSM7-0.7.9.spk**.
+3. Open DUP at **/dup/** over HTTPS. Complete the setup wizard for a new installation, or sign in after an existing DUP v2 upgrade.
+4. Configure scan profiles, file-access permissions and schedules. The DSM package manages its background worker.
 
-Install Web Station, PHP 8.2+ and MariaDB 10 first, then use Package Center's **Manual Install** with the DUP SPK. The package provides the Web Station portal `/dup/` and opens it over HTTPS. The PHP profile must enable pdo_mysql, mbstring, intl, iconv, openssl, fileinfo and xml.
+On DSM, the web process uses the http group. The background worker must also have the necessary folder permissions. Synology MariaDB 10 commonly uses TCP port 3307, or its local socket if enabled.
 
-Complete the same web setup wizard. DUP automatically creates a missing MariaDB database if the supplied account has CREATE privilege. This is suitable for a new database name such as `dup2`; a populated legacy `dup` database is refused rather than overwritten. DUP identifies Synology DSM in the readiness panel and defaults its MariaDB 10 port to **3307** rather than 3306. If TCP is unavailable, the installer can try the local MariaDB 10 socket at `/run/mysqld/mysqld10.sock` when accessible to the PHP profile. The readiness panel reports socket visibility, and connection failures show a safe driver error code instead of a generic message. A phpMyAdmin login alone does not verify that the PHP profile can connect to the same database and host.
+**Upgrades:** Back up the DUP database and persistent package data before upgrading. Existing **DUP v2** installations receive pending database migrations and retain their data. The original **pre-v2 DUP database is not automatically converted**; use a separate, new database when replacing that version. Confirm filesystem permissions and test destructive actions on noncritical files before using them on important data.
 
-Scan folders are selected when creating profiles. The Web Station PHP process runs as `dup:http`, while DSM may initially launch the package background worker as `dup:dup`. The worker must have access through the same `http` group permissions as the web process. The DSM `postinst` script grants supplementary `http` membership to `dup` when it runs with root privileges; existing installations can be repaired with `sudo /usr/syno/sbin/synogroup --memberadd http dup` followed by a worker restart. No per-user shared-folder ACL changes are required. Scan folders must use actual DSM paths such as `/volume1/...`, not Windows mapped-drive paths.
+## Building from source
 
-**Upgrade caveat:** DUP v2.0.7.7 updates existing **DUP v2** installations in place and applies pending additive database migrations during DSM Package Center upgrade. It preserves the private `.env.local`, scan profiles and results under the package's persistent runtime directory. **Back up the MariaDB database and the package's persistent data before upgrading.** Old pre-v2 DUP databases still require a fresh installation; the package does not import or convert their legacy schema automatically.
+The release packages are built using:
 
-## Background processing
+- Python: packaging/build_release.py (generic ZIP)
+- Python: packaging/build_dsm_release.py --version 0.7.9 (Synology SPK)
 
-Run one cycle through cron, Task Scheduler or a service manager:
+The published ZIP and SPK contain the application and required dependencies, but do not include the repository test suite, runtime data or developer utilities.
 
-```bash
-php bin/console dup:jobs:work --max-jobs=1 --env=prod
-```
+## License
 
-For a persistent worker:
-
-```bash
-php bin/console dup:jobs:work --loop --idle-sleep=5 --max-jobs=1 --env=prod
-```
-
-The Synology package includes its own service adapter using the same job-worker command.
-
-## Development and preview packages
-
-Development source requires Composer dependencies and a configured local database. Generic ZIP and DSM SPK builders package vendored dependencies; end users do not need Composer.
-
-```bash
-python packaging/build_preview.py
-python packaging/build_dsm_preview.py --version 0.7.6 --php-backend 11
-php tests/setup-database.php
-```
-
-The DSM build produces `DUP-DSM7-0.7.6-compat.spk`. Both outputs are development previews and must pass a real installation test before release. DSM Web Station PHP backend IDs vary between machines and must be verified for the target.
+DUP is licensed under the **MIT License**. Bundled third-party components retain their respective licenses.

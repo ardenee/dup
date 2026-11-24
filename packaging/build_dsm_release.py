@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Create a *preview* DSM 7 SPK with private Symfony code and a CLI job service.
-
-Not a release: requires DSM installation, first-run setup and worker acceptance.
-"""
+"""Build the DUP DSM 7 installation/upgrade package."""
 from __future__ import annotations
 import argparse
 import gzip
@@ -12,7 +9,7 @@ import json
 import re
 import tarfile
 from pathlib import Path
-from build_preview import payload
+from build_release import payload
 
 ROOT=Path(__file__).resolve().parent.parent
 DSM=ROOT/"packaging"/"dsm7"
@@ -103,7 +100,7 @@ def metadata(version:str,php_backend:int,files:dict[str,bytes])->dict[str,tuple[
 
 def build(output:Path,version:str,php_backend:int)->None:
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+",version):
-        raise RuntimeError("Invalid numeric preview version")
+        raise RuntimeError("Invalid numeric package version")
     if not 8<=php_backend<=30:
         raise RuntimeError("Invalid Synology PHP Web Station backend ID")
     app=package_contents()
@@ -138,17 +135,16 @@ def build(output:Path,version:str,php_backend:int)->None:
     if not {"webapp/index.php","webapp/setup.php","webapp/assets/app.css","webapp/assets/folder-picker.js",
             "app/vendor/autoload.php","app/public/setup.php","app/bin/console","app/worker-loop.sh",
             "app/misc/nginx_global.mustache","app/LICENSE","webapp/license.txt","webapp/assets/license.txt","webapp/assets/dup.png"} <= rebuilt.keys():
-        raise RuntimeError("Preview SPK missing required application runtime files")
+        raise RuntimeError("DSM package missing required application runtime files")
     print("PASS",output.name, len(app),"files",len(web),"public paths")
     print("SHA256",hashlib.sha256(output.read_bytes()).hexdigest())
-    print("PREVIEW ONLY — not installed, not a release")
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version",default="0.7.9")
     parser.add_argument("--php-backend",type=int,default=11,
-        help="Web Station PHP backend ID, default 11 validated for PHP8.2 on the test DSM")
+        help="Web Station PHP backend ID; default 11, override for your DSM")
     parser.add_argument("--output",type=Path,default=None)
     args=parser.parse_args()
-    output=args.output or ROOT/"dist"/f"DUP-DSM7-{args.version}-compat.spk"
+    output=args.output or ROOT/"dist"/f"DUP-DSM7-{args.version}.spk"
     build(output,args.version,args.php_backend)

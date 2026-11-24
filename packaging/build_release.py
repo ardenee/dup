@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a reproducible DUP generic web-hosting PREVIEW ZIP; not a release."""
+"""Build the reproducible DUP generic PHP web-hosting ZIP."""
 from __future__ import annotations
 import argparse,hashlib,re,zipfile
 from pathlib import Path
@@ -37,6 +37,17 @@ def payload() -> dict[str,bytes]:
                 continue
             if item.name in {".env.local",".env.local.php",".DS_Store"}:
                 continue
+            # Generated developer configuration is unnecessary at runtime.
+            if name=="config/reference.php":
+                continue
+            # Exclude third-party testing helpers, but keep the real Twig
+            # parser expression classes in .../Node/Expression/Test/.
+            parts=name.split("/")
+            if len(parts)>3 and parts[0]=="vendor":
+                if (parts[1]=="symfony" and "Test" in parts[3:]) or (
+                    name.startswith("vendor/monolog/monolog/src/Monolog/Test/") or
+                    name.startswith("vendor/twig/twig/src/Test/")):
+                    continue
             if item.suffix.lower() in {".db",".sqlite",".sqlite3",".log",".pyc"}:
                 raise RuntimeError(f"Runtime file in deployment tree: {name}")
             result[name]=item.read_bytes()
@@ -83,7 +94,9 @@ def build(target: Path) -> None:
         entries={p.removeprefix("dup/"):archive.read(p) for p in archive.namelist()}
     if entries!=files:
         raise RuntimeError("ZIP verification failed")
-    if any(name.startswith(("var/","backup/","packaging/","tests/")) for name in entries):
+    if any(name.startswith(("var/","backup/","packaging/","tests/"))
+           or name=="config/reference.php"
+           for name in entries):
         raise RuntimeError("Runtime data or development artifacts in ZIP")
     if any("config.local" in name or ".env.local" in name for name in entries):
         raise RuntimeError("Private configuration file leaked into ZIP")
@@ -91,10 +104,9 @@ def build(target: Path) -> None:
         raise RuntimeError("Packaged environment contains a secret")
     print(f"PASS {target.name}: {len(files)} application files, {target.stat().st_size:,} bytes")
     print("SHA256 "+hashlib.sha256(target.read_bytes()).hexdigest())
-    print("PREVIEW ONLY: Windows/Ubuntu MariaDB passed; DSM Web Station and production web-server acceptance pending")
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
-    parser.add_argument("--output",type=Path,default=ROOT/"dist"/"DUP-Web-0.7.6-Preview.zip")
+    parser.add_argument("--output",type=Path,default=ROOT/"dist"/"DUP-Web-0.7.9.zip")
     args=parser.parse_args()
     build(args.output)
