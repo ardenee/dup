@@ -6,6 +6,7 @@ use App\Module\Jobs\Service\JobStore;
 use App\Module\Jobs\Service\WorkerMaintenance;
 use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Jobs\Service\JobHistoryCleanup;
+use App\Module\Jobs\Service\WorkerLogReader;
 use App\Module\Accounts\Domain\Account;
 use App\Module\Jobs\Repository\JobHistoryRepository;
 
@@ -98,6 +99,14 @@ final class JobsController extends AbstractController
         ]);
     }
 
+
+    #[Route('/jobs/worker-log',name:'app_worker_log',methods:['GET'])]
+    public function workerLog(WorkerLogReader $logs,WorkerHeartbeat $heartbeat):Response
+    {
+        return $this->render('jobs/worker-log.html.twig',[
+            'log'=>$logs->latest(),'worker'=>$heartbeat->report()
+        ],new Response(status:200,headers:['Cache-Control'=>'private, no-store']));
+    }
 
     #[Route('/jobs/cleanup',name:'app_job_cleanup',methods:['GET','POST'])]
     public function cleanup(Request $request,JobHistoryCleanup $cleanup):Response

@@ -407,3 +407,9 @@ tr.local-row-filtered{display:none!important}
 .job-manage-actions form{display:inline-flex;margin:0}
 .job-cancel-hint{display:block;max-width:200px;line-height:1.35;margin-top:5px}
 #resolve-stalled{scroll-margin-top:20px}
+
+/* Limited, administrator-only worker process output for troubleshooting. */
+.worker-log-text{display:block;max-height:620px;overflow:auto;overflow-wrap:anywhere;
+  white-space:pre-wrap;line-height:1.5;font-size:12px;padding:16px;
+  border-radius:8px;border:1px solid var(--line);background:#101b29;
+  color:#e8f3fa;tab-size:2}

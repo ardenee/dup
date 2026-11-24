@@ -174,6 +174,88 @@ final class JobStore
         ]);
     }
 
+    /**
+     * A service supervisor calls this only AFTER wait() confirms the specific
+     * CLI worker PID has exited. Its last WORKER_CLAIMED event proves the job
+     * belonged to that PID/host. This is stronger than a heartbeat timeout.
+     * Never requeues an action that may have modified the filesystem.
+     */
+    public function markWorkerExited(int $pid,int $exitCode,string $host):int
+    {
+        if($pid<1 || $exitCode<0 || $host==='')
+            throw new \DomainException('Invalid exited worker identity.');
+        $rows=$this->db->fetchAllAssociative(
+            "SELECT id,kind,state,worker_token,run_id,file_action_batch_id,".
+            "progress_current,progress_total,progress_bytes_current,".
+            "progress_bytes_total,progress_detail,heartbeat_at FROM jobs ".
+            "WHERE state IN ('running','cancelling') AND worker_token IS NOT NULL"
+        );
+        $count=0;
+        foreach($rows as $job) {
+            $id=(int)$job['id'];
+            $raw=$this->db->fetchOne(
+                "SELECT context FROM job_events WHERE job_id=? ".
+                "AND code='WORKER_CLAIMED' ORDER BY id DESC LIMIT 1",[$id]
+            );
+            $owner=is_string($raw)?json_decode($raw,true):null;
+            if(!is_array($owner) ||
+               (int)($owner['worker_pid']??0)!==$pid ||
+               (string)($owner['worker_host']??'')!==$host)
+                continue;
+            $this->db->transactional(function(Connection $db) use ($job,$id,$pid,$host,$exitCode,&$count):void {
+                $wasCancelling=$job['state']==='cancelling';
+                $terminal=$wasCancelling?'cancelled':'failed';
+                $code=$wasCancelling?'CANCELLATION_WORKER_EXITED':'WORKER_PROCESS_EXITED';
+                $now=gmdate('Y-m-d H:i:s');
+                $reason='The CLI worker process exited (PID '.$pid.', exit status '.
+                    $exitCode.') while this job was '.(string)$job['state'].
+                    '. Last recorded work: '.(string)($job['progress_detail']??'not available').
+                    '. Review DSM worker.log for the underlying PHP error.';
+                $updated=$db->executeStatement(
+                    'UPDATE jobs SET state=?,phase=?,error_code=?,last_failure_reason=?,'.
+                    'active_profile_id=NULL,worker_token=NULL,finished_at=? '.
+                    'WHERE id=? AND state=? AND worker_token=?',
+                    [$terminal,$wasCancelling?'cancelled':'worker_exited',$code,
+                        $reason,$now,$id,$job['state'],$job['worker_token']]
+                );
+                if($updated!==1) return;
+                if($job['kind']==='scan') {
+                    $db->executeStatement(
+                        'UPDATE scan_runs SET state=?,finished_at=?,error_count=error_count+1 '.
+                        "WHERE id=? AND state IN ('running','queued')",
+                        [$terminal,$now,(int)$job['run_id']]
+                    );
+                }
+                if($job['kind']==='duplicate-verify')
+                    $db->delete('duplicate_verification_hashes',['job_id'=>$id]);
+                if(in_array($job['kind'],['file-action','file-restore','file-rename',
+                    'file-move','file-move-restore','file-link','file-unlink',
+                    'bulk-link','bulk-quarantine','bulk-restore','bulk-unlink','file-delete'],true))
+                    $db->executeStatement(
+                        "UPDATE file_action_batches SET state='needs_review',".
+                        "error_code='WORKER_PROCESS_EXITED' ".
+                        "WHERE id=? AND state IN ('queued','executing','restore_queued','restore_executing')",
+                        [(int)$job['file_action_batch_id']]
+                    );
+                $this->event($id,$wasCancelling?'warning':'error',$code,[
+                    'description'=>'Worker process exited before recording a terminal result.',
+                    'worker_host'=>$host,'worker_pid'=>$pid,'exit_code'=>$exitCode,
+                    'previous_state'=>$job['state'],'resolved_state'=>$terminal,
+                    'last_heartbeat_at'=>$job['heartbeat_at'],
+                    'files_completed'=>(int)($job['progress_current']??0),
+                    'files_total'=>$job['progress_total']===null?null:(int)$job['progress_total'],
+                    'bytes_read'=>(int)($job['progress_bytes_current']??0),
+                    'bytes_total'=>$job['progress_bytes_total']===null?null:(int)$job['progress_bytes_total'],
+                    'last_file'=>$job['progress_detail'],
+                    'next_step'=>'Review worker.log or service logs. Only retry once the old process is gone.',
+                    'source_files'=>'This recovery only updates job metadata and cleans temporary verification evidence.'
+                ]);
+                $count++;
+            });
+        }
+        return $count;
+    }
+
     public function requestCancel(int $id): bool
     {
         return $this->db->transactional(function(Connection $db) use ($id): bool {

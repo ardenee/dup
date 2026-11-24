@@ -41,7 +41,7 @@ $base=[
 ];
 $html=$twig->render('jobs/index.html.twig',$base+['jobs'=>[$job]]);
 foreach(['data-job-resolve','/app_job_resolve?id=8',
-    'Finish stalled cancellation of job','csrf-resolve_stale_job_8',
+    'Finish stalled cancellation #8','csrf-resolve_stale_job_8',
     'Cancellation requested','data-rendered-state="cancelling"'] as $needle)
     checkUi(str_contains($html,$needle),'Stalled cancellation lacks direct action: '.$needle);
 checkUi(!str_contains($html,'Recovery history protected') &&

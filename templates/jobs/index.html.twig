@@ -12,6 +12,7 @@
   <div class="profile-page-actions">
     <a class="secondary link-button" href="{{ path('app_profiles') }}">Scan profiles</a>
     <a class="secondary link-button" href="{{ path('app_duplicates') }}">Browse duplicates</a>
+    <a class="secondary link-button" href="{{ path('app_worker_log') }}">Worker diagnostics</a>
     <a class="secondary link-button" href="{{ path('app_job_cleanup') }}">Clean old jobs</a>
   </div>
 </div>
@@ -140,19 +141,15 @@
                       title="Request cancellation of job #{{ job.id }}" aria-label="Cancel job {{ job.id }}">{{ icon('stop') }}</button>
                   </form>
                 {% endif %}
-                {% if job.state == 'cancelling' and scan_kind and overdue %}
+                {% if job.state in ['running','cancelling'] and scan_kind and overdue %}
                   <form method="post" data-job-resolve action="{{ path('app_job_resolve',{id:job.id}) }}"
-                    onsubmit="return confirm('Confirm the DUP worker is stopped. Finish cancellation of job #{{ job.id }} and release its lease? This does not kill an OS process.')">
+                    onsubmit="return confirm('Confirm the original DUP worker is stopped. Resolve stalled job #{{ job.id }} and release its lease? This does not kill an OS process.')">
                     <input type="hidden" name="_token" value="{{ csrf_token('resolve_stale_job_' ~ job.id) }}">
                     <input type="hidden" name="confirm" value="RESOLVE">
                     <button class="action-icon-button is-destructive" type="submit"
-                      title="Finish stalled cancellation of job #{{ job.id }}"
-                      aria-label="Finish stalled cancellation of job {{ job.id }}">{{ icon('stop') }}</button>
+                      title="{{ job.state == 'cancelling' ? 'Finish stalled cancellation' : 'Resolve stalled job' }} #{{ job.id }}"
+                      aria-label="{{ job.state == 'cancelling' ? 'Finish stalled cancellation' : 'Resolve stalled job' }} {{ job.id }}">{{ icon('restore') }}</button>
                   </form>
-                {% elseif job.state in ['running','cancelling'] and scan_kind and overdue %}
-                  <a class="action-icon-button" data-job-resolve href="{{ path('app_job_detail',{id:job.id}) }}#resolve-stalled"
-                     title="Review why stalled job #{{ job.id }} cannot yet be resolved"
-                     aria-label="Review stalled job {{ job.id }}">{{ icon('details') }}</a>
                 {% endif %}
                 {% if job.state in ['failed','cancelled'] and job.kind in ['scan','duplicate-verify'] %}
                   <form method="post" action="{{ path('app_job_retry',{id:job.id}) }}"
@@ -268,5 +265,5 @@
     {% endif %}
   </div>
 </section>
-<script type="module" src="{{ asset('assets/jobs.js') }}?v=0.7.13"></script>
+<script type="module" src="{{ asset('assets/jobs.js') }}?v=0.7.14"></script>
 {% endblock %}

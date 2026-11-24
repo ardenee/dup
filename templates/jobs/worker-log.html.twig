@@ -1,0 +1,48 @@
+{% extends 'base.html.twig' %}
+{% block title %}Worker diagnostics{% endblock %}
+{% block section %}Jobs / Worker diagnostics{% endblock %}
+{% block body %}
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">BACKGROUND JOBS / TROUBLESHOOTING</div>
+    <h1>Worker diagnostics</h1>
+    <p class="muted">Read the latest process output and PHP errors to identify why a scan or SHA-256 verification stopped. This page does not restart or modify jobs.</p>
+  </div>
+  <div class="profile-page-actions">
+    <a class="secondary link-button" href="{{ path('app_jobs') }}">Job Monitor</a>
+    <a class="secondary link-button" href="{{ path('app_worker_log') }}">Refresh log</a>
+  </div>
+</div>
+<section class="panel">
+  <div class="panel-heading"><h2>Process status</h2>
+    <span class="status">{{ worker.state|replace({'_':' '}) }}</span></div>
+  <dl class="details">
+    <div><dt>Processes reporting recently</dt><dd>{{ worker.active|default(0) }}</dd></div>
+    <div><dt>Jobs with recent heartbeats</dt><dd>{{ worker.jobs_responding|default(0) }}</dd></div>
+    <div><dt>Unfinished jobs</dt><dd>{{ worker.jobs_running|default(0) }}</dd></div>
+    <div><dt>Last process heartbeat</dt><dd>{{ worker.last_heartbeat|default('None') }}</dd></div>
+    <div><dt>Last job heartbeat</dt><dd>{{ worker.last_job_heartbeat|default('None') }}</dd></div>
+  </dl>
+</section>
+<section class="panel">
+  <div class="panel-heading"><div><h2>DSM worker service log</h2>
+    <p class="muted">Path: <code>{{ log.path }}</code></p></div>
+    {% if log.available %}
+      <span class="muted">Last modified: {{ log.last_updated ?? 'Unknown' }} UTC</span>
+    {% endif %}
+  </div>
+  {% if log.available %}
+    <div class="panel-content">
+      <p class="muted">Most recent log lines (up to 140, limited to 64 KiB).
+        {% if log.truncated %}Older lines are omitted.{% endif %}
+        Worker exit status, restart attempts, PHP fatal errors and missing CLI extensions appear here.</p>
+      <pre class="worker-log-text">{{ log.text }}</pre>
+    </div>
+  {% else %}
+    <div class="panel-content"><p>{{ log.reason }}</p>
+      <p class="muted">The DSM CLI process and Web Station PHP profile may have different permissions.
+        On generic Windows or Linux hosting, consult the configured worker service or task scheduler logs.</p></div>
+  {% endif %}
+</section>
+<p class="muted">Worker output can contain source paths and errors. Access is restricted to DUP administrators.</p>
+{% endblock %}

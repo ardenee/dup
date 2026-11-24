@@ -65,20 +65,52 @@ final class DuplicateVerificationWorker
                 'candidate_files'=>$total,'candidate_bytes'=>$bytesTotal,
                 'algorithm'=>'sha256'
             ]);
-            $step='reading';
-            $cursor=$this->db->executeQuery(
-                'SELECT DISTINCT f.id,f.filename,f.size_bytes,f.mtime_epoch,d.path AS directory '.
-                'FROM duplicate_group_members m JOIN duplicate_groups g ON g.id=m.group_id '.
-                'JOIN file_entries f ON f.id=m.file_entry_id '.
-                'JOIN directories d ON d.id=f.directory_id '.
-                'WHERE g.run_id=? AND g.rules_version<>1 AND f.error_code IS NULL '.
-                'AND d.is_ignored=0 ORDER BY f.id',[$runId]
-            );
-            while(($row=$cursor->fetchAssociative())!==false) {
+            // Bound memory use and finish each DB result before writing hash
+            // progress/events to the same connection. Keyset paging also
+            // avoids holding a live MySQL result cursor during I/O.
+            $lastFileId=0;
+            do {
+                $this->jobs->assertRunning($id,$token);
+                $step='finding_candidate_files';
+                $this->jobs->verificationProgress(
+                    $id,$token,$done,$total,$bytesCompleted,$bytesTotal,
+                    'Finding files to hash (after file #'.$lastFileId.')',
+                    'locating_verification_candidates'
+                );
+                $this->jobs->event($id,'info','VERIFICATION_CANDIDATE_LOOKUP',[
+                    'files_completed'=>$done,'candidate_files'=>$total,
+                    'last_indexed_file_id'=>$lastFileId
+                ]);
+                $lookupStarted=microtime(true);
+                $page=$this->db->fetchAllAssociative(
+                    'SELECT DISTINCT f.id,f.filename,f.size_bytes,f.mtime_epoch,d.path AS directory '.
+                    'FROM duplicate_group_members m JOIN duplicate_groups g ON g.id=m.group_id '.
+                    'JOIN file_entries f ON f.id=m.file_entry_id '.
+                    'JOIN directories d ON d.id=f.directory_id '.
+                    'WHERE g.run_id=? AND g.rules_version<>1 AND f.error_code IS NULL '.
+                    'AND d.is_ignored=0 AND f.id>? ORDER BY f.id LIMIT 64',
+                    [$runId,$lastFileId]
+                );
+                $this->jobs->event($id,'info','VERIFICATION_CANDIDATE_PAGE_READY',[
+                    'count'=>count($page),
+                    'elapsed_seconds'=>round(microtime(true)-$lookupStarted,3),
+                    'files_completed'=>$done
+                ]);
+                $step='reading';
+                foreach($page as $row) {
+                    $lastFileId=(int)$row['id'];
+
                 $this->jobs->assertRunning($id,$token);
                 $fileIndex=$done+1;
                 $currentPath=rtrim((string)$row['directory'],'/\\').DIRECTORY_SEPARATOR.(string)$row['filename'];
+                $step='checking_file_access';
+                $this->jobs->event($id,'info','VERIFICATION_FILE_OPENING',[
+                    'file_index'=>$fileIndex,'total_files'=>$total,
+                    'path'=>$currentPath,
+                    'description'=>'Checking source file permissions and verifying the saved path.'
+                ]);
                 $currentPath=$this->fs->checkedPath((string)$row['directory'],(string)$row['filename']);
+                $step='reading_file';
                 $size=(int)$row['size_bytes'];
                 $mtime=(int)$row['mtime_epoch'];
                 $fileBytesRead=0;
@@ -146,7 +178,8 @@ final class DuplicateVerificationWorker
                     'overall_bytes_read'=>$bytesCompleted,'overall_bytes'=>$bytesTotal
                 ]);
                 $currentPath=null;
-            }
+                }
+            } while(count($page)===64);
             if($done!==$total || $bytesCompleted!==$bytesTotal)
                 throw new \DomainException('Candidate list changed during verification.');
             $step='publishing';

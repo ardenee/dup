@@ -128,7 +128,7 @@ try {
     $context=json_decode((string)$db->fetchOne(
         "SELECT context FROM job_events WHERE job_id=? AND code='VERIFICATION_FAILED'",
         [$again]),true);
-    checked(is_array($context) && ($context['stage']??null)==='reading' &&
+    checked(is_array($context) && in_array(($context['stage']??null),['checking_file_access','reading_file'],true) &&
         isset($context['file_index'],$context['total_files'],$context['file_path']) &&
         isset($context['elapsed_seconds'],$context['worker_host'],$context['worker_pid']),
         'Failure event lacks the exact file/stage/process diagnostic data.');

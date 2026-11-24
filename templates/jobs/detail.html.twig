@@ -105,7 +105,8 @@
   No heartbeat was observed within the recovery window. This alone cannot establish
   whether the process was stopped, a storage read blocked, or the worker became unreachable.
   The last recorded file and byte counts above are evidence, not a completion estimate.
-  Inspect the DUP worker service log and <a href="{{ path('app_system') }}">System health</a>
+  Inspect the DUP worker service log and <a href="{{ path('app_system') }}">System health</a> or
+  <a href="{{ path('app_worker_log') }}">Worker diagnostics</a>
   before retrying.
   {% if is_dsm|default(false) %}
     <p>Synology worker log: <code>/var/packages/dup/var/worker.log</code></p>

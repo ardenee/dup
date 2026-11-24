@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
   <title>{% block title %}DUP{% endblock %} · Duplicate Manager</title>
-  <link rel="stylesheet" href="{{ asset('assets/app.css') }}?v=0.7.13-job-management">
+  <link rel="stylesheet" href="{{ asset('assets/app.css') }}?v=0.7.14-worker-supervisor">
   {% block page_styles %}{% endblock %}
   <link rel="icon" type="image/png" sizes="120x120" href="{{ asset('assets/dup.png') }}">
 </head>
@@ -38,7 +38,7 @@
           <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
           <button class="signout" type="submit">Sign out</button>
         </form>
-        <span class="version">0.7.13</span>
+        <span class="version">0.7.14</span>
       </div>
     </aside>
   {% endif %}
@@ -55,7 +55,7 @@
       {% endfor %}
       {% block body %}{% endblock %}
     </main>
-    <footer class="app-footer">DUP 0.7.13 · Audited filesystem actions require explicit approval · <a href="{{ asset('assets/license.txt') }}">MIT License</a></footer>
+    <footer class="app-footer">DUP 0.7.14 · Audited filesystem actions require explicit approval · <a href="{{ asset('assets/license.txt') }}">MIT License</a></footer>
   </div>
   </div>
   <script type="module" src="{{ asset('assets/table-local.js') }}?v=1"></script>
