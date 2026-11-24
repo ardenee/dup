@@ -195,7 +195,7 @@ textarea{font:inherit;color:var(--ink)}
 .worker-summary p{margin:0}
 .worker-note{font-size:13px;color:var(--muted);line-height:1.6;margin:12px 0 0}
 .worker-command{display:block;margin:12px 0 0;padding:12px 14px;border-radius:8px;background:#f1f5f9;overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}
-@media(max-width:900px){.search-form{grid-template-columns:repeat(2,minmax(0,1fr))}.search-form .field:nth-of-type(3){grid-column:1/-1}}
+@media(max-width:900px){.search-form{grid-template-columns:minmax(0,1fr)}.search-form .field:nth-of-type(3){grid-column:auto}}
 @media(max-width:620px){.search-form{grid-template-columns:minmax(0,1fr);padding:19px}.search-form .field:nth-of-type(3){grid-column:auto}.search-form .search-term,.search-form .search-actions{grid-column:auto}.ignored-folder-panel .panel-content{padding:19px}}
 
 .rename-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px 20px;padding:24px}
