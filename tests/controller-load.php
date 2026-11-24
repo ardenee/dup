@@ -13,6 +13,8 @@ $controllers = [
     \App\Module\Files\Controller\ViewerSettingsController::class,
     \App\Module\Accounts\Controller\AccountsController::class,
     \App\Module\FileActions\Controller\FileMoveController::class,
+    \App\Module\FileActions\Controller\ActionSettingsController::class,
+    \App\Module\FileActions\Controller\BulkDuplicateController::class,
     \App\Module\FileActions\Controller\FileActionController::class,
 ];
 foreach($controllers as $controller) {

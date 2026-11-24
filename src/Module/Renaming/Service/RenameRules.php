@@ -58,6 +58,16 @@ final class RenameRules
         throw new \DomainException('No available numbered filename was found.');
     }
 
+    /** True only for the expected legacy numbered filename variation. */
+    public static function isNumberedVariant(string $baseName,string $candidate): bool
+    {
+        $point=strrpos($baseName,'.');
+        $stem=$point!==false && $point>0?substr($baseName,0,$point):$baseName;
+        $ext=$point!==false && $point>0?substr($baseName,$point):'';
+        return preg_match('/^'.preg_quote($stem,'/').' \([1-9][0-9]{0,3}\)'.
+            preg_quote($ext,'/').'$/uD',$candidate)===1;
+    }
+
     public static function validateName(string $name): void
     {
         if($name==='' || $name==='.' || $name==='..' || strlen($name)>255

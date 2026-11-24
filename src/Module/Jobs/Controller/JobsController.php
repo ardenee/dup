@@ -21,8 +21,9 @@ final class JobsController extends AbstractController
             'jobs'=>$db->fetchAllAssociative(
                 'SELECT j.id,j.kind,j.phase,j.state,j.progress_current,j.progress_total,' .
                 'j.created_at,j.started_at,j.finished_at,j.heartbeat_at,j.error_code,' .
-                'p.name AS profile_name,j.run_id ' .
+                'p.name AS profile_name,j.run_id,r.id AS scan_available ' .
                 'FROM jobs j LEFT JOIN scan_profiles p ON p.id=j.profile_id ' .
+                "LEFT JOIN scan_runs r ON r.id=j.run_id AND r.state IN ('completed','archived') " .
                 'ORDER BY j.id DESC LIMIT 100'
             )
         ]);

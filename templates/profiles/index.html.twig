@@ -33,6 +33,10 @@
             <input type="hidden" name="_token" value="{{ csrf_token('scan_profile_' ~ profile.id) }}">
             <button class="secondary" type="submit" {{ not profile.enabled or profile.active_state ? 'disabled' : '' }}>Start scan</button>
           </form>
+          <a class="secondary link-button" href="{{ path('app_reports',{profile:profile.id}) }}">Scan history</a>
+          {% if profile.finished_at %}
+            <a class="secondary link-button" href="{{ path('app_duplicates',{profile:profile.id}) }}">Current duplicates</a>
+          {% endif %}
           <a class="secondary link-button" href="{{ path('app_profile_edit',{id:profile.id}) }}">Edit</a>
           <form method="post" action="{{ path('app_profile_enabled',{id:profile.id}) }}">
             <input type="hidden" name="_token" value="{{ csrf_token('toggle_profile_' ~ profile.id) }}">

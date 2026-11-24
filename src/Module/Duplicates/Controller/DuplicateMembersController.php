@@ -22,16 +22,20 @@ final class DuplicateMembersController extends AbstractController
         $group=$db->fetchAssociative(
             "SELECT g.id,g.file_count,g.size_bytes,g.rules_version,".
             "p.id AS profile_id,p.name AS profile_name,p.source_root,".
+            "r.id AS run_id,r.state AS run_state,".
             "(SELECT MIN(dm.id) FROM duplicate_group_members dm ".
             "WHERE dm.group_id=g.id) AS first_member_id ".
             "FROM duplicate_groups g JOIN scan_runs r ON r.id=g.run_id ".
             "JOIN scan_profiles p ON p.id=r.profile_id ".
-            "WHERE g.id=? AND r.state='completed' ".
-            "AND r.id=(SELECT MAX(id) FROM scan_runs ".
-            "WHERE profile_id=r.profile_id AND state='completed')",
+            "WHERE g.id=? AND r.state IN ('completed','archived')",
             [$id]
         );
-        if(!$group) throw $this->createNotFoundException('The duplicate group is no longer in the latest scan.');
+        if(!$group) throw $this->createNotFoundException('Duplicate group not found.');
+        $currentId=(int)$db->fetchOne(
+            "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=? AND state='completed'",
+            [(int)$group['profile_id']]
+        );
+        $historical=$currentId!==(int)$group['run_id'] || $group['run_state']!=='completed';
 
         $after=$this->cursor($request,'after');
         $before=$this->cursor($request,'before');
@@ -90,6 +94,7 @@ final class DuplicateMembersController extends AbstractController
         );
         $response=$this->render('duplicates/_members.html.twig',[
             'group'=>$group,'members'=>$members,'start_number'=>$startNumber,
+            'historical'=>$historical,
             'previous'=>$previous?$first:null,'next'=>$next?$last:null
         ]);
         $response->headers->set('Cache-Control','private, no-store');

@@ -8,8 +8,17 @@
   <div>
     <div class="eyebrow">SCAN RESULTS</div>
     <h1>Duplicate files</h1>
-    <p class="muted">Files from completed scans. Select a filename to reveal its matches in the same table.</p>
+    <p class="muted">Browse the latest completed scans or open an individual historical scan from its report. Expand a filename to reveal matches in the same table.</p>
+    {% if historical|default(false) %}
+      <div class="notice notice-warning"><strong>Historical scan #{{ selected_run }} — read-only.</strong>
+      These paths and hashes were indexed in a previous scan. Files may have changed or moved. Rename, move, link, quarantine, preview and download operations are disabled for historical results.</div>
+      <a class="secondary link-button" href="{{ path('app_report_run',{id:selected_run}) }}">Back to scan #{{ selected_run }}</a>
+    {% elseif selected_run|default(null) %}
+      <p><strong>Viewing scan #{{ selected_run }}</strong> — current completed results.</p>
+      <a class="secondary link-button" href="{{ path('app_report_run',{id:selected_run}) }}">Scan report</a>
+    {% endif %}
   </div>
+  {% if not historical|default(false) and not selected_run|default(null) %}
   <form method="get" action="{{ path('app_duplicates') }}" class="dup-filter">
     <label for="dup-profile">Scan profile</label>
     <select name="profile" id="dup-profile" onchange="this.form.submit()">
@@ -20,12 +29,18 @@
     </select>
     <noscript><button class="secondary" type="submit">Filter</button></noscript>
   </form>
+  {% else %}
+    <a class="secondary link-button" href="{{ path('app_duplicates') }}">Current duplicates</a>
+  {% endif %}
 </div>
 <section class="panel dup-browser" id="duplicate-groups"
   data-bulk-move-url="{{ path('app_move_preview') }}"
   data-bulk-move-token="{{ csrf_token('move_selected') }}"
   data-bulk-rename-url="{{ path('app_rename_selected') }}"
-  data-bulk-rename-token="{{ csrf_token('rename_selected') }}">
+  data-bulk-rename-token="{{ csrf_token('rename_selected') }}"
+  data-bulk-duplicate-url="{{ path('app_bulk_preview') }}"
+  data-bulk-duplicate-token="{{ csrf_token('bulk_duplicate_action') }}"
+  data-historical="{{ historical|default(false) ? '1' : '0' }}">
   <div class="dup-toolbar">
     <div class="dup-overview">
       <strong>{{ totals.total_groups|number_format }}</strong> groups
@@ -37,20 +52,27 @@
     <div class="dup-controls">
       <button type="button" data-dup-expand-all>Expand all</button>
       <button type="button" data-dup-collapse-all>Collapse all</button>
-      {% if is_granted('ROLE_ADMIN') %}
+      {% if is_granted('ROLE_ADMIN') and not historical|default(false) %}
       <span class="dup-control-divider"></span>
+      <button type="button" data-dup-select-visible>Select visible files</button>
       <button type="button" data-dup-invert>Invert selection</button>
       <button type="button" data-dup-copy disabled>Copy paths (<span data-dup-selected-count>0</span>)</button>
-      <button type="button" data-dup-rename disabled>Rename selected</button>
-      <button type="button" data-dup-move disabled>Move selected</button>
+      <button type="button" class="primary" data-dup-rename disabled>Bulk rename</button>
+      <button type="button" class="primary" data-dup-move disabled>Bulk move</button>
+      <button type="button" data-dup-quarantine disabled>Bulk quarantine</button>
+      <button type="button" data-dup-link disabled>Bulk link</button>
+      <button type="button" data-dup-clear-selection disabled>Clear selected</button>
       {% endif %}
     </div>
   </div>
   {% if groups is empty %}
-    <div class="empty-state">No duplicate groups were found in the latest completed scan for this selection.</div>
+    <div class="empty-state">No duplicate groups were indexed in this {{ selected_run|default(null) ? 'scan' : 'current scan selection' }}.</div>
   {% else %}
     {% include 'duplicates/_pager.html.twig' %}
-    <p class="dup-scroll-hint">Scroll the table sideways to view hashes and file actions.</p>
+    <p class="dup-scroll-hint">Scroll the table sideways to view hashes and file actions.
+      {% if is_granted('ROLE_ADMIN') and not historical|default(false) %}
+        Select file checkboxes in expanded rows or click Select matches (which keeps the first file unselected) to use bulk rename, move, quarantine or link (up to 50 files from one profile). Link/quarantine require full SHA-256 matching and at least one unselected survivor per group. Every bulk operation has a separate preview and explicit confirmation.
+      {% endif %}</p>
     <div class="table-wrap dup-file-table-wrap">
       <table class="dup-file-table">
         <colgroup>
@@ -64,7 +86,7 @@
           </tr>
         </thead>
         {% for group in groups %}
-          <tbody class="dup-set" id="dup-body-{{ group.id }}" data-dup-set data-group-id="{{ group.id }}" data-profile-id="{{ group.profile_id }}">
+          <tbody class="dup-set" id="dup-body-{{ group.id }}" data-dup-set data-group-id="{{ group.id }}" data-profile-id="{{ group.profile_id }}" data-file-count="{{ group.file_count }}">
             <tr class="dup-primary" data-dup-primary>
               <td class="dup-num">
                 <button type="button" class="dup-disclosure" data-dup-toggle
@@ -75,7 +97,7 @@
               </td>
               <td class="dup-file-id">
                 {% if group.first_file_id %}
-                  {% if is_granted('ROLE_ADMIN') %}
+                  {% if is_granted('ROLE_ADMIN') and not historical|default(false) %}
                   <label class="dup-select">
                     <input type="checkbox" data-dup-select value="{{ group.first_file_id }}"
                       data-file-path="{{ group.full_path }}" aria-label="Select {{ group.relative_path }}">
@@ -101,10 +123,16 @@
                 <small title="{{ group.rules_version == 1 ? 'Full-file hash' : 'Candidate matching; not full-content verification' }}">{{ method(group.rules_version) }}</small>
               </td>
               <td class="dup-file-actions">
-                {% if group.first_file_id and group.first_error_code is null %}
+                {% if historical|default(false) %}
+                  <span class="muted">Historical record</span>
+                {% elseif group.first_file_id and group.first_error_code is null %}
                   <a href="{{ path('app_file_view',{id:group.first_file_id}) }}" class="dup-action-link">View</a>
                   <a href="{{ path('app_file_download',{id:group.first_file_id}) }}" class="dup-action-link">Download</a>
                   {% if is_granted('ROLE_ADMIN') %}
+                  {% if group.file_count <= 51 %}
+                    <button type="button" class="dup-action-link" data-dup-select-group
+                      title="Select all matching files except the first, which remains the survivor">Select matches</button>
+                  {% endif %}
                   <a href="{{ path('app_rename_file',{id:group.first_file_id}) }}" class="dup-action-link">Rename</a>
                   {% if group.rules_version == 1 and group.file_count > 1 %}
                     <form method="post" action="{{ path('app_link_preview',{id:group.first_file_id}) }}">
@@ -144,9 +172,9 @@
     {% include 'duplicates/_pager.html.twig' %}
   {% endif %}
   <div class="dup-statusline">
-    <span data-dup-message role="status" aria-live="polite">Expand a group to view its matching files. File paths can be copied using the selection controls.</span>
+    <span data-dup-message role="status" aria-live="polite">{{ historical|default(false) ? 'Read-only historical scan. Expand groups to inspect the indexed files.' : 'Expand a group to view its matching files. Select files across expanded rows for bulk rename/move.' }}</span>
     <span>Size and CRC32 matches are candidates; file actions require additional verification.</span>
   </div>
 </section>
-<script type="module" src="{{ asset('assets/duplicates.js') }}?v=3"></script>
+<script type="module" src="{{ asset('assets/duplicates.js') }}?v=5"></script>
 {% endblock %}

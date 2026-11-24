@@ -9,6 +9,9 @@ if (browser) {
   const copyButton = browser.querySelector('[data-dup-copy]');
   const renameButton = browser.querySelector('[data-dup-rename]');
   const moveButton = browser.querySelector('[data-dup-move]');
+  const quarantineButton = browser.querySelector('[data-dup-quarantine]');
+  const linkButton = browser.querySelector('[data-dup-link]');
+  const clearButton = browser.querySelector('[data-dup-clear-selection]');
   const selectedCount = browser.querySelector('[data-dup-selected-count]');
 
   function tell(text) {
@@ -20,6 +23,9 @@ if (browser) {
     if (copyButton) copyButton.disabled = selected.size === 0;
     if (renameButton) renameButton.disabled = selected.size === 0;
     if (moveButton) moveButton.disabled = selected.size === 0;
+    if (quarantineButton) quarantineButton.disabled = selected.size === 0;
+    if (linkButton) linkButton.disabled = selected.size === 0;
+    if (clearButton) clearButton.disabled = selected.size === 0;
   }
 
   function restoreSelections(group) {
@@ -124,6 +130,42 @@ if (browser) {
       }
       return;
     }
+    const groupSelection = event.target.closest('[data-dup-select-group]');
+    if (groupSelection) {
+      event.preventDefault();
+      const group = groupSelection.closest('[data-dup-set]');
+      if (!group) return;
+      const total = Number(group.dataset.fileCount);
+      const primary = group.querySelector('[data-dup-primary] [data-dup-select]');
+      if (primary && selected.has(primary.value)) {
+        tell('Unselect the first file in this group to preserve it as a survivor.');
+        return;
+      }
+      const visibleMatches = [...group.querySelectorAll('[data-dup-child] [data-dup-select]')];
+      const already = visibleMatches.filter(input => selected.has(input.value)).length;
+      if (total - 1 > 50 || selected.size + total - 1 - already > 50) {
+        tell('Select up to 50 duplicates. Clear other selections or choose files individually.');
+        return;
+      }
+      await expand(group);
+      if (!expanded(group)) return;
+      const inputs = [...group.querySelectorAll('[data-dup-child] [data-dup-select]')];
+      if (inputs.length !== total - 1) {
+        tell('Not all matches were loaded. Use the group pager to select files individually.');
+        return;
+      }
+      if (selected.size + inputs.filter(input => !selected.has(input.value)).length > 50) {
+        tell('Your current selection exceeds the 50-file limit.');
+        return;
+      }
+      for (const input of inputs) {
+        input.checked = true;
+        selected.set(input.value, input.dataset.filePath);
+      }
+      syncSelected();
+      tell('Selected ' + inputs.length + ' matching files; the first file remains unselected as the survivor.');
+      return;
+    }
     const trigger = event.target.closest('[data-dup-toggle]');
     if (trigger) {
       event.preventDefault();
@@ -163,6 +205,25 @@ if (browser) {
     tell('Visible groups expanded. Files within large groups remain paginated.');
   });
 
+  browser.querySelector('[data-dup-select-visible]')?.addEventListener('click', () => {
+    const boxes = [...browser.querySelectorAll('[data-dup-select]')].filter(box => !box.closest('tr').hidden);
+    const capacity = Math.max(0, 50 - selected.size);
+    let added = 0;
+    for (const box of boxes) {
+      if (selected.has(box.value) || added >= capacity) continue;
+      box.checked = true;
+      selected.set(box.value, box.dataset.filePath);
+      added += 1;
+    }
+    syncSelected();
+    tell('Selected ' + added + ' additional visible files (maximum 50 per batch).');
+  });
+  clearButton?.addEventListener('click', () => {
+    selected.clear();
+    browser.querySelectorAll('[data-dup-select]').forEach(box => { box.checked = false; });
+    syncSelected();
+    tell('File selection cleared.');
+  });
   browser.querySelector('[data-dup-invert]')?.addEventListener('click', () => {
     const checkboxes = [...browser.querySelectorAll('[data-dup-select]')]
       .filter(box => !box.closest('tr').hidden);
@@ -171,8 +232,13 @@ if (browser) {
       if (check.checked) selected.set(check.value, check.dataset.filePath);
       else selected.delete(check.value);
     });
+    if (selected.size > 50) {
+      // Copy can remain large; mutation routes still reject batches over 50.
+      tell('Selection contains more than 50 files; choose no more than 50 for a bulk action.');
+    } else {
+      tell('Selection inverted for the files currently visible.');
+    }
     syncSelected();
-    tell('Selection inverted for the files currently visible.');
   });
 
   renameButton?.addEventListener('click', () => {
@@ -224,6 +290,37 @@ if (browser) {
     document.body.appendChild(form);
     form.submit();
   });
+
+  function submitBulkDuplicate(kind) {
+    if (!selected.size || selected.size > 50) {
+      tell('Select between 1 and 50 files for a bulk action.');
+      return;
+    }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = browser.dataset.bulkDuplicateUrl;
+    for (const [name, value] of [
+      ['_token', browser.dataset.bulkDuplicateToken],
+      ['action_kind', kind]
+    ]) {
+      const field = document.createElement('input');
+      field.type = 'hidden';
+      field.name = name;
+      field.value = value;
+      form.appendChild(field);
+    }
+    for (const id of selected.keys()) {
+      const field = document.createElement('input');
+      field.type = 'hidden';
+      field.name = 'files[]';
+      field.value = id;
+      form.appendChild(field);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  }
+  quarantineButton?.addEventListener('click', () => submitBulkDuplicate('bulk_quarantine'));
+  linkButton?.addEventListener('click', () => submitBulkDuplicate('bulk_link'));
 
   copyButton?.addEventListener('click', async () => {
     if (!selected.size) return;

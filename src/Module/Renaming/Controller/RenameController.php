@@ -5,6 +5,7 @@ namespace App\Module\Renaming\Controller;
 use App\Module\Accounts\Domain\Account;
 use App\Module\Renaming\Service\RenameRules;
 use App\Module\Renaming\Service\RenameService;
+use App\Module\FileActions\Service\ActionSettings;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -26,7 +27,7 @@ final class RenameController extends AbstractController
     }
 
     #[Route('/rename',name:'app_rename',methods:['GET'])]
-    public function index(Request $request,RenameService $renames): Response
+    public function index(Request $request,RenameService $renames,ActionSettings $settings): Response
     {
         $profiles=$renames->profiles();
         $first=(int)($profiles[0]['id']??0);
@@ -41,7 +42,8 @@ final class RenameController extends AbstractController
         $unders=$this->number($request->query->get('unders'),0);
         $collapse=$request->query->get('collapse','1')==='1';
         $dups=$request->query->get('dups')==='1';
-        $collision=(string)$request->query->get('collision','reject');
+        $collision=(string)$request->query->get('collision',
+            $settings->policy()===ActionSettings::NUMBER?'number':'reject');
         if(!in_array($collision,['reject','number'],true))
             throw $this->createNotFoundException('Invalid collision policy.');
         $after=$this->number($request->query->get('after'),0);

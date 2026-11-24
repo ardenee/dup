@@ -9,6 +9,7 @@ final class FileActionsModule implements ModuleInterface
     public function id(): string {return 'file-actions';}
     public function navigation(): array
     {
-        return [['route'=>'app_actions','label'=>'File actions']];
+        return [['route'=>'app_actions','label'=>'File actions'],
+                ['route'=>'app_action_settings','label'=>'Action settings']];
     }
 }

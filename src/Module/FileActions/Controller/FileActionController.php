@@ -23,7 +23,7 @@ final class FileActionController extends AbstractController
     public function index(Request $request,FileActionHistoryRepository $history): Response
     {
         $kind=(string)$request->query->get('kind','');
-        if($kind!=='' && !in_array($kind,['quarantine','link','move','rename'],true))
+        if($kind!=='' && !in_array($kind,['quarantine','link','move','rename','bulk_quarantine','bulk_link'],true))
             throw $this->createNotFoundException('Invalid action type.');
         $state=(string)$request->query->get('state','');
         $states=$history->states();
@@ -99,6 +99,8 @@ final class FileActionController extends AbstractController
         }
         if($batch['action_kind']==='move')
             return $this->redirectToRoute('app_move_detail',['id'=>$id]);
+        if(in_array($batch['action_kind'],['bulk_quarantine','bulk_link'],true))
+            return $this->redirectToRoute('app_bulk_detail',['id'=>$id]);
         return $this->render('actions/detail.html.twig',['batch'=>$batch]);
     }
 

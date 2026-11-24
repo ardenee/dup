@@ -3,7 +3,7 @@
   <tr class="dup-child" data-dup-child>
     <td class="dup-num dup-child-num">{{ start_number + loop.index0 }}</td>
     <td class="dup-file-id">
-      {% if is_granted('ROLE_ADMIN') %}
+      {% if is_granted('ROLE_ADMIN') and not historical|default(false) %}
       <label class="dup-select">
         <input type="checkbox" data-dup-select value="{{ file.file_entry_id }}"
           data-file-path="{{ file.full_path }}" aria-label="Select {{ file.relative_path }}">
@@ -18,7 +18,9 @@
     <td class="dup-file-date">{{ file.mtime_epoch|date('Y-m-d H:i','UTC') }}</td>
     <td class="dup-file-hash">{{ hash(file.hash_value) }}</td>
     <td class="dup-file-actions">
-      {% if file.error_code is null %}
+      {% if historical|default(false) %}
+        <span class="muted">Historical record</span>
+      {% elseif file.error_code is null %}
         <a class="dup-action-link" href="{{ path('app_file_view',{id:file.file_entry_id}) }}">View</a>
         <a class="dup-action-link" href="{{ path('app_file_download',{id:file.file_entry_id}) }}">Download</a>
         {% if is_granted('ROLE_ADMIN') %}

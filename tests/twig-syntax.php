@@ -17,6 +17,8 @@ $files = [
     'files/settings.html.twig',
     'accounts/index.html.twig',
     'jobs/index.html.twig',
+    'actions/settings.html.twig',
+    'actions/bulk.html.twig',
     'actions/index.html.twig',
     'actions/_pager.html.twig',
     'actions/rename-detail.html.twig',

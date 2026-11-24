@@ -25,7 +25,7 @@ foreach(['/accounts','/settings/viewer','/settings/ignored-folders','/profiles',
     check(!canReach($rules,'GET',$url,'ROLE_USER'),'User gained administrative GET '.$url);
     check(canReach($rules,'GET',$url,'ROLE_ADMIN'),'Administrator blocked on '.$url);
 }
-foreach(['/move/preview','/actions/link/preview/12','/accounts/save','/settings/viewer','/profiles/1/scan','/reports/run/14/remove','/rename/selected'] as $url) {
+foreach(['/move/preview','/actions/link/preview/12','/accounts/save','/settings/viewer','/profiles/1/scan','/settings/actions','/actions/bulk/preview','/actions/bulk/21/confirm','/actions/bulk/21/restore','/reports/run/14/remove','/rename/selected'] as $url) {
     check(!canReach($rules,'POST',$url,'ROLE_USER'),'User gained a mutation endpoint '.$url);
     check(canReach($rules,'POST',$url,'ROLE_ADMIN'),'Administrator blocked POST '.$url);
 }

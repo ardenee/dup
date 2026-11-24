@@ -25,7 +25,7 @@
       <label for="action-kind">Operation</label>
       <select id="action-kind" name="kind">
         <option value="">All operations</option>
-        {% for option,label in {'quarantine':'Quarantine','link':'Link','move':'Move','rename':'Rename'} %}
+        {% for option,label in {'quarantine':'Quarantine','link':'Link','move':'Move','rename':'Rename','bulk_quarantine':'Bulk quarantine','bulk_link':'Bulk link'} %}
           <option value="{{ option }}" {{ kind == option ? 'selected' : '' }}>{{ label }}</option>
         {% endfor %}
       </select>

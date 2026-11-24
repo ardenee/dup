@@ -71,7 +71,10 @@ final class FileMoveWorker
                         (string)$item['source_root'],$moveRoot,
                         $directory,(string)$item['filename'],!$restoring
                     );
-                    if(!$this->fs->samePath($planned,$target))
+                    if(!$this->fs->samePath($planned,$target) &&
+                        (!$this->fs->samePath(dirname($planned),dirname($target)) ||
+                         !\App\Module\Renaming\Service\RenameRules::isNumberedVariant(
+                             basename($planned),basename($target))))
                         throw new \DomainException('Move destination changed since confirmation.');
                     if(!$restoring) {
                         if($item['file_error']!==null)

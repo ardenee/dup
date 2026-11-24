@@ -6,7 +6,10 @@
   <div class="eyebrow">HISTORICAL SCAN REPORT</div>
   <h1>Run #{{ run.id }}</h1>
   <p class="muted">{{ run.profile_name }} · <span class="status">{{ run.state }}</span> · {{ run.started_at ?? 'Not started' }} UTC</p>
-</div><a class="secondary link-button" href="{{ path('app_reports',{profile:run.profile_id}) }}">Back to reports</a></div>
+</div><div class="profile-page-actions">
+  <a class="secondary link-button" href="{{ path('app_duplicates',{run:run.id}) }}">Browse this scan's duplicates</a>
+  <a class="secondary link-button" href="{{ path('app_reports',{profile:run.profile_id}) }}">Back to reports</a>
+</div></div>
 
 {% if run.state not in ['completed','archived'] %}
   <div class="notice notice-warning"><strong>Incomplete scan:</strong> these figures may be partial. DUP only includes current completed runs in storage summaries.</div>

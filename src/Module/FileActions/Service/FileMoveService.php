@@ -15,7 +15,8 @@ final class FileMoveService
         private readonly Connection $db,
         private readonly SafeFileSystem $fs,
         private readonly MovePathPlanner $paths,
-        private readonly FileActionService $actions
+        private readonly FileActionService $actions,
+        private readonly ActionSettings $settings
     ) {}
 
     /** @param list<int> $ids */
@@ -52,6 +53,12 @@ final class FileMoveService
                 (string)$file['source_root'],$moveRoot,
                 (string)$file['directory'],(string)$file['filename']
             );
+            if($this->settings->policy()===ActionSettings::NUMBER) {
+                $numbered=\App\Module\Renaming\Service\RenameRules::availableName(
+                    dirname($target),basename($target),$destinations
+                );
+                $target=dirname($target).DIRECTORY_SEPARATOR.$numbered;
+            }
             $key=PHP_OS_FAMILY==='Windows'?mb_strtolower($target):$target;
             if(isset($destinations[$key]) || file_exists($target) || is_link($target))
                 throw new \DomainException('A target file already exists or appears more than once in the batch.');

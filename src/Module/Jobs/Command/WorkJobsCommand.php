@@ -9,6 +9,7 @@ use App\Module\Duplicates\Service\IgnoreRebuildWorker;
 use App\Module\FileActions\Service\FileActionWorker;
 use App\Module\FileActions\Service\FileMoveWorker;
 use App\Module\FileActions\Service\FileLinkWorker;
+use App\Module\FileActions\Service\BulkDuplicateWorker;
 use App\Module\Renaming\Service\RenameWorker;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -29,6 +30,7 @@ final class WorkJobsCommand extends Command
         private readonly FileActionWorker $fileActions,
         private readonly FileMoveWorker $moves,
         private readonly FileLinkWorker $links,
+        private readonly BulkDuplicateWorker $bulkDuplicates,
         private readonly RenameWorker $renames,
         private readonly Connection $db,
         private readonly WorkerHeartbeat $heartbeat
@@ -92,6 +94,7 @@ final class WorkJobsCommand extends Command
                         'file-rename' => $this->renames->run($job),
                         'file-move','file-move-restore' => $this->moves->run($job),
                         'file-link','file-unlink' => $this->links->run($job),
+                        'bulk-link','bulk-quarantine','bulk-restore','bulk-unlink' => $this->bulkDuplicates->run($job),
                         default => throw new \LogicException('Unknown job type.')
                     };
                 } catch(\Throwable $ex) {

@@ -5,14 +5,18 @@
 <div class="page-heading"><div><div class="eyebrow">DUPLICATE COMPARISON</div><h1>Group #{{ group.id }}</h1>
   <p class="muted">{{ group.profile_name }} · {{ group.file_count|number_format }} files · {{ group.size_bytes|number_format }} bytes each</p>
   <p><span class="status">{{ group.rules_version == 1 ? 'Verified SHA-256' : (group.rules_version == 2 ? 'CRC32 3 Part — candidate' : (group.rules_version == 3 ? 'CRC32 Full — candidate' : 'Size only — candidate')) }}</span></p>
-</div><a class="secondary link-button" href="{{ path('app_duplicates') }}">Back to groups</a></div>
+</div><a class="secondary link-button" href="{{ path('app_duplicates',historical|default(false) ? {run:group.run_id} : {profile:group.profile_id}) }}">Back to groups</a></div>
+{% if historical|default(false) %}
+  <div class="notice notice-warning"><strong>Historical scan #{{ group.run_id }} — read-only.</strong>
+  File paths and match results are from the recorded scan; disk actions and downloads are unavailable.</div>
+{% endif %}
 <div class="stats-grid">
   <div class="stat"><span>Files</span><strong>{{ group.file_count|number_format }}</strong></div>
   <div class="stat"><span>Bytes per file</span><strong>{{ group.size_bytes|number_format }}</strong></div>
   <div class="stat"><span>Potential reclaimable bytes</span><strong>{{ group.reclaimable_bytes|number_format }}</strong></div>
 </div>
 <section class="panel">
-  <div class="panel-heading"><h2>File members</h2><span class="muted">Quarantine is reversible and always requires confirmation</span></div>
+  <div class="panel-heading"><h2>File members</h2><span class="muted">{{ historical|default(false) ? 'Historical records only — no filesystem actions' : 'Quarantine is reversible and requires confirmation' }}</span></div>
   {% if members is empty %}
     <div class="empty-state">No file records in this group.</div>
   {% else %}
@@ -22,9 +26,10 @@
       <td class="group-size">{{ file.size_bytes|number_format }}</td>
       <td>{{ file.mtime_epoch }}</td>
       <td><code>{{ file.hash_value ?? 'Not computed' }}</code></td>
-      <td>{% if file.error_code is null %}<a class="text-link" href="{{ path('app_file_view',{id:file.file_entry_id}) }}">View</a>
+      <td>{% if historical|default(false) %}<span class="muted">Historical record</span>
+        {% elseif file.error_code is null %}<a class="text-link" href="{{ path('app_file_view',{id:file.file_entry_id}) }}">View</a>
         <a class="text-link" href="{{ path('app_file_download',{id:file.file_entry_id}) }}">Download</a>
-        {% if is_granted('ROLE_ADMIN') %}<a class="text-link" href="{{ path('app_rename_file',{id:file.file_entry_id}) }}">Rename</a>{% endif %} {% endif %}{% if is_granted('ROLE_ADMIN') and group.rules_version == 1 and group.file_count > 1 and file.error_code is null %}
+        {% if is_granted('ROLE_ADMIN') %}<a class="text-link" href="{{ path('app_rename_file',{id:file.file_entry_id}) }}">Rename</a>{% endif %} {% endif %}{% if is_granted('ROLE_ADMIN') and not historical|default(false) and group.rules_version == 1 and group.file_count > 1 and file.error_code is null %}
         <form method="post" action="{{ path('app_link_preview',{id:file.file_entry_id}) }}">
           <input type="hidden" name="_token" value="{{ csrf_token('preview_link_' ~ file.file_entry_id) }}">
           <button type="submit" class="secondary">Preview link</button></form>

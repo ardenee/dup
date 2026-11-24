@@ -7,6 +7,7 @@ use App\Module\FileActions\Service\FileMoveWorker;
 use App\Module\FileActions\Service\MovePathPlanner;
 use App\Module\FileActions\Service\FileActionService;
 use App\Module\FileActions\Service\SafeFileSystem;
+use App\Module\FileActions\Service\ActionSettings;
 use App\Module\Profiles\Service\DirectoryBrowser;
 use App\Module\Jobs\Service\JobStore;
 use Doctrine\DBAL\DriverManager;
@@ -29,6 +30,7 @@ try {
     $db=DriverManager::getConnection(['driver'=>'pdo_sqlite','memory'=>true]);
     foreach([
         'CREATE TABLE scan_profiles (id INT PRIMARY KEY,name TEXT,source_root TEXT,move_root TEXT)',
+        'CREATE TABLE action_settings (setting_key TEXT PRIMARY KEY,setting_value TEXT,updated_at TEXT)',
         'CREATE TABLE scan_runs (id INT PRIMARY KEY,profile_id INT,state TEXT,started_at TEXT)',
         'CREATE TABLE directories (id INT PRIMARY KEY,path TEXT,run_id INT,is_ignored INT)',
         'CREATE TABLE file_entries (id INT PRIMARY KEY,filename TEXT,directory_id INT,run_id INT,size_bytes INT,mtime_epoch INT,error_code TEXT)',
@@ -51,7 +53,7 @@ try {
     $planner=new MovePathPlanner($fs);
     $jobs=new JobStore($db,new DirectoryBrowser());
     $actions=new FileActionService($db,$fs);
-    $service=new FileMoveService($db,$fs,$planner,$actions);
+    $service=new FileMoveService($db,$fs,$planner,$actions,new ActionSettings($db));
     checkMove($planner->destination($scan,$to,$sub,'chapter.m4b')===$destination,
         'Destination does not preserve folders');
     try{$planner->destination($scan,$scan,$sub,'chapter.m4b');throw new RuntimeException('Allowed root to equal source');}
@@ -102,7 +104,37 @@ try {
         'Restored batch state incorrect');
     checkMove((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action='FILE_MOVE_RESTORED'")===1,
         'Restore audit missing');
-    echo "PASS reversible same-device file move, hierarchy, collisions, SHA-256, job and audit\n";
+
+    // Legacy "Append Number" must be resolved in the preview and must not
+    // replace either existing files or the original during execution.
+    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
+    file_put_contents($destination,'KEEP EXISTING');
+    (new ActionSettings($db))->save(ActionSettings::NUMBER,1);
+    $numbered=$service->plan([1],1);
+    $second=$service->details($numbered);
+    $numberedPath=dirname($destination).DIRECTORY_SEPARATOR.'chapter (1).m4b';
+    checkMove($second['items'][0]['target_path']===$numberedPath,
+        'Append Number failed to produce the expected preview path');
+    checkMove(file_exists($original),'Append Number preview moved the source');
+    $numberedJob=$service->confirm($numbered,1);
+    $job=$jobs->claimNext($numberedJob);
+    checkMove($job!==null,'Numbered move job was not claimed');
+    (new FileMoveWorker($db,$jobs,$fs,$planner,$actions))->run($job);
+    checkMove(!file_exists($original) && file_exists($numberedPath),
+        'Numbered move did not execute');
+    checkMove(file_get_contents($destination)==='KEEP EXISTING',
+        'Existing target was overwritten by numbered move');
+    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
+    $secondRestore=$service->restore($numbered,1);
+    $job=$jobs->claimNext($secondRestore);
+    checkMove($job!==null,'Numbered restore job was not claimed');
+    (new FileMoveWorker($db,$jobs,$fs,$planner,$actions))->run($job);
+    checkMove(file_exists($original) && !file_exists($numberedPath),
+        'Numbered move was not reversible');
+    checkMove(file_get_contents($destination)==='KEEP EXISTING',
+        'Restore changed the original destination');
+
+    echo "PASS reversible same-device file move, preview numbering, collisions, SHA-256, restore and audit\n";
 } finally {
     // Clean up ONLY the uniquely named temporary test directory.
     $walk=function(string $path) use (&$walk):void {

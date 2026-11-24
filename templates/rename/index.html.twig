@@ -20,7 +20,7 @@
       <select id="dots" name="dots"><option value="0" {{ dots == 0 ? 'selected' : '' }}>Keep</option><option value="1" {{ dots == 1 ? 'selected' : '' }}>Change to spaces</option><option value="2" {{ dots == 2 ? 'selected' : '' }}>Change to underscores</option></select></div>
     <div class="field"><label for="unders">Underscores in filename</label>
       <select id="unders" name="unders"><option value="0" {{ unders == 0 ? 'selected' : '' }}>Keep</option><option value="1" {{ unders == 1 ? 'selected' : '' }}>Change to spaces</option><option value="2" {{ unders == 2 ? 'selected' : '' }}>Change to dots</option></select></div>
-    <div class="field"><label for="collision">Existing filename conflicts</label>
+    <div class="field"><label for="collision">Existing filename conflicts (<a href="{{ path('app_action_settings') }}">global default</a>)</label>
       <select id="collision" name="collision">
         <option value="reject" {{ collision == 'reject' ? 'selected' : '' }}>Stop and report conflict (default)</option>
         <option value="number" {{ collision == 'number' ? 'selected' : '' }}>Use next available numbered name</option>

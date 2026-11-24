@@ -1,0 +1,83 @@
+{% extends 'base.html.twig' %}
+{% block title %}Bulk duplicate batch #{{ batch.id }}{% endblock %}
+{% block section %}File actions / Bulk #{{ batch.id }}{% endblock %}
+{% block body %}
+{% set is_link = batch.action_kind == 'bulk_link' %}
+<div class="page-heading">
+  <div><div class="eyebrow">VERIFIED BULK DUPLICATE ACTION</div>
+    <h1>{{ is_link ? 'Bulk symbolic links' : 'Bulk quarantine' }} #{{ batch.id }}</h1>
+    <p class="muted">{{ batch.profile_name }} · {{ batch.items|length }} files ·
+      <span class="status">{{ batch.state|replace({'_':' '}) }}</span></p>
+  </div>
+  <a class="secondary link-button" href="{{ path('app_actions') }}">File action history</a>
+</div>
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Selected files and protected survivors</h2>
+    <span class="muted">Read-only approved paths</span>
+  </div>
+  <div class="panel-content">
+    <p>The background worker checks complete SHA-256 hashes for each file and an unselected survivor before changing anything. Every original is stored in a private recovery folder. Different files may succeed or fail independently, with their outcomes recorded below. Existing destinations can never be overwritten.</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Original file</th><th>Retained original</th>
+      <th>{{ is_link ? 'Link survivor' : 'Unselected verified survivor' }}</th>
+      <th>Bytes</th><th>Status</th><th>Error</th></tr></thead>
+    <tbody>{% for item in batch.items %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td><code>{{ item.source_path }}</code></td>
+        <td><code>{{ item.target_path }}</code></td>
+        <td>
+          {% if item.survivor_directory and item.survivor_filename %}
+            <code>{{ item.survivor_directory }}{{ item.survivor_directory ends with '/' or item.survivor_directory ends with '\\' ? '' : '/' }}{{ item.survivor_filename }}</code>
+          {% elseif is_link %}
+            <code>{{ item.link_target_path }}</code>
+          {% else %}
+            Entry #{{ item.survivor_file_entry_id }}
+          {% endif %}
+        </td>
+        <td>{{ item.expected_size|number_format }}</td>
+        <td><span class="status">{{ item.state|replace({'_':' '}) }}</span></td>
+        <td>{{ item.result_code ?? '—' }}</td>
+      </tr>
+    {% endfor %}</tbody>
+    <tfoot><tr><td colspan="7">{{ batch.items|length }} files in this action batch</td></tr></tfoot>
+  </table></div>
+</section>
+{% if batch.state == 'planned' %}
+  {% set approval = is_link ? 'LINK' : 'QUARANTINE' %}
+  <section class="panel panel-content">
+    <h2>Confirm bulk {{ is_link ? 'link replacement' : 'quarantine' }}</h2>
+    <div class="notice notice-warning">Each selected source must have at least one *unselected* fully verified duplicate. A failed hash, changed source, stale scan or destination conflict prevents that file from being changed.</div>
+    <form method="post" action="{{ path('app_bulk_confirm',{id:batch.id}) }}">
+      <input type="hidden" name="_token" value="{{ csrf_token('bulk_confirm_' ~ batch.id) }}">
+      <div class="field">
+        <label for="bulk-confirm">Type {{ approval }} to authorize {{ batch.items|length }} file operations</label>
+        <input id="bulk-confirm" name="confirm" pattern="{{ approval }}" required autocomplete="off">
+      </div>
+      <button class="primary" type="submit">Confirm and queue bulk action</button>
+    </form>
+    <p class="muted">Preview expires: {{ batch.expires_at }} (UTC).</p>
+  </section>
+{% elseif batch.state in ['completed','partial'] %}
+  <section class="panel panel-content">
+    <h2>Restore retained originals</h2>
+    <p>Only files successfully quarantined or linked will be restored. Changed link paths, mismatched backup hashes and occupied source locations are rejected.</p>
+    <form method="post" action="{{ path('app_bulk_restore',{id:batch.id}) }}">
+      <input type="hidden" name="_token" value="{{ csrf_token('bulk_restore_' ~ batch.id) }}">
+      <div class="field">
+        <label for="bulk-restore-confirm">Type RESTORE to authorize restoration</label>
+        <input id="bulk-restore-confirm" name="confirm" pattern="RESTORE" required autocomplete="off">
+      </div>
+      <button class="secondary" type="submit">Queue bulk restore</button>
+    </form>
+  </section>
+{% elseif batch.state == 'needs_review' %}
+  <div class="notice notice-warning"><strong>Manual recovery required.</strong> A filesystem rollback failed or the worker stopped in an unsafe state. Review the per-item paths and job events before any further action.</div>
+{% else %}
+  <section class="panel panel-content">
+    <p>For current progress and errors, inspect the <a href="{{ path('app_jobs') }}">Job monitor</a>.</p>
+  </section>
+{% endif %}
+{% endblock %}

@@ -29,7 +29,11 @@
           </td>
           <td data-field="heartbeat" class="muted">{{ job.heartbeat_at ?? '—' }} UTC</td>
           <td><span data-field="error">{{ job.error_code ?? '—' }}</span>
-            <div><a class="text-link" href="{{ path('app_job_events',{id:job.id}) }}" target="_blank" rel="noopener">Events</a></div></td>
+            <div><a class="text-link" href="{{ path('app_job_events',{id:job.id}) }}" target="_blank" rel="noopener">Events</a></div>
+            {% if job.run_id and job.scan_available %}
+              <div><a class="text-link" href="{{ path('app_report_run',{id:job.run_id}) }}">Scan #{{ job.run_id }}</a></div>
+              <div><a class="text-link" href="{{ path('app_duplicates',{run:job.run_id}) }}">Browse scan duplicates</a></div>
+            {% endif %}</td>
           <td>{% if job.state in ['queued','running','cancelling'] %}
             <form method="post" action="{{ path('app_job_cancel',{id:job.id}) }}">
               <input type="hidden" name="_token" value="{{ csrf_token('cancel_job_' ~ job.id) }}">

@@ -25,7 +25,7 @@ final class ActionHistoryRepository
             'JOIN scan_profiles p ON p.id=b.profile_id '.
             'JOIN file_entries f ON f.id=i.file_entry_id '.
             'LEFT JOIN scan_runs r ON r.id=f.run_id '.
-            "WHERE b.action_kind IN ('move','link','quarantine')";
+            "WHERE b.action_kind IN ('move','link','quarantine','bulk_link','bulk_quarantine')";
         $params=[];
         if($profile!==null) {
             $from.=' AND b.profile_id=:profile';

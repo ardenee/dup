@@ -32,6 +32,24 @@ final class DuplicatesController extends AbstractController
             'ORDER BY p.name'
         );
         $profile=$this->cursor($request,'profile');
+        $selectedRun=$this->cursor($request,'run');
+        $historical=false;
+        $runInfo=null;
+        if($selectedRun!==null) {
+            $runInfo=$db->fetchAssociative(
+                'SELECT r.id,r.profile_id,r.state,r.finished_at,p.name AS profile_name '.
+                'FROM scan_runs r JOIN scan_profiles p ON p.id=r.profile_id '.
+                "WHERE r.id=? AND r.state IN ('completed','archived')",[$selectedRun]
+            );
+            if(!$runInfo || ($profile!==null && $profile!==(int)$runInfo['profile_id']))
+                throw $this->createNotFoundException('No completed scan matches this selection.');
+            $profile=(int)$runInfo['profile_id'];
+            $currentId=(int)$db->fetchOne(
+                "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=? AND state='completed'",
+                [$profile]
+            );
+            $historical=$currentId!==$selectedRun || $runInfo['state']!=='completed';
+        }
         $after=$this->cursor($request,'after');
         $before=$this->cursor($request,'before');
         $where=" FROM duplicate_groups g " .
@@ -40,10 +58,12 @@ final class DuplicatesController extends AbstractController
             "(SELECT MIN(fm.id) FROM duplicate_group_members fm WHERE fm.group_id=g.id) " .
             "LEFT JOIN file_entries firstf ON firstf.id=firstm.file_entry_id " .
             "LEFT JOIN directories firstd ON firstd.id=firstf.directory_id " .
-            "WHERE r.state='completed' AND r.id=(SELECT MAX(id) FROM scan_runs " .
-            "WHERE profile_id=r.profile_id AND state='completed')";
-        $params=[];
-        if($profile!==null) {
+            ($selectedRun!==null
+                ? 'WHERE g.run_id=:selected_run'
+                : "WHERE r.state='completed' AND r.id=(SELECT MAX(id) FROM scan_runs " .
+                  "WHERE profile_id=r.profile_id AND state='completed')");
+        $params=$selectedRun!==null?['selected_run'=>$selectedRun]:[];
+        if($profile!==null && $selectedRun===null) {
             $where.=' AND p.id=:profile';
             $params['profile']=$profile;
         }
@@ -85,7 +105,7 @@ final class DuplicatesController extends AbstractController
         unset($row);
         $first=$rows?(int)$rows[0]['id']:null;
         $last=$rows?(int)$rows[count($rows)-1]['id']:null;
-        $baseParams=$profile===null?[]:['profile'=>$profile];
+        $baseParams=$selectedRun!==null?['selected_run'=>$selectedRun]:($profile===null?[]:['profile'=>$profile]);
         $prior=$first===null?false:(bool)$db->fetchOne(
             'SELECT 1'.$where.' AND g.id<:cursor LIMIT 1',
             array_merge($baseParams,['cursor'=>$first])
@@ -114,6 +134,7 @@ final class DuplicatesController extends AbstractController
         ));
         return $this->render('duplicates/index.html.twig',[
             'groups'=>$rows,'profiles'=>$profiles,'selected_profile'=>$profile,
+            'selected_run'=>$selectedRun,'run_info'=>$runInfo,'historical'=>$historical,
             'previous'=>$prior?$first:null,'next'=>$later?$last:null,
             'totals'=>$totals ?: ['total_groups'=>0,'total_members'=>0,'reclaimable_bytes'=>0],
             'page_start'=>$pageStart,'page_end'=>$pageEnd,'page_rows'=>$pageRows,
@@ -126,13 +147,18 @@ final class DuplicatesController extends AbstractController
     {
         $group=$db->fetchAssociative(
             "SELECT g.id,g.group_key,g.size_bytes,g.file_count,g.reclaimable_bytes," .
-            "g.rules_version,r.id AS run_id,p.name AS profile_name " .
+            "g.rules_version,r.id AS run_id,r.state AS run_state,p.id AS profile_id," .
+            "p.name AS profile_name " .
             "FROM duplicate_groups g JOIN scan_runs r ON r.id=g.run_id " .
             "JOIN scan_profiles p ON p.id=r.profile_id " .
-            "WHERE g.id=? AND r.state='completed' AND r.id=(SELECT MAX(id) " .
-            "FROM scan_runs WHERE profile_id=r.profile_id AND state='completed')",[$id]
+            "WHERE g.id=? AND r.state IN ('completed','archived')",[$id]
         );
-        if(!$group) throw $this->createNotFoundException('Duplicate group not found in the latest completed scan.');
+        if(!$group) throw $this->createNotFoundException('Duplicate group not found.');
+        $currentId=(int)$db->fetchOne(
+            "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=? AND state='completed'",
+            [(int)$group['profile_id']]
+        );
+        $historical=$currentId!==(int)$group['run_id'] || $group['run_state']!=='completed';
 
         $after=$this->cursor($request,'after');
         $before=$this->cursor($request,'before');
@@ -164,7 +190,7 @@ final class DuplicatesController extends AbstractController
             'SELECT 1 FROM duplicate_group_members WHERE group_id=? AND id>? LIMIT 1',[$id,$last]
         );
         return $this->render('duplicates/group.html.twig',[
-            'group'=>$group,'members'=>$members,
+            'group'=>$group,'members'=>$members,'historical'=>$historical,
             'previous'=>$prior?$first:null,'next'=>$later?$last:null
         ]);
     }
