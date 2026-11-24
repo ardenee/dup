@@ -25,7 +25,7 @@ foreach(['/accounts','/settings/viewer','/settings/ignored-folders','/profiles',
     check(!canReach($rules,'GET',$url,'ROLE_USER'),'User gained administrative GET '.$url);
     check(canReach($rules,'GET',$url,'ROLE_ADMIN'),'Administrator blocked on '.$url);
 }
-foreach(['/move/preview','/actions/link/preview/12','/accounts/save','/settings/viewer','/profiles/1/scan','/profiles/1/schedule','/jobs/42/remove','/jobs/cleanup','/reports/cleanup','/settings/actions','/actions/cleanup','/actions/45/remove','/delete/preview','/delete/2/confirm','/accounts/9/delete','/actions/bulk/preview','/actions/bulk/21/confirm','/actions/bulk/21/restore','/reports/run/14/remove','/rename/selected','/duplicates/verify'] as $url) {
+foreach(['/move/preview','/actions/link/preview/12','/accounts/save','/settings/viewer','/profiles/1/scan','/profiles/1/schedule','/jobs/42/remove','/jobs/42/retry','/jobs/recover','/jobs/cleanup','/reports/cleanup','/settings/actions','/actions/cleanup','/actions/45/remove','/delete/preview','/delete/2/confirm','/accounts/9/delete','/actions/bulk/preview','/actions/bulk/21/confirm','/actions/bulk/21/restore','/reports/run/14/remove','/rename/selected','/duplicates/verify'] as $url) {
     check(!canReach($rules,'POST',$url,'ROLE_USER'),'User gained a mutation endpoint '.$url);
     check(canReach($rules,'POST',$url,'ROLE_ADMIN'),'Administrator blocked POST '.$url);
 }

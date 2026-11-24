@@ -3,6 +3,8 @@ declare(strict_types=1);
 namespace App\Module\Jobs\Controller;
 
 use App\Module\Jobs\Service\JobStore;
+use App\Module\Jobs\Service\WorkerMaintenance;
+use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Jobs\Service\JobHistoryCleanup;
 use App\Module\Accounts\Domain\Account;
 use App\Module\Jobs\Repository\JobHistoryRepository;
@@ -29,7 +31,7 @@ final class JobsController extends AbstractController
     #[Route('/jobs',name:'app_jobs',methods:['GET'])]
     public function index(
         Request $request,JobHistoryRepository $history,
-        \App\Module\Jobs\Service\WorkerHeartbeat $heartbeat
+        WorkerHeartbeat $heartbeat
     ): Response
     {
         $profile=$this->positive($request,'profile');
@@ -115,15 +117,55 @@ final class JobsController extends AbstractController
         }
     }
 
+    #[Route('/jobs/recover',name:'app_jobs_recover',methods:['POST'])]
+    public function recover(Request $request,WorkerMaintenance $maintenance):Response
+    {
+        if(!$this->isCsrfTokenValid('recover_stalled_jobs',
+            (string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid recovery token.');
+        if($request->request->get('confirm')!=='RECOVER')
+            throw $this->createAccessDeniedException('Explicit recovery confirmation required.');
+        $actor=$this->getUser();
+        if(!$actor instanceof Account) throw $this->createAccessDeniedException();
+        try {
+            $count=$maintenance->recover($actor->id);
+            $this->addFlash($count>0?'success':'warning',
+                $count.' stale job(s) marked failed. No files or scan results were removed. '.
+                'You can now retry eligible failed scans.');
+        } catch(\DomainException $ex) {
+            $this->addFlash('warning',$ex->getMessage());
+        }
+        return $this->redirectToRoute('app_jobs');
+    }
+
+    #[Route('/jobs/{id<\d+>}/retry',name:'app_job_retry',methods:['POST'])]
+    public function retry(int $id,Request $request,WorkerMaintenance $maintenance):Response
+    {
+        if(!$this->isCsrfTokenValid('retry_job_'.$id,
+            (string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid retry token.');
+        $actor=$this->getUser();
+        if(!$actor instanceof Account) throw $this->createAccessDeniedException();
+        try {
+            $newId=$maintenance->retry($id,$actor->id);
+            $this->addFlash('success',
+                'New job #'.$newId.' queued. The original failed job remains in history.');
+        } catch(\DomainException $ex) {
+            $this->addFlash('warning',$ex->getMessage());
+        }
+        return $this->redirectToRoute('app_jobs');
+    }
+
     #[Route('/api/jobs',name:'app_jobs_api',methods:['GET'])]
-    public function status(Connection $db): JsonResponse
+    public function status(Connection $db,WorkerHeartbeat $heartbeat): JsonResponse
     {
         return new JsonResponse([
             'jobs'=>$db->fetchAllAssociative(
                 'SELECT id,kind,phase,state,progress_current,progress_total,' .
                 'created_at,started_at,finished_at,heartbeat_at,error_code ' .
                 'FROM jobs ORDER BY id DESC LIMIT 100'
-            )
+            ),
+            'worker'=>$heartbeat->report()
         ],200,['Cache-Control'=>'no-store']);
     }
 

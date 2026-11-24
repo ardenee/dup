@@ -9,7 +9,7 @@ DUP is a web-based duplicate-file scanner and manager for **Windows, Linux, and 
 - Browse current and historical scans, search indexed files, and preview/download supported file types.
 - Rename (with cleanup rules and Find/Replace), move, delete and link duplicate files, individually or in bulk.
 - Set **File Exists** separately for each profile: Fail, Append Number or Overwrite.
-- Monitor jobs and worker health; view reports, scan history and detailed action logs. Clean up old scan results, finished jobs and resolved action records.
+- Monitor live job progress and independent worker/job heartbeats with automatic/manual refresh. Inspect stalled jobs, recover only after 10 minutes of inactivity, or retry failed scans. View reports, scan history and detailed action logs; clean up old scan results, finished jobs and resolved action records.
 - Manage administrator and read-only accounts, and view system diagnostics including required PHP extensions and database schema status.
 
 **Important:** Delete permanently removes the selected file. Overwrite permanently replaces an existing destination after the user approves it. These actions cannot be undone. A moved source can be returned to its original path, but restoring a move does not recover a destination that was overwritten. Maintain backups and review affected files before confirming destructive actions.
@@ -23,7 +23,7 @@ DUP is a web-based duplicate-file scanner and manager for **Windows, Linux, and 
 
 ## Windows or Linux installation
 
-1. Extract the generic **DUP-Web-0.7.9.zip** package into a private directory.
+1. Extract the generic **DUP-Web-0.7.10.zip** package into a private directory.
 2. Point Apache, IIS, or Nginx at its **dup/public/** directory. Never publicly expose src, vendor, config, var, or private environment files.
 3. Open **https://your-host/setup.php**. Provide the database connection and create the first administrator. A missing database can be created if the supplied database account has the required privileges.
 4. Sign in, create a scan profile, select accessible folders, and start a scan.
@@ -40,7 +40,7 @@ Use HTTPS for remote access. The web and worker accounts must have the appropria
 ## Synology DSM 7 installation
 
 1. Install Web Station, PHP 8.2 or later and MariaDB 10, and enable the necessary PHP extensions.
-2. Open **DSM Package Center → Manual Install** and select **DUP-DSM7-0.7.9.spk**.
+2. Open **DSM Package Center → Manual Install** and select **DUP-DSM7-0.7.10.spk**.
 3. Open DUP at **/dup/** over HTTPS. Complete the setup wizard for a new installation, or sign in after an existing DUP v2 upgrade.
 4. Configure scan profiles, file-access permissions and schedules. The DSM package manages its background worker.
 
@@ -53,7 +53,7 @@ On DSM, the web process uses the http group. The background worker must also hav
 The release packages are built using:
 
 - Python: packaging/build_release.py (generic ZIP)
-- Python: packaging/build_dsm_release.py --version 0.7.9 (Synology SPK)
+- Python: packaging/build_dsm_release.py --version 0.7.10 (Synology SPK)
 
 The published ZIP and SPK contain the application and required dependencies, but do not include the repository test suite, runtime data or developer utilities.
 

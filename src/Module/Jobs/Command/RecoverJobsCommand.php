@@ -13,7 +13,7 @@ final class RecoverJobsCommand extends Command
     public function __construct(private readonly JobStore $store) {parent::__construct();}
     protected function configure(): void
     {
-        $this->addOption('after',null,InputOption::VALUE_REQUIRED,'Heartbeat expiry in seconds',120);
+        $this->addOption('after',null,InputOption::VALUE_REQUIRED,'Heartbeat expiry in seconds (default 10 minutes)',600);
     }
     protected function execute(InputInterface $input,OutputInterface $output): int
     {

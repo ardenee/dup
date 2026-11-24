@@ -342,3 +342,21 @@ textarea{font:inherit;color:var(--ink)}
 .action-icon-button .action-icon{pointer-events:none}
 .action-inline-error{display:block;margin-top:4px}
 @media(max-width:900px){.action-icon-button{width:34px;height:34px}}
+
+/* Worker status: cross-check independent process and job heartbeats. */
+.worker-status-heading{gap:16px;flex-wrap:wrap}
+.worker-status-heading .muted{font-size:12px;margin-top:4px}
+.worker-status-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.worker-status-grid>div{border:1px solid var(--line);border-radius:9px;padding:12px 15px;background:#fbfdfe;display:flex;flex-direction:column;gap:5px}
+.worker-status-grid strong{font-size:25px;color:var(--ink);line-height:1.1}
+.worker-status-grid small{color:var(--muted);font-size:11px;line-height:1.35}
+.worker-diagnostics{display:flex;gap:12px 24px;flex-wrap:wrap;font-size:12px;line-height:1.6}
+.worker-diagnostics strong{font-weight:650;white-space:nowrap}
+.worker-diagnostics small{color:var(--muted)}
+.worker-status-guidance{margin:16px 0;padding:11px 14px;border-left:3px solid #79aaba;background:#f4f9fb;line-height:1.6;font-size:13px}
+.worker-maintenance-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:12px 0}
+.worker-recover-form{display:flex;gap:8px 14px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.worker-recover-form[hidden]{display:none}
+.worker-recover-form small{font-size:12px;color:var(--muted)}
+.worker-maintenance-actions button:disabled{opacity:.55;cursor:progress}
+@media(max-width:660px){.worker-status-grid{grid-template-columns:1fr}.worker-diagnostics{display:block}.worker-diagnostics>div{margin-bottom:4px}}

@@ -75,6 +75,8 @@ final class HealthService
             'worker' => 'not_configured',
             'worker_processes' => 0,
             'worker_last_heartbeat' => null,
+            'worker_active_jobs'=>0,
+            'worker_last_job_heartbeat'=>null,
             'host_os' => $platform['host_os'],
             'queued_jobs'=>0,
             'running_jobs'=>0,
@@ -144,17 +146,21 @@ final class HealthService
                 $status=$this->workers->report();
                 $checks['worker_processes']=$status['active'];
                 $checks['worker_last_heartbeat']=$status['last_heartbeat'];
-                $checks['worker']=$state['active'] > 0 ? 'processing' :
-                    ($status['active']>0 ? 'ready' :
-                    ($state['queued'] > 0 ? 'awaiting_cli_worker' :
-                    ($state['total'] > 0 ? 'offline' : 'not_started')));
-                $cutoff=gmdate('Y-m-d H:i:s',time()-120);
+                $checks['worker']=match($status['state']) {
+                    'working'=>'processing',
+                    'ready'=>'ready',
+                    'stalled'=>'stalled',
+                    'waiting'=>'awaiting_cli_worker',
+                    default=> $state['total']>0 ? 'offline' : 'not_started'
+                };
+                $cutoff=gmdate('Y-m-d H:i:s',time()-180);
                 $stalled=(int)$this->connection->fetchOne(
                     "SELECT COUNT(*) FROM jobs WHERE state IN ('running','cancelling') " .
                     'AND (heartbeat_at IS NULL OR heartbeat_at<?)',[$cutoff]
                 );
                 $checks['stalled_jobs']=$stalled;
-                if($stalled>0) $checks['worker']='stalled';
+                $checks['worker_active_jobs']=$status['jobs_responding'];
+                $checks['worker_last_job_heartbeat']=$status['last_job_heartbeat'];
                 $checks['queued_jobs']=(int)$state['queued'];
                 $checks['running_jobs']=(int)$state['active'];
                 $checks['oldest_queued_at']=$this->connection->fetchOne(

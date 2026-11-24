@@ -8,6 +8,14 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 
 final class JobStore
 {
+    private ?WorkerHeartbeat $processHeartbeat=null;
+    private int $lastLeaseTouch=0;
+
+    public function registerWorkerHeartbeat(WorkerHeartbeat $heartbeat):void
+    {
+        $this->processHeartbeat=$heartbeat;
+    }
+
     public function __construct(
         private readonly Connection $db,
         private readonly DirectoryBrowser $browser
@@ -98,6 +106,20 @@ final class JobStore
             throw new ScanCancelled('Cancellation requested.');
         if($row['state']!=='running')
             throw new LostLease('Job was already finished or recovered.');
+        // Full-file hashing and directory traversal call assertRunning() at
+        // checkpoints but may not update the progress counter for minutes.
+        // Throttle writes so per-MB checkpoints do not hammer the database.
+        $now=time();
+        if($this->processHeartbeat!==null && $now-$this->lastLeaseTouch>=5) {
+            $updated=$this->db->executeStatement(
+                "UPDATE jobs SET heartbeat_at=? WHERE id=? AND worker_token=? ".
+                "AND state='running'",
+                [gmdate('Y-m-d H:i:s',$now),$id,$token]
+            );
+            if($updated!==1) throw new LostLease('Job lease changed while updating heartbeat.');
+            $this->lastLeaseTouch=$now;
+            $this->processHeartbeat->touch();
+        }
     }
 
     public function progress(int $id,string $token,string $phase,int $current,?int $total): void
@@ -108,6 +130,7 @@ final class JobStore
             [$phase,$current,$total,gmdate('Y-m-d H:i:s'),$id,$token]
         );
         if($updated!==1) $this->assertRunning($id,$token);
+        else $this->processHeartbeat?->touch();
     }
 
     public function event(int $id,string $severity,string $code,array $context=[]): void
@@ -246,7 +269,7 @@ final class JobStore
         });
     }
 
-    public function recoverStalled(int $seconds=120): int
+    public function recoverStalled(int $seconds=600): int
     {
         $cutoff=gmdate('Y-m-d H:i:s',time()-max(30,$seconds));
         $rows=$this->db->fetchAllAssociative(

@@ -94,6 +94,13 @@
                   <button class="action-icon-button is-destructive" type="submit"
                     title="Cancel queued job" aria-label="Cancel job {{ job.id }}">{{ icon('stop') }}</button>
                 </form>
+              {% elseif job.state in ['failed','cancelled'] and job.kind in ['scan','duplicate-verify'] %}
+                <form method="post" action="{{ path('app_job_retry',{id:job.id}) }}"
+                  onsubmit="return confirm('Queue a new {{ job.kind == 'scan' ? 'scan' : 'duplicate verification' }} for this profile?')">
+                  <input type="hidden" name="_token" value="{{ csrf_token('retry_job_' ~ job.id) }}">
+                  <button class="action-icon-button" type="submit"
+                    title="Retry as a new job" aria-label="Retry job {{ job.id }}">{{ icon('restore') }}</button>
+                </form>
               {% elseif job.state == 'running' %}
                 <span class="muted">In progress</span>
               {% elseif (job.kind in ['scan','rebuild-duplicates','duplicate-verify'] or job.history_prunable_at) and job.state in ['completed','failed','cancelled'] %}
@@ -111,25 +118,78 @@
     {% include 'jobs/_pager.html.twig' %}
   {% endif %}
 </section>
-<section class="panel">
-  <div class="panel-heading"><h2>Background worker</h2>
-    <span class="status">{{ worker.active > 0 ? 'Running' : 'Not responding' }}</span>
+<section class="panel" data-worker-status data-api-url="{{ path('app_jobs_api') }}">
+  {% set worker_state=worker.state|default('not_reporting') %}
+  <div class="panel-heading worker-status-heading">
+    <div><h2>Background worker</h2>
+      <p class="muted">Live process and job activity, checked independently.</p></div>
+    <span class="status" data-worker-field="state"
+      role="status" aria-live="polite">{{ {
+        'working':'Processing jobs', 'ready':'Ready', 'stalled':'Job heartbeat overdue',
+        'waiting':'Waiting for worker', 'not_reporting':'No recent worker activity'
+      }[worker_state]|default('Unknown') }}</span>
   </div>
   <div class="panel-content">
-    <div class="worker-summary">
-      <p>{{ worker.active|number_format }} active worker{{ worker.active == 1 ? '' : 's' }}</p>
-      <span class="muted">Last heartbeat: {{ worker.last_heartbeat ? worker.last_heartbeat ~ ' UTC' : 'None recorded' }}</span>
+    <div class="worker-status-grid">
+      <div><span class="muted">Workers reporting</span>
+        <strong data-worker-field="active">{{ worker.active|default(0)|number_format }}</strong>
+        <small>Process heartbeat in the last 90 seconds</small></div>
+      <div><span class="muted">Jobs reporting progress</span>
+        <strong data-worker-field="jobs_responding">{{ worker.jobs_responding|default(0)|number_format }}</strong>
+        <small>Active job heartbeat in the last 3 minutes</small></div>
+      <div><span class="muted">Queued / unfinished</span>
+        <strong><span data-worker-field="queued_jobs">{{ worker.queued_jobs|default(0) }}</span>
+          / <span data-worker-field="jobs_running">{{ worker.jobs_running|default(0) }}</span></strong>
+        <small>Waiting and currently running jobs</small></div>
     </div>
-    {% if is_dsm %}
-      <p class="worker-note">Synology DSM starts and manages this worker through the DUP package service. No manual command is needed.</p>
-      {% if worker.active == 0 %}
-        <div class="notice notice-warning">The background worker is not reporting. Check the DUP service in DSM Package Center and review System health before starting new scans.</div>
+    <div class="worker-diagnostics">
+      <div>Last process heartbeat:
+        <strong data-worker-field="last_heartbeat">{{ worker.last_heartbeat|default(null) ? worker.last_heartbeat ~ ' UTC' : 'None recorded' }}</strong></div>
+      <div>Last active job update:
+        <strong data-worker-field="last_job_heartbeat">{{ worker.last_job_heartbeat|default(null) ? worker.last_job_heartbeat ~ ' UTC' : 'None recorded' }}</strong></div>
+      <small>Last checked: <span data-worker-last-checked>On page load</span></small>
+    </div>
+    <p class="worker-status-guidance" data-worker-guidance aria-live="polite">
+      {% if worker_state == 'working' %}
+        Job activity is current. A long scan can keep the worker process busy between its own heartbeats;
+        do not recover or restart an actively progressing scan.
+      {% elseif worker_state == 'ready' %}
+        The CLI worker is responding and ready to process queued jobs.
+      {% elseif worker_state == 'stalled' %}
+        An unfinished job has not reported recently. Check its last progress before recovering it.
+        The job may be processing a large file.
+      {% elseif worker_state == 'waiting' %}
+        Jobs are queued, but no worker heartbeat is currently available.
+        Check that the background service is started.
+      {% else %}
+        No recent process or active-job heartbeat is available.
+        If no jobs are queued, this can simply mean the worker is idle or scheduled.
       {% endif %}
+    </p>
+    <div class="worker-maintenance-actions">
+      <button type="button" class="secondary" data-worker-refresh>Refresh status</button>
+      <a class="secondary link-button" href="{{ path('app_system') }}">System health</a>
+      <a class="secondary link-button" href="{{ path('app_jobs') }}">Reload job list</a>
+    </div>
+    <form method="post" class="worker-recover-form" data-worker-recovery
+          action="{{ path('app_jobs_recover') }}"
+          {% if worker.recovery_candidates|default(0) < 1 or worker.active|default(0) > 0 or worker.jobs_responding|default(0) > 0 %}hidden{% endif %}
+          onsubmit="return confirm('Only recover if these jobs are no longer progressing. This marks stale jobs failed. Proceed?')">
+      <input type="hidden" name="_token" value="{{ csrf_token('recover_stalled_jobs') }}">
+      <input type="hidden" name="confirm" value="RECOVER">
+      <button type="submit" class="secondary">Recover stale jobs (<span data-worker-field="recovery_candidates">{{ worker.recovery_candidates|default(0) }}</span>)</button>
+      <small>Only jobs with no heartbeat for at least 10 minutes.
+        This does not restart the worker or modify filesystem data.</small>
+    </form>
+    {% if is_dsm %}
+      <p class="worker-note">On Synology, DSM Package Center manages the DUP service.
+        Refresh checks the database now; it does not restart the package. If the worker is genuinely
+        stopped, restart DUP from DSM Package Center. <strong>Do not restart an active scan</strong>
+        merely because an older process heartbeat is displayed.</p>
     {% else %}
-      <p class="worker-note">On Windows or Linux, run the worker with your service manager, Task Scheduler or cron. The persistent job queue survives restarts.</p>
+      <p class="worker-note">On Windows or Linux, use a service manager, Task Scheduler or cron
+        to launch the PHP worker. Status refresh never starts a second worker.</p>
       <code class="worker-command">php bin/console dup:jobs:work --loop</code>
-      <p class="worker-note">Recovery command for expired jobs:</p>
-      <code class="worker-command">php bin/console dup:jobs:recover</code>
     {% endif %}
   </div>
 </section>

@@ -6,13 +6,13 @@ import tarfile
 from pathlib import Path
 
 root = Path(__file__).resolve().parent.parent
-spk = Path(sys.argv[1] if len(sys.argv) > 1 else root / "dist" / "DUP-DSM7-0.7.9.spk")
+spk = Path(sys.argv[1] if len(sys.argv) > 1 else root / "dist" / "DUP-DSM7-0.7.10.spk")
 with tarfile.open(spk, "r") as outer:
     info = outer.extractfile("INFO").read()
     hook = outer.extractfile("scripts/postupgrade").read()
     privilege = outer.extractfile("conf/privilege").read()
     source = outer.extractfile("package.tgz").read()
-    assert b'version="0.7.9"' in info, "Incorrect package version"
+    assert b'version="0.7.10"' in info, "Incorrect package version"
     assert b'"run-as": "package"' in privilege, "Expected restricted package runtime"
     assert hook == (root / "packaging" / "dsm7" / "scripts" / "postupgrade").read_bytes().replace(b"\r\n", b"\n")
     for safety in (b"setup.complete", b".env.local", b"find_php", b"doctrine:migrations:migrate",
@@ -36,6 +36,9 @@ with tarfile.open(fileobj=io.BytesIO(source), mode="r:gz") as inner:
         "app/src/Module/Reports/Service/ScanRetentionService.php",
         "app/src/Module/FileActions/Service/FileActionHistoryCleanup.php",
         "app/src/Module/Jobs/Service/JobHistoryCleanup.php",
+        "app/src/Module/Jobs/Service/WorkerMaintenance.php",
+        "app/src/Module/Jobs/Service/WorkerHeartbeat.php",
+        "webapp/assets/jobs.js",
         "app/templates/system/index.html.twig",
         "webapp/assets/app.css",
         "webapp/assets/dup.png",
@@ -46,4 +49,4 @@ with tarfile.open(fileobj=io.BytesIO(source), mode="r:gz") as inner:
     assert not any(name.startswith(("webapp/vendor/", "webapp/src/", "webapp/migrations/"))
                    or name.endswith((".env.local", ".sqlite", ".db"))
                    for name in names), "Private runtime data exposed in webapp"
-print("PASS DSM 0.7.9 upgrade version, guarded migrations, new features, restricted privileges and public/private split")
+print("PASS DSM 0.7.10 upgrade version, guarded migrations, new features, restricted privileges and public/private split")

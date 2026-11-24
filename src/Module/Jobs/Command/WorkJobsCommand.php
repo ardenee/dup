@@ -80,12 +80,13 @@ final class WorkJobsCommand extends Command
         }
         $cycles=0;
         $failed=false;
+        $this->jobs->registerWorkerHeartbeat($this->heartbeat);
         try {
         do {
             $this->heartbeat->touch();
             $scheduled=$this->schedules->dispatchDue();
             if($scheduled) $output->writeln('<info>Scheduled scan jobs: '.implode(',',$scheduled).'</info>');
-            $recovered=$this->jobs->recoverStalled(120);
+            $recovered=$this->jobs->recoverStalled(600);
             if($recovered)
                 $output->writeln('<comment>Marked '.$recovered.' stalled job(s) failed.</comment>');
             $processed=0;
