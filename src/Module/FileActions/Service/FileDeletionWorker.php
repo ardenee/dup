@@ -136,7 +136,7 @@ final class FileDeletionWorker
                 "WHERE id=? AND worker_token=? AND state='running'",
                 [$now,$now,$done+$failed,count($items),$jobId,$token]
             );
-            if($updated!==1) throw new LostLease('Deletion job lost its worker lease.');
+            if($updated!==1) throw new LostLease('Deletion job lost its worker lease.','DUP-DELETE-LEASE-101');
             if($done>0) {
                 $db->insert('jobs',[
                     'kind'=>'rebuild-duplicates','profile_id'=>$job['profile_id'],

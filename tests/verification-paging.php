@@ -6,6 +6,7 @@ use App\Module\Duplicates\Service\DuplicateVerificationService;
 use App\Module\Duplicates\Service\DuplicateVerificationWorker;
 use App\Module\Duplicates\Service\DuplicateRebuilder;
 use App\Module\Jobs\Service\JobStore;
+use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Profiles\Service\DirectoryBrowser;
 use App\Module\FileActions\Service\SafeFileSystem;
 use Doctrine\DBAL\DriverManager;
@@ -29,7 +30,8 @@ try {
         'CREATE TABLE jobs(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT,profile_id INT,active_profile_id INT UNIQUE,run_id INT,file_action_batch_id INT,state TEXT,phase TEXT,progress_current INT,progress_total INT,created_at TEXT,attempts INT,worker_token TEXT,heartbeat_at TEXT,started_at TEXT,finished_at TEXT,error_code TEXT)',
         'CREATE TABLE job_events(id INTEGER PRIMARY KEY AUTOINCREMENT,job_id INT,severity TEXT,code TEXT,context TEXT,created_at TEXT)',
         'CREATE TABLE audit_events(id INTEGER PRIMARY KEY AUTOINCREMENT,actor_id INT,action TEXT,entity_type TEXT,entity_id TEXT,correlation_id TEXT,outcome TEXT,context TEXT,created_at TEXT)',
-        'CREATE TABLE duplicate_verification_hashes(job_id INT,file_entry_id INT,sha256 TEXT,PRIMARY KEY(job_id,file_entry_id))'
+        'CREATE TABLE duplicate_verification_hashes(job_id INT,file_entry_id INT,sha256 TEXT,PRIMARY KEY(job_id,file_entry_id))',
+        'CREATE TABLE worker_heartbeats(id TEXT PRIMARY KEY,host_name TEXT,process_id INT,os_family TEXT,updated_at TEXT)'
     ] as $sql)$db->executeStatement($sql);
     foreach([
         'progress_bytes_current BIGINT NOT NULL DEFAULT 0',
@@ -60,7 +62,23 @@ try {
         ]);
         $db->insert('duplicate_group_members',['group_id'=>1,'file_entry_id'=>$i]);
     }
+    // Emulate MySQL's zero CHANGED rows for exact same-second progress.
+    // Under the old implementation, the first assertRunning() immediately
+    // raised LostLease and this 69-file end-to-end test failed at 0/69.
+    $db->executeStatement(
+        'CREATE TRIGGER simulate_mysql_noop BEFORE UPDATE ON jobs '.
+        'WHEN NEW.heartbeat_at=OLD.heartbeat_at AND '.
+        'NEW.phase=OLD.phase AND NEW.progress_current=OLD.progress_current AND '.
+        'NEW.progress_total=OLD.progress_total AND '.
+        'NEW.progress_bytes_current=OLD.progress_bytes_current AND '.
+        'NEW.progress_bytes_total=OLD.progress_bytes_total AND '.
+        'NEW.progress_detail=OLD.progress_detail AND '.
+        'NEW.last_progress_at=OLD.last_progress_at '.
+        'BEGIN SELECT RAISE(IGNORE); END'
+    );
     $jobs=new JobStore($db,new DirectoryBrowser());
+    $heartbeat=new WorkerHeartbeat($db);
+    $jobs->registerWorkerHeartbeat($heartbeat);
     $service=new DuplicateVerificationService($db);
     $worker=new DuplicateVerificationWorker($db,$jobs,
         new SafeFileSystem(new DirectoryBrowser()),new DuplicateRebuilder($db));
@@ -68,6 +86,7 @@ try {
     $job=$jobs->claimNext($id);
     verifyPage($job!==null,'Could not claim verification.');
     $worker->run($job);
+    $heartbeat->stop();
     verifyPage($db->fetchOne('SELECT state FROM jobs WHERE id=?',[$id])==='completed',
         'The second candidate page never completed.');
     verifyPage((int)$db->fetchOne('SELECT progress_current FROM jobs WHERE id=?',[$id])===$number,

@@ -106,26 +106,61 @@ final class JobStore
         return null;
     }
 
-    public function assertRunning(int $id,string $token): void
+    /**
+     * Validate actual ownership by state + token.
+     *
+     * MySQL PDO UPDATE affected-row counts mean CHANGED rows, not MATCHED
+     * rows. Writing the same second-precision timestamp can return 0 even
+     * though the running worker still owns its lease. A zero-row heartbeat or
+     * progress update is NEVER, by itself, proof of lost ownership.
+     */
+    private function currentLease(int $id,string $token):array
     {
-        $row=$this->db->fetchAssociative('SELECT state,worker_token FROM jobs WHERE id=?',[$id]);
+        $row=$this->db->fetchAssociative(
+            'SELECT state,worker_token,heartbeat_at FROM jobs WHERE id=?',[$id]
+        );
         if(!$row || !hash_equals((string)($row['worker_token']??''),$token))
-            throw new LostLease('Worker no longer holds the job lease.');
+            throw new LostLease('Worker no longer holds the job lease.','DUP-JOB-LEASE-101');
         if($row['state']==='cancelling')
             throw new ScanCancelled('Cancellation requested.');
         if($row['state']!=='running')
-            throw new LostLease('Job was already finished or recovered.');
+            throw new LostLease('Job was already finished or recovered.','DUP-JOB-LEASE-102');
+        return $row;
+    }
+
+    public function assertRunning(int $id,string $token): void
+    {
+        $row=$this->currentLease($id,$token);
         // Full-file hashing and directory traversal call assertRunning() at
-        // checkpoints but may not update the progress counter for minutes.
-        // Throttle writes so per-MB checkpoints do not hammer the database.
+        // checkpoints but may not update progress for minutes. Limit writes.
         $now=time();
         if($this->processHeartbeat!==null && $now-$this->lastLeaseTouch>=5) {
-            $updated=$this->db->executeStatement(
-                "UPDATE jobs SET heartbeat_at=? WHERE id=? AND worker_token=? ".
-                "AND state='running'",
-                [gmdate('Y-m-d H:i:s',$now),$id,$token]
-            );
-            if($updated!==1) throw new LostLease('Job lease changed while updating heartbeat.');
+            $stamp=gmdate('Y-m-d H:i:s',$now);
+            // Avoid a no-op UPDATE in the same second as verificationProgress,
+            // which MySQL would report as 0 changed rows.
+            if((string)($row['heartbeat_at']??'')!==$stamp) {
+                $updated=$this->db->executeStatement(
+                    "UPDATE jobs SET heartbeat_at=? WHERE id=? AND worker_token=? ".
+                    "AND state='running'",
+                    [$stamp,$id,$token]
+                );
+                if($updated!==1) {
+                    $after=$this->currentLease($id,$token);
+                    // MySQL can return 0 when an UPDATE matched a valid row
+                    // but did not change it. Only raise a real update error
+                    // if the expected timestamp was not actually stored.
+                    if((string)($after['heartbeat_at']??'')!==$stamp)
+                        throw new \App\Core\Diagnostics\CodedRuntimeFailure(
+                            'DUP-JOB-HEARTBEAT-101',
+                            'Worker still owns the lease, but its heartbeat timestamp could not be saved.'
+                        );
+                }
+            } else {
+                $this->debug?->write($id,'debug','job.heartbeat.same_second',[
+                    'timestamp'=>$stamp,
+                    'note'=>'Worker token and state remain valid; skipped MySQL no-change heartbeat UPDATE.'
+                ]);
+            }
             $this->lastLeaseTouch=$now;
             $this->processHeartbeat->touch();
         }
@@ -133,13 +168,27 @@ final class JobStore
 
     public function progress(int $id,string $token,string $phase,int $current,?int $total): void
     {
+        $stamp=gmdate('Y-m-d H:i:s');
         $updated=$this->db->executeStatement(
-            "UPDATE jobs SET phase=?,progress_current=?,progress_total=?,heartbeat_at=? " .
+            "UPDATE jobs SET phase=?,progress_current=?,progress_total=?,heartbeat_at=? ".
             "WHERE id=? AND worker_token=? AND state='running'",
-            [$phase,$current,$total,gmdate('Y-m-d H:i:s'),$id,$token]
+            [$phase,$current,$total,$stamp,$id,$token]
         );
-        if($updated!==1) $this->assertRunning($id,$token);
-        else $this->processHeartbeat?->touch();
+        if($updated!==1) {
+            $this->currentLease($id,$token);
+            $actual=$this->db->fetchAssociative(
+                'SELECT phase,progress_current,progress_total,heartbeat_at FROM jobs WHERE id=?',[$id]
+            );
+            if(!$actual || $actual['phase']!==$phase ||
+                (int)$actual['progress_current']!==$current ||
+                ($actual['progress_total']===null?null:(int)$actual['progress_total'])!==$total ||
+                $actual['heartbeat_at']!==$stamp)
+                throw new \App\Core\Diagnostics\CodedRuntimeFailure(
+                    'DUP-JOB-PROGRESS-101',
+                    'Worker lease remains valid, but scan progress was not saved.'
+                );
+        }
+        $this->processHeartbeat?->touch();
     }
 
     /**
@@ -152,16 +201,41 @@ final class JobStore
         string $phase='hashing_duplicates'
     ):void {
         $now=gmdate('Y-m-d H:i:s');
+        $detail=mb_substr($detail,0,255);
         $changed=$this->db->executeStatement(
             'UPDATE jobs SET phase=?,progress_current=?,progress_total=?,'.
             'progress_bytes_current=?,progress_bytes_total=?,progress_detail=?,'.
             'last_progress_at=?,heartbeat_at=? WHERE id=? AND worker_token=? AND state=?',
             [$phase,$filesDone,$filesTotal,$bytesDone,$bytesTotal,
-                mb_substr($detail,0,255),$now,$now,$id,$token,'running']
+                $detail,$now,$now,$id,$token,'running']
         );
         if($changed!==1) {
-            $this->assertRunning($id,$token);
-            throw new LostLease('Verification job no longer holds the worker lease.');
+            // Do not turn a no-op (0 CHANGED rows, MySQL default behavior)
+            // into a fatal LostLease. First verify actual ownership and then
+            // check that ALL requested progress fields are already persisted.
+            $this->currentLease($id,$token);
+            $actual=$this->db->fetchAssociative(
+                'SELECT phase,progress_current,progress_total,progress_bytes_current,'.
+                'progress_bytes_total,progress_detail,last_progress_at,heartbeat_at '.
+                'FROM jobs WHERE id=?',[$id]
+            );
+            if(!$actual || $actual['phase']!==$phase ||
+                (int)$actual['progress_current']!==$filesDone ||
+                (int)$actual['progress_total']!==$filesTotal ||
+                (int)$actual['progress_bytes_current']!==$bytesDone ||
+                (int)$actual['progress_bytes_total']!==$bytesTotal ||
+                $actual['progress_detail']!==$detail ||
+                $actual['last_progress_at']!==$now ||
+                $actual['heartbeat_at']!==$now)
+                throw new \App\Core\Diagnostics\CodedRuntimeFailure(
+                    'DUP-JOB-PROGRESS-102',
+                    'Worker lease remains valid, but SHA-256 progress was not saved.'
+                );
+            $this->debug?->write($id,'debug','job.verification_progress.unchanged',[
+                'timestamp'=>$now,'files_done'=>$filesDone,
+                'bytes_done'=>$bytesDone,
+                'note'=>'SQL reported zero changed rows; all progress fields and lease ownership verified.'
+            ]);
         }
         $this->processHeartbeat?->touch();
     }
@@ -390,7 +464,7 @@ final class JobStore
             "WHERE id=? AND worker_token=? AND kind='rebuild-duplicates' AND state='running'",
             [$now,$groups,$groups,$now,$id,$token]
         );
-        if($changed!==1) throw new LostLease('Rebuild job lease changed during recalculation.');
+        if($changed!==1) throw new LostLease('Rebuild job lease changed during recalculation.','DUP-JOB-LEASE-103');
         $this->event($id,'info','IGNORE_RECALC_COMPLETED',[
             'duplicate_groups'=>$groups,'changed_directory_flags'=>$changedDirectories
         ]);

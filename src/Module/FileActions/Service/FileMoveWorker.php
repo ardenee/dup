@@ -224,7 +224,7 @@ final class FileMoveWorker
                     "finished_at=?,heartbeat_at=? WHERE id=? AND worker_token=? AND state='running'",
                     [$now,$now,$jobId,$token]
                 );
-                if($updated!==1) throw new LostLease('Move worker job lease was lost.');
+                if($updated!==1) throw new LostLease('Move worker job lease was lost.','DUP-MOVE-LEASE-101');
                 if($success>0) {
                     $db->insert('jobs',[
                         'kind'=>'rebuild-duplicates','profile_id'=>(int)$job['profile_id'],

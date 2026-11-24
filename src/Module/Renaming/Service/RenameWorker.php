@@ -193,7 +193,7 @@ final class RenameWorker
                     "WHERE id=? AND kind='file-rename' AND worker_token=? AND state='running'",
                     [$total,$total,$now,$now,$id,$token]
                 );
-                if($changed!==1) throw new LostLease('Rename worker job lease changed.');
+                if($changed!==1) throw new LostLease('Rename worker job lease changed.','DUP-RENAME-LEASE-101');
                 if($anyOverwritten) {
                     $profile=$db->fetchAssociative('SELECT profile_id,run_id FROM jobs WHERE id=?',[$id]);
                     $db->insert('jobs',[

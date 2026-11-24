@@ -5,6 +5,7 @@ namespace App\Module\Jobs\Controller;
 use App\Module\Jobs\Service\JobStore;
 use App\Module\Jobs\Service\JobDebugLog;
 use App\Module\Jobs\Service\WorkerFailureCode;
+use App\Module\Jobs\Service\JobFailureCode;
 use App\Module\Jobs\Service\VerificationCancelSignal;
 use App\Module\Duplicates\Service\VerificationFailureCode;
 use App\Module\Jobs\Service\WorkerMaintenance;
@@ -80,7 +81,8 @@ final class JobsController extends AbstractController
         $search=strtoupper(trim((string)$request->query->get('code','')));
         if(strlen($search)>64 || ($search!=='' && !preg_match('/^[A-Z0-9-]+$/D',$search)))
             throw $this->createNotFoundException('Invalid diagnostic code search.');
-        $catalog=VerificationFailureCode::catalog()+WorkerFailureCode::catalog();
+        $catalog=VerificationFailureCode::catalog()+
+            WorkerFailureCode::catalog()+JobFailureCode::catalog();
         ksort($catalog);
         $matches=$search===''?[]:
             array_filter($catalog,static fn(string $description,string $code):bool=>
@@ -112,7 +114,8 @@ final class JobsController extends AbstractController
         return $this->render('jobs/detail.html.twig',$details+[
             'cleanup'=>$cleanup->inspect($id),'event_sort'=>$sort,'event_dir'=>$dir,
             'failure_explanation'=>VerificationFailureCode::explain((string)($details['job']['error_code']??''))??
-                WorkerFailureCode::explain((string)($details['job']['error_code']??'')),
+                WorkerFailureCode::explain((string)($details['job']['error_code']??''))??
+                JobFailureCode::explain((string)($details['job']['error_code']??'')),
             'is_dsm'=>\App\Core\Setup\HostEnvironment::isSynology(dirname(__DIR__,4)),
             'stale_cutoff'=>gmdate('Y-m-d H:i:s',time()-600),
             'worker_status'=>$heartbeat->report(),

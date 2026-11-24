@@ -220,7 +220,7 @@ final class FileActionWorker
                 [gmdate('Y-m-d H:i:s'),gmdate('Y-m-d H:i:s'),$jobId,
                     $restoring?'file-restore':'file-action',$token]
             );
-            if($finished!==1) throw new LostLease('Worker job lease changed before committing.');
+            if($finished!==1) throw new LostLease('Worker job lease changed before committing.','DUP-FILE-ACTION-LEASE-101');
             $db->insert('jobs',[
                 'kind'=>'rebuild-duplicates','profile_id'=>$profileId,
                 'active_profile_id'=>$profileId,'run_id'=>$runId,

@@ -169,7 +169,7 @@ final class FileLinkWorker
                     "WHERE id=? AND worker_token=? AND state='running'",
                     [gmdate('Y-m-d H:i:s'),gmdate('Y-m-d H:i:s'),$id,$token]
                 );
-                if($finished!==1) throw new LostLease('Link job lease was lost.');
+                if($finished!==1) throw new LostLease('Link job lease was lost.','DUP-LINK-LEASE-101');
                 $db->insert('jobs',[
                     'kind'=>'rebuild-duplicates','profile_id'=>(int)$row['profile_id'],
                     'active_profile_id'=>(int)$row['profile_id'],

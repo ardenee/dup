@@ -5,6 +5,7 @@ require dirname(__DIR__).'/vendor/autoload.php';
 use App\Module\Duplicates\Service\VerificationFailureCode as Codes;
 use App\Module\Jobs\Service\JobStore;
 use App\Module\Jobs\Service\LostLease;
+use App\Module\Jobs\Service\JobFailureCode;
 use App\Module\Profiles\Service\DirectoryBrowser;
 use App\Module\FileActions\Service\SafeFileSystem;
 use App\Module\Scans\Service\FileHasher;
@@ -26,13 +27,13 @@ $cases=[
     ['candidate_count',new PDOException('SQL failed'),'DUP-VERIFY-10401'],
     ['initial_progress',new PDOException('SQL failed'),'DUP-VERIFY-10501'],
     ['verification_started_event',new PDOException('SQL failed'),'DUP-VERIFY-10601'],
-    ['candidate_lease',new LostLease('Stale lease'),'DUP-VERIFY-10702'],
+    ['candidate_lease',new LostLease('Stale lease','DUP-JOB-LEASE-101'),'DUP-JOB-LEASE-101'],
     ['candidate_progress',new PDOException('SQL failed'),'DUP-VERIFY-10801'],
     ['candidate_event',new PDOException('SQL failed'),'DUP-VERIFY-10901'],
     ['finding_candidate_files',new PDOException('SQL failed'),'DUP-VERIFY-11001'],
     ['finding_candidate_files',new RuntimeException('Unexpected'),'DUP-VERIFY-11005'],
     ['candidate_page_event',new PDOException('SQL failed'),'DUP-VERIFY-11101'],
-    ['file_lease',new LostLease('Stale lease'),'DUP-VERIFY-11202'],
+    ['file_lease',new LostLease('Stale lease','DUP-JOB-LEASE-102'),'DUP-JOB-LEASE-102'],
     ['checking_file_access',new TypeError('Type mismatch'),'DUP-VERIFY-11406'],
     ['reading_file',new RuntimeException('Unexpected'),'DUP-VERIFY-11705'],
     ['staging_hash',new PDOException('SQL failed'),'DUP-VERIFY-11801'],
@@ -42,7 +43,7 @@ $codes=[];
 foreach($cases as [$operation,$exception,$expected]) {
     $details=Codes::detail($operation,$exception,'V42-20261124235959-abcdef12');
     checkTrace($details['error_code']===$expected &&
-        Codes::explain($expected)!==null &&
+        (Codes::explain($expected)??JobFailureCode::explain($expected))!==null &&
         isset($details['source_file'],$details['source_line'],$details['exception_type']),
         'Incorrect, undecodable or context-free code for '.$operation);
     $codes[]=$details['error_code'];

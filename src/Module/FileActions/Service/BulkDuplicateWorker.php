@@ -106,7 +106,7 @@ final class BulkDuplicateWorker
                     'finished_at=?,heartbeat_at=? WHERE id=? AND worker_token=? AND state=?',
                     [$total,$total,$now,$now,$jobId,$token,'running']
                 );
-                if($changed!==1) throw new LostLease('Bulk job lease was lost.');
+                if($changed!==1) throw new LostLease('Bulk job lease was lost.','DUP-BULK-LEASE-101');
                 if($succeeded>0) {
                     $db->insert('jobs',[
                         'kind'=>'rebuild-duplicates','profile_id'=>(int)$batch['profile_id'],
