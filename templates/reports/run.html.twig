@@ -8,8 +8,39 @@
   <p class="muted">{{ run.profile_name }} · <span class="status">{{ run.state }}</span> · {{ run.started_at ?? 'Not started' }} UTC</p>
 </div><a class="secondary link-button" href="{{ path('app_reports',{profile:run.profile_id}) }}">Back to reports</a></div>
 
-{% if run.state != 'completed' %}
-  <div class="notice notice-warning"><strong>Incomplete scan:</strong> these figures may be partial. DUP only includes completed runs in current storage summaries.</div>
+{% if run.state not in ['completed','archived'] %}
+  <div class="notice notice-warning"><strong>Incomplete scan:</strong> these figures may be partial. DUP only includes current completed runs in storage summaries.</div>
+{% elseif run.state == 'archived' %}
+  <div class="notice"><strong>Historical completed scan:</strong> an older run preserved for reporting only. Its results are not considered current.</div>
+{% endif %}
+
+{% if cleanup %}
+<section class="panel panel-content">
+  <h2>{{ cleanup.is_current ? 'Clear current scan results' : 'Remove historical scan' }}</h2>
+  <p class="muted">This operation removes only DUP database scan records. It never deletes or changes files on disk. The profile and completed job event history are retained.</p>
+  <p><strong>Database cleanup:</strong> {{ cleanup.files|number_format }} indexed files,
+    {{ cleanup.directories|number_format }} directories,
+    {{ cleanup.groups|number_format }} duplicate groups for run #{{ run.id }}.
+    {{ cleanup.jobs|number_format }} job records will be retained.</p>
+  {% if cleanup.is_current %}
+    <div class="notice notice-warning"><strong>Current scan:</strong> clearing removes these live results from search, duplicates and reports. Older completed scans become read-only archived history, not replacement current results. A new scan is required to populate the profile again.</div>
+  {% else %}
+    <p>Only this historical run's results will be removed. The profile's latest completed snapshot is unaffected.</p>
+  {% endif %}
+  {% if not cleanup.can_remove %}
+    <div class="notice notice-warning"><strong>Removal blocked:</strong> {{ cleanup.blocked_reason }}</div>
+  {% else %}
+    {% set approval = cleanup.is_current ? 'CLEAR' : 'DELETE' %}
+    <form method="post" action="{{ path('app_report_remove',{id:run.id}) }}">
+      <input type="hidden" name="_token" value="{{ csrf_token('remove_scan_' ~ run.id) }}">
+      <div class="field">
+        <label for="scan-remove-confirm">Type {{ approval }} to confirm removal of scan #{{ run.id }}</label>
+        <input type="text" id="scan-remove-confirm" name="confirm" autocomplete="off" pattern="{{ approval }}" required>
+      </div>
+      <button type="submit" class="secondary">{{ cleanup.is_current ? 'Clear current scan results' : 'Remove historical scan' }}</button>
+    </form>
+  {% endif %}
+</section>
 {% endif %}
 
 <div class="stats-grid">

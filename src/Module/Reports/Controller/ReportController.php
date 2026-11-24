@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace App\Module\Reports\Controller;
 
 use App\Module\Reports\Repository\ReportRepository;
+use App\Module\Reports\Service\ScanHistoryCleanup;
+use App\Module\Accounts\Domain\Account;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -45,7 +47,7 @@ final class ReportController extends AbstractController
     }
 
     #[Route('/reports/run/{id<\\d+>}',name:'app_report_run',methods:['GET'])]
-    public function run(int $id,Request $request,ReportRepository $reports): Response
+    public function run(int $id,Request $request,ReportRepository $reports,ScanHistoryCleanup $cleanup): Response
     {
         $run=$reports->run($id);
         if(!$run) throw $this->createNotFoundException('Scan run not found.');
@@ -54,8 +56,27 @@ final class ReportController extends AbstractController
             'run'=>$run,
             'flagged'=>$flags['rows'],
             'next'=>$flags['next'],
-            'warnings'=>$reports->warnings($id)
+            'warnings'=>$reports->warnings($id),
+            'cleanup'=>$this->isGranted('ROLE_ADMIN')?$cleanup->inspect($id):null
         ]);
+    }
+
+    #[Route('/reports/run/{id<\\d+>}/remove',name:'app_report_remove',methods:['POST'])]
+    public function remove(int $id,Request $request,ScanHistoryCleanup $cleanup): Response
+    {
+        if(!$this->isCsrfTokenValid('remove_scan_'.$id,(string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid scan removal token.');
+        $actor=$this->getUser();
+        if(!$actor instanceof Account) throw $this->createAccessDeniedException();
+        try {
+            $old=$cleanup->remove($id,$actor->id,(string)$request->request->get('confirm',''));
+            $this->addFlash('success','Scan #'.$id.' removed from the database. '.
+                ($old['is_current']?'Current results cleared; older runs remain historical.':'Current results preserved.'));
+            return $this->redirectToRoute('app_reports',['profile'=>$old['profile_id']]);
+        } catch(\DomainException $ex) {
+            $this->addFlash('warning',$ex->getMessage());
+            return $this->redirectToRoute('app_report_run',['id'=>$id]);
+        }
     }
 
     #[Route(

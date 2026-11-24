@@ -41,20 +41,23 @@ final class RenameController extends AbstractController
         $unders=$this->number($request->query->get('unders'),0);
         $collapse=$request->query->get('collapse','1')==='1';
         $dups=$request->query->get('dups')==='1';
+        $collision=(string)$request->query->get('collision','reject');
+        if(!in_array($collision,['reject','number'],true))
+            throw $this->createNotFoundException('Invalid collision policy.');
         $after=$this->number($request->query->get('after'),0);
         if(!in_array($dots,[0,1,2],true) || !in_array($unders,[0,1,2],true))
             throw $this->createNotFoundException('Invalid cleanup options.');
         $candidates=$profile>0?$renames->candidates(
-            $profile,$filters,$dots,$unders,$collapse,$dups,$after>0?$after:null
+            $profile,$filters,$dots,$unders,$collapse,$dups,$after>0?$after:null,$collision==='number'
         ):['rows'=>[],'next'=>null,'scanned'=>0];
         return $this->render('rename/index.html.twig',[
             'profiles'=>$profiles,'profile'=>$profile,'filters'=>$filters,
             'dots'=>$dots,'unders'=>$unders,'collapse'=>$collapse,
-            'dups'=>$dups,'candidates'=>$candidates,'batches'=>$renames->batches(),
+            'dups'=>$dups,'collision'=>$collision,'candidates'=>$candidates,'batches'=>$renames->batches(),
             'paging'=>[
                 'profile'=>$profile,'filters'=>$filters,'dots'=>$dots,
                 'unders'=>$unders,'collapse'=>$collapse?'1':'0',
-                'dups'=>$dups?'1':'0'
+                'dups'=>$dups?'1':'0','collision'=>$collision
             ]
         ]);
     }
@@ -70,14 +73,23 @@ final class RenameController extends AbstractController
         $unders=$this->number($request->request->get('unders'));
         $collapse=$request->request->get('collapse')==='1';
         $ids=$request->request->all('files');
+        $planned=$request->request->all('planned_names');
         $selected=[];
         foreach($ids as $raw) {
             $id=filter_var($raw,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
             if($id===false) throw $this->createNotFoundException('Invalid file selection.');
             $selected[]=$id;
         }
+        $overrides=[];
+        foreach($selected as $id) {
+            if(isset($planned[$id])) {
+                if(!is_string($planned[$id]) || strlen($planned[$id])>255)
+                    throw $this->createNotFoundException('Invalid planned filename.');
+                $overrides[$id]=$planned[$id];
+            }
+        }
         try {
-            $job=$renames->queue($profile,$this->actor(),$selected,$filters,$dots,$unders,$collapse);
+            $job=$renames->queue($profile,$this->actor(),$selected,$filters,$dots,$unders,$collapse,$overrides);
             $this->addFlash('success','Filename changes queued as job #'.$job.'. No existing files will be overwritten.');
             return $this->redirectToRoute('app_jobs');
         } catch(\DomainException $ex) {

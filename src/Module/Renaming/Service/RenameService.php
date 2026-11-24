@@ -46,7 +46,7 @@ final class RenameService
 
     public function candidates(
         int $profileId,string $filters,int $dots,int $unders,bool $collapse,
-        bool $duplicatesOnly=false,?int $after=null
+        bool $duplicatesOnly=false,?int $after=null,bool $numberCollisions=false
     ): array {
         $latest=(int)$this->db->fetchOne(
             "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=? AND state='completed'",
@@ -66,7 +66,7 @@ final class RenameService
         $data=$this->db->fetchAllAssociative($sql.' ORDER BY f.id LIMIT 101',$args);
         $more=count($data)>100;
         if($more) array_pop($data);
-        $list=[];
+        $list=[];$reserved=[];
         foreach($data as $row) {
             try {
                 $target=RenameRules::cleaned(
@@ -74,7 +74,17 @@ final class RenameService
                 );
             } catch(\DomainException) {continue;}
             if($target!==(string)$row['filename']) {
-                $row['new_name']=$target;
+                try {
+                    $planned=$numberCollisions
+                        ?RenameRules::availableName((string)$row['directory'],$target,$reserved)
+                        :$target;
+                } catch(\DomainException) {continue;}
+                $row['new_name']=$planned;
+                $row['collision_numbered']=$planned!==$target;
+                if($numberCollisions) {
+                    $full=rtrim((string)$row['directory'],'/\\').DIRECTORY_SEPARATOR.$planned;
+                    $reserved[PHP_OS_FAMILY==='Windows'?mb_strtolower($full):$full]=true;
+                }
                 $list[]=$row;
             }
         }
