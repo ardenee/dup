@@ -4,6 +4,7 @@ namespace App\Module\Renaming\Service;
 
 use App\Module\FileActions\Service\FileActionService;
 use App\Module\FileActions\Service\SafeFileSystem;
+use App\Module\FileActions\Service\ActionSettings;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 
@@ -17,7 +18,8 @@ final class RenameService
     public function __construct(
         private readonly Connection $db,
         private readonly SafeFileSystem $fs,
-        private readonly FileActionService $actions
+        private readonly FileActionService $actions,
+        private readonly ActionSettings $settings
     ) {}
 
     public function profiles(): array
@@ -107,10 +109,13 @@ final class RenameService
     public function queue(
         int $profileId,int $actorId,array $entryIds,string $filters,
         int $dots,int $unders,bool $collapse,array $names=[],
-        string $find='',string $replace='',string $collision='fail'
+        string $find='',string $replace='',string $collision='fail',bool $numberManual=false
     ): int {
         if(!in_array($collision,['fail','number','overwrite'],true))
             throw new \DomainException('Unknown filename conflict handling.');
+        $configured=$this->settings->policy($profileId);
+        if($collision!==$configured)
+            throw new \DomainException('File Exists policy changed; reload this profile before renaming.');
         $entryIds=array_values(array_unique($entryIds));
         if(count($entryIds)<1 || count($entryIds)>50 || $profileId<1)
             throw new \DomainException('Select between 1 and 50 files from one profile.');
@@ -138,6 +143,13 @@ final class RenameService
             }
             if($targetName===(string)$file['filename'])
                 throw new \DomainException('A selected filename would not change.');
+            // Manual renames honor this profile's Append Number policy.
+            // Automatic clean-up previews retain their exact approved names:
+            // a newly appearing collision must not silently rename them.
+            if($collision==='number' && $numberManual)
+                $targetName=RenameRules::availableName(
+                    (string)$file['directory'],$targetName,$targets
+                );
             $target=(string)$file['directory'].DIRECTORY_SEPARATOR.$targetName;
             $key=PHP_OS_FAMILY==='Windows'?mb_strtolower($target):$target;
             $overwrite=null;

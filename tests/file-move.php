@@ -29,7 +29,7 @@ $bytes=filesize($original);$mtime=filemtime($original);
 try {
     $db=DriverManager::getConnection(['driver'=>'pdo_sqlite','memory'=>true]);
     foreach([
-        'CREATE TABLE scan_profiles (id INT PRIMARY KEY,name TEXT,source_root TEXT,move_root TEXT)',
+        'CREATE TABLE scan_profiles (id INT PRIMARY KEY,name TEXT,source_root TEXT,move_root TEXT,file_exists_policy TEXT NOT NULL DEFAULT "fail")',
         'CREATE TABLE action_settings (setting_key TEXT PRIMARY KEY,setting_value TEXT,updated_at TEXT)',
         'CREATE TABLE scan_runs (id INT PRIMARY KEY,profile_id INT,state TEXT,started_at TEXT)',
         'CREATE TABLE directories (id INT PRIMARY KEY,path TEXT,run_id INT,is_ignored INT)',
@@ -109,7 +109,7 @@ try {
     // replace either existing files or the original during execution.
     $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
     file_put_contents($destination,'KEEP EXISTING');
-    (new ActionSettings($db))->save(ActionSettings::NUMBER,1);
+    $db->update('scan_profiles',['file_exists_policy'=>ActionSettings::NUMBER],['id'=>1]);
     $numbered=$service->plan([1],1);
     $second=$service->details($numbered);
     $numberedPath=dirname($destination).DIRECTORY_SEPARATOR.'chapter (1).m4b';

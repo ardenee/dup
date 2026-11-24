@@ -1,4 +1,5 @@
 {% extends 'base.html.twig' %}
+{% from '_action_icons.html.twig' import icon %}
 {% block title %}Jobs{% endblock %}
 {% block section %}Jobs{% endblock %}
 {% block body %}
@@ -70,27 +71,34 @@
                 data-field="progress-bar"></progress></td>
             <td data-field="heartbeat" class="muted">{{ job.heartbeat_at ? job.heartbeat_at ~ ' UTC' : '—' }}</td>
             <td>
-              <a class="text-link" href="{{ path('app_job_detail',{id:job.id}) }}">Details & events</a>
-              {% if job.run_id and job.run_state in ['completed','archived'] %}
-                <div><a class="text-link" href="{{ path('app_duplicates',{run:job.run_id}) }}">Scan duplicates</a></div>
-              {% endif %}
-              {% if job.file_action_batch_id %}
-                <div><a class="text-link" href="{{ path('app_action_detail',{id:job.file_action_batch_id}) }}">File action / restore</a></div>
-              {% endif %}
+              <div class="action-icon-group">
+                <a class="action-icon-button" href="{{ path('app_job_detail',{id:job.id}) }}"
+                   title="Job details and events" aria-label="Details and events for job {{ job.id }}">{{ icon('details') }}</a>
+                {% if job.run_id and job.run_state in ['completed','archived'] %}
+                  <a class="action-icon-button" href="{{ path('app_duplicates',{run:job.run_id}) }}"
+                     title="Scan duplicate results" aria-label="Duplicate results for scan {{ job.run_id }}">{{ icon('eye') }}</a>
+                {% endif %}
+                {% if job.file_action_batch_id %}
+                  <a class="action-icon-button" href="{{ path('app_action_detail',{id:job.file_action_batch_id}) }}"
+                     title="File action and restore details" aria-label="File action details for job {{ job.id }}">{{ icon('restore') }}</a>
+                {% endif %}
+              </div>
               {% if job.error_code %}<div class="report-error" data-field="error">{{ job.error_code }}</div>
               {% else %}<span class="muted" data-field="error"></span>{% endif %}
             </td>
             <td>
-              {% set cancellable = job.state == 'queued' or (job.state == 'running' and job.kind in ['scan','rebuild-duplicates']) %}
+              {% set cancellable = job.state == 'queued' or (job.state == 'running' and job.kind in ['scan','rebuild-duplicates','duplicate-verify']) %}
               {% if cancellable %}
                 <form method="post" action="{{ path('app_job_cancel',{id:job.id}) }}">
                   <input type="hidden" name="_token" value="{{ csrf_token('cancel_job_' ~ job.id) }}">
-                  <button class="secondary" type="submit">Cancel</button>
+                  <button class="action-icon-button is-destructive" type="submit"
+                    title="Cancel queued job" aria-label="Cancel job {{ job.id }}">{{ icon('stop') }}</button>
                 </form>
               {% elseif job.state == 'running' %}
                 <span class="muted">In progress</span>
-              {% elseif (job.kind in ['scan','rebuild-duplicates'] or job.history_prunable_at) and job.state in ['completed','failed','cancelled'] %}
-                <a class="text-link" href="{{ path('app_job_detail',{id:job.id}) }}#remove-job">Remove log</a>
+              {% elseif (job.kind in ['scan','rebuild-duplicates','duplicate-verify'] or job.history_prunable_at) and job.state in ['completed','failed','cancelled'] %}
+                <a class="action-icon-button is-destructive" href="{{ path('app_job_detail',{id:job.id}) }}#remove-job"
+                   title="Remove completed job log" aria-label="Remove log for job {{ job.id }}">{{ icon('trash') }}</a>
               {% else %}
                 <span class="muted">Recovery history protected</span>
               {% endif %}

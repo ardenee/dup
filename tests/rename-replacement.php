@@ -41,7 +41,7 @@ $html=$twig->render('rename/index.html.twig',[
     'app'=>['user'=>null,'environment'=>'test','flashes'=>[]],
     'profiles'=>[['id'=>1,'name'=>'Audio']],'profile'=>1,'filters'=>'',
     'dots'=>1,'unders'=>1,'collapse'=>true,'dups'=>false,
-    'collision'=>'reject','find'=>'Show','replace'=>'Book',
+    'collision'=>'fail','find'=>'Show','replace'=>'Book',
     'candidates'=>['rows'=>[],'next'=>null,'scanned'=>0],
     'batches'=>[],'paging'=>[]
 ]);

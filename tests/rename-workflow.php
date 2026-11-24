@@ -36,7 +36,7 @@ try {
     file_put_contents($existing,'DO NOT OVERWRITE');
     $db=DriverManager::getConnection(['driver'=>'pdo_sqlite','memory'=>true]);
     foreach([
-        'CREATE TABLE scan_profiles (id INT PRIMARY KEY,name TEXT)',
+        'CREATE TABLE scan_profiles (id INT PRIMARY KEY,name TEXT,file_exists_policy TEXT NOT NULL DEFAULT "fail")',
         'CREATE TABLE scan_runs (id INT PRIMARY KEY,profile_id INT,state TEXT,started_at TEXT)',
         'CREATE TABLE directories (id INT PRIMARY KEY,path TEXT,run_id INT,is_ignored INT)',
         'CREATE TABLE file_entries (id INT PRIMARY KEY,filename TEXT,directory_id INT,run_id INT,size_bytes INT,mtime_epoch INT,error_code TEXT)',
@@ -48,7 +48,7 @@ try {
         'CREATE TABLE duplicate_groups (id INT PRIMARY KEY,run_id INT)',
         'CREATE TABLE duplicate_group_members (id INT PRIMARY KEY,group_id INT,file_entry_id INT)'
     ] as $sql) $db->executeStatement($sql);
-    $db->executeStatement("INSERT INTO scan_profiles VALUES (1,'Music')");
+    $db->executeStatement("INSERT INTO scan_profiles(id,name) VALUES (1,'Music')");
     $db->executeStatement("INSERT INTO scan_runs (id,profile_id,state) VALUES (1,1,'completed')");
     $db->insert('directories',['id'=>1,'path'=>realpath($folder),'run_id'=>1,'is_ignored'=>0]);
     $db->insert('file_entries',[
@@ -59,7 +59,7 @@ try {
     $fs=new SafeFileSystem(new DirectoryBrowser());
     $jobs=new JobStore($db,new DirectoryBrowser());
     $actions=new FileActionService($db,$fs);
-    $service=new RenameService($db,$fs,$actions);
+    $service=new RenameService($db,$fs,$actions,new \App\Module\FileActions\Service\ActionSettings($db));
     $candidate=$service->candidates(1,'[copy]',0,1,true);
     verifyRename(count($candidate['rows'])===1,'Cleanup candidates missing');
     verifyRename($candidate['rows'][0]['new_name']==='Demo.flac','Wrong rename preview');

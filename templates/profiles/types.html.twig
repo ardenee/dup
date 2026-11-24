@@ -1,4 +1,5 @@
 {% extends 'base.html.twig' %}
+{% from '_action_icons.html.twig' import icon %}
 {% block title %}File-type presets{% endblock %}
 {% block section %}Profiles / File types{% endblock %}
 {% block body %}
@@ -15,12 +16,14 @@
    <td><strong>{{ preset.name }}</strong></td>
    <td><code>{{ preset.extensions is empty ? 'All file types' : preset.extensions }}</code></td>
    <td>{{ preset.used_by }}</td>
-   <td><div class="profile-actions">
-     <a class="secondary link-button" href="{{ path('app_profile_types',{edit:preset.id}) }}">Edit</a>
+   <td><div class="action-icon-group">
+     <a class="action-icon-button" href="{{ path('app_profile_types',{edit:preset.id}) }}"
+               title="Edit file type preset" aria-label="Edit {{ preset.name }}">{{ icon('edit') }}</a>
      {% if preset.used_by == 0 %}
        <form method="post" action="{{ path('app_profile_type_delete',{id:preset.id}) }}" onsubmit="return confirm('Delete this unused preset?')">
         <input type="hidden" name="_token" value="{{ csrf_token('delete_profile_type_' ~ preset.id) }}">
-        <button class="secondary" type="submit">Delete</button>
+        <button class="action-icon-button is-destructive" type="submit"
+          title="Delete unused preset" aria-label="Delete {{ preset.name }}">{{ icon('trash') }}</button>
        </form>
      {% else %}<span class="muted">In use</span>{% endif %}
    </div></td>

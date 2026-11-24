@@ -1,4 +1,5 @@
 {% extends 'base.html.twig' %}
+{% from '_action_icons.html.twig' import icon %}
 {% block title %}Profiles{% endblock %}
 {% block section %}Profiles{% endblock %}
 {% block body %}
@@ -14,7 +15,7 @@
     <div class="empty-state">No profiles configured. <a href="{{ path('app_profile_new') }}">Create the first profile</a>.</div>
   {% else %}
     <div class="table-wrap"><table><thead>
-      <tr><th>Name / source</th><th>File type</th><th>Matching</th><th>Completed scans</th><th>Latest result</th><th>Schedule</th><th>State</th><th>Actions</th></tr>
+      <tr><th>Name / source</th><th>File type</th><th>Matching</th><th>Completed scans</th><th>Latest result</th><th>File exists</th><th>Schedule</th><th>State</th><th>Actions</th></tr>
     </thead><tbody>
     {% for profile in profiles %}
       <tr>
@@ -31,6 +32,7 @@
             <strong>Historical results available</strong>
             <div class="muted">{{ profile.retained_runs|number_format }} retained scans · last finished {{ profile.last_saved_at }} UTC</div>
           {% else %}<span class="muted">Never scanned</span>{% endif %}</td>
+        <td><span class="status">{{ (profile.file_exists_policy|default('fail'))|replace({'fail':'Fail','number':'Append Number','overwrite':'Overwrite'}) }}</span></td>
         <td>
           <form method="post" action="{{ path('app_profile_schedule',{id:profile.id}) }}" class="schedule-inline-form">
             <input type="hidden" name="_token" value="{{ csrf_token('schedule_profile_' ~ profile.id) }}">
@@ -40,7 +42,8 @@
                 <option value="{{ minutes }}" {{ (profile.schedule_interval|default(0)) == minutes ? 'selected' : '' }}>{{ description }}</option>
               {% endfor %}
             </select>
-            <button class="secondary" type="submit">Save</button>
+            <button class="action-icon-button" type="submit" title="Save automatic scan schedule"
+              aria-label="Save schedule for {{ profile.name }}">{{ icon('save') }}</button>
           </form>
           {% if profile.schedule_next %}<small class="muted">Next: {{ profile.schedule_next }} UTC</small>{% endif %}
           {% if profile.schedule_error %}<div class="report-error">Last schedule attempt failed: {{ profile.schedule_error }}</div>{% endif %}
@@ -48,18 +51,26 @@
         <td>{% if profile.active_state %}<span class="status">{{ profile.active_state }}</span>
           <div class="muted">{{ profile.active_phase }}</div>
           {% else %}<span class="status">{{ profile.enabled ? 'Idle' : 'Disabled' }}</span>{% endif %}</td>
-        <td><div class="profile-actions">
-          <a class="primary link-button" href="{{ path('app_duplicates',{profile:profile.id}) }}">Browse scans</a>
+        <td><div class="action-icon-group" role="group" aria-label="Actions for {{ profile.name }}">
+          <a class="action-icon-button" href="{{ path('app_duplicates',{profile:profile.id}) }}"
+             title="Browse scans and duplicates" aria-label="Browse scans for {{ profile.name }}">{{ icon('eye') }}</a>
           <form method="post" action="{{ path('app_profile_scan',{id:profile.id}) }}">
             <input type="hidden" name="_token" value="{{ csrf_token('scan_profile_' ~ profile.id) }}">
-            <button class="secondary" type="submit" {{ not profile.enabled or profile.active_state ? 'disabled' : '' }}>Start scan</button>
+            <button class="action-icon-button" type="submit" {{ not profile.enabled or profile.active_state ? 'disabled' : '' }}
+              title="Start scan" aria-label="Start scan for {{ profile.name }}">{{ icon('scan') }}</button>
           </form>
-          <a class="secondary link-button" href="{{ path('app_reports',{profile:profile.id}) }}">Reports & history</a>
-          <a class="secondary link-button" href="{{ path('app_ignore_folders',{profile:profile.id}) }}">Ignored folders</a>
-          <a class="secondary link-button" href="{{ path('app_profile_edit',{id:profile.id}) }}">Edit</a>
+          <a class="action-icon-button" href="{{ path('app_reports',{profile:profile.id}) }}"
+             title="Reports and scan history" aria-label="Reports for {{ profile.name }}">{{ icon('history') }}</a>
+          <a class="action-icon-button" href="{{ path('app_ignore_folders',{profile:profile.id}) }}"
+             title="Ignored folders" aria-label="Ignored folders for {{ profile.name }}">{{ icon('folder') }}</a>
+          <a class="action-icon-button" href="{{ path('app_profile_edit',{id:profile.id}) }}"
+             title="Edit profile and File Exists settings" aria-label="Edit {{ profile.name }}">{{ icon('edit') }}</a>
           <form method="post" action="{{ path('app_profile_enabled',{id:profile.id}) }}">
             <input type="hidden" name="_token" value="{{ csrf_token('toggle_profile_' ~ profile.id) }}">
-            <button class="secondary" type="submit" {{ profile.active_state ? 'disabled' : '' }}>{{ profile.enabled ? 'Disable' : 'Enable' }}</button>
+            <button class="action-icon-button {{ profile.enabled ? 'is-destructive' : '' }}" type="submit"
+              {{ profile.active_state ? 'disabled' : '' }}
+              title="{{ profile.enabled ? 'Disable profile' : 'Enable profile' }}"
+              aria-label="{{ profile.enabled ? 'Disable' : 'Enable' }} {{ profile.name }}">{{ icon('power') }}</button>
           </form>
           </div></td>
       </tr>

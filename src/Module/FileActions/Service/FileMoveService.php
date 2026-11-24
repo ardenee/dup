@@ -25,7 +25,7 @@ final class FileMoveService
         $ids=array_values(array_unique($ids));
         if(count($ids)<1 || count($ids)>50)
             throw new \DomainException('Select between 1 and 50 indexed files.');
-        $items=[];$profileId=0;$runId=0;$destinations=[];
+        $items=[];$profileId=0;$runId=0;$destinations=[];$fileExistsPolicy=null;
         foreach($ids as $id) {
             if($id<1) throw new \DomainException('Invalid file selection.');
             $file=$this->db->fetchAssociative(
@@ -45,6 +45,7 @@ final class FileMoveService
                 throw new \DomainException('Select files belonging to one scan profile.');
             $profileId=(int)$file['profile_id'];
             $runId=(int)$file['run_id'];
+            $fileExistsPolicy=$this->settings->policy($profileId);
             $source=$this->fs->checkedPath((string)$file['directory'],(string)$file['filename']);
             $this->fs->checkedStat($source,(int)$file['size_bytes'],(int)$file['mtime_epoch']);
             $moveRoot=$this->fs->checkedRoot((string)$file['move_root']);
@@ -54,14 +55,14 @@ final class FileMoveService
                 (string)$file['directory'],(string)$file['filename']
             );
             $overwrite=null;
-            if($this->settings->policy()===ActionSettings::OVERWRITE &&
+            if($fileExistsPolicy===ActionSettings::OVERWRITE &&
                (file_exists($target) || is_link($target))) {
                 if(is_link($target) || !is_file($target))
                     throw new \DomainException('Cannot overwrite a symbolic link or non-file destination.');
                 $stat=$this->fs->checkedStat($target,(int)filesize($target),(int)filemtime($target));
                 $overwrite=['size'=>(int)$stat['size'],'mtime'=>(int)$stat['mtime']];
             }
-            if($this->settings->policy()===ActionSettings::NUMBER) {
+            if($fileExistsPolicy===ActionSettings::NUMBER) {
                 $numbered=\App\Module\Renaming\Service\RenameRules::availableName(
                     dirname($target),basename($target),$destinations
                 );

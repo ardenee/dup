@@ -32,6 +32,16 @@
         <option value="sha256" {{ selectedMode == 'sha256' ? 'selected' : '' }}>SHA-256 — full verified comparison</option>
       </select>
       <small class="muted">CRC32 3 Part reads 150 KiB from the beginning, middle and end of large files. Files under 450 KiB use full CRC32. Size and CRC32 matches are candidates; file actions must independently verify their contents.</small></div>
+    <div class="field">
+      <label for="file-exists-policy">File exists — Move and Rename destinations</label>
+      {% set existingPolicy = app.request.request.get('file_exists_policy',editing ? profile.file_exists_policy : 'fail') %}
+      <select name="file_exists_policy" id="file-exists-policy">
+        <option value="fail" {{ existingPolicy == 'fail' ? 'selected' : '' }}>Fail — do not replace existing files</option>
+        <option value="number" {{ existingPolicy == 'number' ? 'selected' : '' }}>Append Number — filename (1).ext, filename (2).ext</option>
+        <option value="overwrite" {{ existingPolicy == 'overwrite' ? 'selected' : '' }}>Overwrite — replace the approved destination permanently</option>
+      </select>
+      <small class="muted">Applies to this scan profile only. Move and Rename use this preference for their new file operations. Existing approved jobs are unchanged.</small>
+    </div>
     <div class="field"><label for="minimum">Minimum file size (bytes)</label>
       <input id="minimum" name="minimum_bytes" type="number" min="0" step="1" value="{{ app.request.request.get('minimum_bytes',editing ? profile.minimum_bytes : '0') }}" required></div>
     <div class="form-actions"><button class="primary" type="submit">{{ editing ? 'Save changes' : 'Save profile' }}</button>

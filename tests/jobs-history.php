@@ -89,8 +89,8 @@ $html=$twig->render('jobs/index.html.twig',$app+[
     'profiles'=>$repo->profiles(),'selected_profile'=>null,
     'selected_state'=>'','job_filters'=>[]
 ]);
-foreach(['Job history','job-profile','job-state','Older jobs','Details & events',
-    'Scan duplicates','50 jobs on this page','125 matching jobs'] as $needle)
+foreach(['Job history','job-profile','job-state','Older jobs','Job details and events',
+    'Scan duplicate results','50 jobs on this page','125 matching jobs'] as $needle)
     assertJobs(str_contains($html,$needle),'Job monitor UI missing '.$needle);
 assertJobs(!str_contains($html,'/app_job_events'),'Raw events JSON remains primary workflow');
 $detailHtml=$twig->render('jobs/detail.html.twig',$app+$details);

@@ -24,7 +24,7 @@ file_put_contents($to,$old);
 try {
     $db=DriverManager::getConnection(['driver'=>'pdo_sqlite','memory'=>true]);
     foreach([
-        'CREATE TABLE scan_profiles(id INT PRIMARY KEY,name TEXT,source_root TEXT,move_root TEXT)',
+        'CREATE TABLE scan_profiles(id INT PRIMARY KEY,name TEXT,source_root TEXT,move_root TEXT,file_exists_policy TEXT NOT NULL DEFAULT "fail")',
         'CREATE TABLE action_settings(setting_key TEXT PRIMARY KEY,setting_value TEXT,updated_at TEXT)',
         'CREATE TABLE scan_runs(id INT PRIMARY KEY,profile_id INT,state TEXT,started_at TEXT)',
         'CREATE TABLE directories(id INT PRIMARY KEY,run_id INT,path TEXT,is_ignored INT)',
@@ -48,9 +48,31 @@ try {
     $jobs=new JobStore($db,new DirectoryBrowser());
     $audit=new FileActionService($db,$fs);
     $settings=new ActionSettings($db);
-    $settings->save(ActionSettings::OVERWRITE,7);
+    $db->update('scan_profiles',['file_exists_policy'=>ActionSettings::OVERWRITE],['id'=>1]);
     $moves=new FileMoveService($db,$fs,new MovePathPlanner($fs),$audit,$settings);
     $moveWorker=new FileMoveWorker($db,$jobs,$fs,new MovePathPlanner($fs),$audit);
+
+    // Same scan roots, different profile preference. The Fail profile must
+    // never inherit the Overwrite policy of profile #1.
+    $db->insert('scan_profiles',[
+        'id'=>2,'name'=>'Conservative audio','source_root'=>realpath($source),
+        'move_root'=>realpath($destination),'file_exists_policy'=>'fail'
+    ]);
+    $db->insert('scan_runs',['id'=>2,'profile_id'=>2,'state'=>'completed']);
+    $db->insert('directories',['id'=>2,'run_id'=>2,'path'=>realpath($source),'is_ignored'=>0]);
+    $db->insert('file_entries',[
+        'id'=>10,'run_id'=>2,'directory_id'=>2,'filename'=>'chapter.m4b',
+        'size_bytes'=>filesize($from),'mtime_epoch'=>filemtime($from),'error_code'=>null
+    ]);
+    try {
+        $moves->plan([10],7);
+        throw new RuntimeException('The conservative profile inherited Overwrite from another profile.');
+    } catch(DomainException $ex) {
+        assertOverwrite(str_contains($ex->getMessage(),'exists'),
+            'Conservative profile rejected the target for an unrelated reason.');
+    }
+    assertOverwrite(file_get_contents($to)===$old,
+        'Another profile was able to alter the destination unexpectedly.');
     $batch=$moves->plan([1],7);
     $plan=$moves->details($batch)['items'][0];
     assertOverwrite((int)$plan['overwrite_target_size']===strlen($old),
@@ -117,7 +139,7 @@ try {
         'id'=>3,'run_id'=>1,'directory_id'=>1,'filename'=>$targetFilename,
         'size_bytes'=>filesize($targetPath),'mtime_epoch'=>filemtime($targetPath),'error_code'=>null
     ]);
-    $rename=new RenameService($db,$fs,$audit);
+    $rename=new RenameService($db,$fs,$audit,$settings);
     $renameJob=$rename->queue(1,7,[2],'_[copy]',0,0,false,[], '', '', 'overwrite');
     $renameBatch=(int)$db->fetchOne('SELECT file_action_batch_id FROM jobs WHERE id=?',[$renameJob]);
     $renameItem=$db->fetchAssociative('SELECT * FROM file_action_items WHERE batch_id=?',[$renameBatch]);

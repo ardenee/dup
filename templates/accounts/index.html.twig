@@ -1,4 +1,5 @@
 {% extends 'base.html.twig' %}
+{% from '_action_icons.html.twig' import icon %}
 {% block title %}Accounts{% endblock %}
 {% block section %}Administration / Accounts{% endblock %}
 {% block body %}
@@ -18,17 +19,20 @@
       <td>{{ 'ROLE_ADMIN' in account.roles ? 'Administrator' : 'Read-only user' }}</td>
       <td><span class="status">{{ account.disabled_at ? 'Disabled' : 'Active' }}</span></td>
       <td>{{ account.created_at }}</td>
-      <td><div class="profile-actions">
-         <a class="secondary link-button" href="{{ path('app_accounts',{edit:account.id}) }}">Edit</a>
+      <td><div class="action-icon-group" role="group" aria-label="Actions for {{ account.username }}">
+         <a class="action-icon-button" href="{{ path('app_accounts',{edit:account.id}) }}"
+             title="Edit account" aria-label="Edit {{ account.username }}">{{ icon('edit') }}</a>
          {% if account.disabled_at %}
          <form action="{{ path('app_accounts_enabled',{id:account.id}) }}" method="post">
           <input type="hidden" name="_token" value="{{ csrf_token('account_enabled_' ~ account.id) }}">
-          <input type="hidden" name="enabled" value="1"><button class="secondary" type="submit">Enable</button>
+          <input type="hidden" name="enabled" value="1"><button class="action-icon-button" type="submit" title="Enable account"
+            aria-label="Enable {{ account.username }}">{{ icon('power') }}</button>
          </form>
          {% elseif account.id != self_id and account.username != 'admin' %}
          <form action="{{ path('app_accounts_enabled',{id:account.id}) }}" method="post" onsubmit="return confirm('Disable access for this account? Its audit history will be retained.')">
           <input type="hidden" name="_token" value="{{ csrf_token('account_enabled_' ~ account.id) }}">
-          <input type="hidden" name="enabled" value="0"><button class="secondary" type="submit">Disable</button>
+          <input type="hidden" name="enabled" value="0"><button class="action-icon-button is-destructive" type="submit" title="Disable account"
+            aria-label="Disable {{ account.username }}">{{ icon('power') }}</button>
          </form>
          {% endif %}
          {% if account.id != self_id %}
@@ -36,7 +40,8 @@
                  onsubmit="return confirm('Permanently delete the account {{ account.username|e('js') }}? Its login will be removed; existing audit events remain.')">
              <input type="hidden" name="_token" value="{{ csrf_token('account_delete_' ~ account.id) }}">
              <input type="hidden" name="confirm" value="DELETE">
-             <button class="secondary delete-action" type="submit">Delete</button>
+             <button class="action-icon-button is-destructive" type="submit" title="Delete account permanently"
+               aria-label="Delete {{ account.username }}">{{ icon('trash') }}</button>
            </form>
          {% endif %}
       </div></td>

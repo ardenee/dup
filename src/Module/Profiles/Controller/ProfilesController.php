@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Module\Profiles\Controller;
 
 use App\Module\Profiles\Repository\ProfileRepository;
+use App\Module\FileActions\Service\ActionSettings;
 use App\Module\Profiles\Service\DirectoryBrowser;
 use App\Module\Scans\Service\FileHasher;
 use App\Module\Jobs\Service\JobStore;
@@ -34,6 +35,9 @@ final class ProfilesController extends AbstractController
         $size=filter_var($request->request->get('minimum_bytes'),FILTER_VALIDATE_INT,
             ['options'=>['min_range'=>0]]);
         $mode=(string)$request->request->get('hash_mode','crc32_3part');
+        $fileExists=(string)$request->request->get('file_exists_policy',ActionSettings::FAIL);
+        if(!in_array($fileExists,[ActionSettings::FAIL,ActionSettings::NUMBER,ActionSettings::OVERWRITE],true))
+            $errors[]='Choose a valid File Exists policy.';
         if(mb_strlen($name)<1 || mb_strlen($name)>140)
             $errors[]='Profile name must be 1–140 characters.';
         if(!$type || !in_array($type,array_map(
@@ -49,7 +53,7 @@ final class ProfilesController extends AbstractController
         if($canonicalMove===null)
             $errors[]='Move folder is not accessible to the PHP account.';
 
-        return [$errors,$name,$canonicalSource,$canonicalMove,$type,$size,$mode];
+        return [$errors,$name,$canonicalSource,$canonicalMove,$type,$size,$mode,$fileExists];
     }
 
     #[Route('/profiles/new',name:'app_profile_new',methods:['GET','POST'])]
@@ -59,9 +63,9 @@ final class ProfilesController extends AbstractController
         if($request->isMethod('POST')) {
             if(!$this->isCsrfTokenValid('create_profile',(string)$request->request->get('_token','')))
                 throw $this->createAccessDeniedException('Invalid form token.');
-            [$errors,$name,$source,$move,$type,$size,$mode]=$this->validate($request,$repository,$browser);
+            [$errors,$name,$source,$move,$type,$size,$mode,$fileExists]=$this->validate($request,$repository,$browser);
             if(!$errors) {
-                $repository->create($name,$source,$move,$type,$size,$mode);
+                $repository->create($name,$source,$move,$type,$size,$mode,$fileExists);
                 $this->addFlash('success','Profile created. Start a scan to index its files.');
                 return $this->redirectToRoute('app_profiles');
             }
@@ -80,10 +84,10 @@ final class ProfilesController extends AbstractController
         if($request->isMethod('POST')) {
             if(!$this->isCsrfTokenValid('edit_profile_'.$id,(string)$request->request->get('_token','')))
                 throw $this->createAccessDeniedException('Invalid form token.');
-            [$errors,$name,$source,$move,$type,$size,$mode]=$this->validate($request,$repository,$browser);
+            [$errors,$name,$source,$move,$type,$size,$mode,$fileExists]=$this->validate($request,$repository,$browser);
             if(!$errors) {
                 try {
-                    $repository->update($id,$name,$source,$move,$type,$size,$mode);
+                    $repository->update($id,$name,$source,$move,$type,$size,$mode,$fileExists);
                     $this->addFlash('success','Profile settings updated. Existing scan history was preserved.');
                     return $this->redirectToRoute('app_profiles');
                 } catch(\DomainException $ex) {

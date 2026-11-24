@@ -22,7 +22,7 @@ final class ProfileRepository
     public function profiles(): array
     {
         return $this->db->fetchAllAssociative(
-            'SELECT p.id,p.name,p.source_root,p.move_root,p.hash_mode,p.minimum_bytes,p.enabled, '.
+            'SELECT p.id,p.name,p.source_root,p.move_root,p.hash_mode,p.minimum_bytes,p.enabled,p.file_exists_policy, '.
             't.name AS type_name,r.files_indexed,r.duplicate_groups,r.finished_at, '.
             "(SELECT COUNT(*) FROM scan_runs s2 WHERE s2.profile_id=p.id AND ".
             "s2.state IN ('completed','archived')) AS completed_scans, ".
@@ -40,23 +40,27 @@ final class ProfileRepository
         );
     }
 
-    public function create(string $name,string $source,string $move,int $type,int $minimum,string $hashMode): void
+    public function create(string $name,string $source,string $move,int $type,int $minimum,string $hashMode,string $fileExists='fail'): void
     {
+        \App\Module\FileActions\Service\ActionSettings::validate($fileExists);
         $this->db->insert('scan_profiles',[
             'name'=>$name,'source_root'=>$source,'move_root'=>$move,
             'profile_type_id'=>$type,'minimum_bytes'=>$minimum,'hash_mode'=>$hashMode,
+            'file_exists_policy'=>$fileExists,
             'enabled'=>1,'created_at'=>gmdate('Y-m-d H:i:s'),
             'updated_at'=>gmdate('Y-m-d H:i:s')
         ]);
     }
 
-    public function update(int $id,string $name,string $source,string $move,int $type,int $minimum,string $hashMode): void
+    public function update(int $id,string $name,string $source,string $move,int $type,int $minimum,string $hashMode,string $fileExists='fail'): void
     {
-        $this->db->transactional(function() use ($id,$name,$source,$move,$type,$minimum,$hashMode):void {
+        \App\Module\FileActions\Service\ActionSettings::validate($fileExists);
+        $this->db->transactional(function() use ($id,$name,$source,$move,$type,$minimum,$hashMode,$fileExists):void {
             $this->requireIdle($id);
             $updated=$this->db->update('scan_profiles',[
                 'name'=>$name,'source_root'=>$source,'move_root'=>$move,
                 'profile_type_id'=>$type,'minimum_bytes'=>$minimum,'hash_mode'=>$hashMode,
+                'file_exists_policy'=>$fileExists,
                 'updated_at'=>gmdate('Y-m-d H:i:s')
             ],['id'=>$id]);
             // MySQL can return zero for an update that does not change values.

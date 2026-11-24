@@ -314,3 +314,31 @@ textarea{font:inherit;color:var(--ink)}
 .rename-selected-options{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;background:#f5f9fb;border-bottom:1px solid var(--line)}
 .rename-selected-options label{font-size:12px;font-weight:700;color:#355a6b}
 .rename-selected-options select{min-width:240px;max-width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px}
+
+/* Shared table actions for Dashboard, Profiles, Jobs, Reports, Rename and Accounts.
+   Buttons retain native tooltip titles plus accessible labels. */
+.action-icon-sprite{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
+.action-icon-group{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px;vertical-align:middle}
+.action-icon-group form{display:inline-flex;align-items:center;flex:0 0 auto;margin:0}
+.action-icon-button,.action-icon-button:link,.action-icon-button:visited{
+  display:inline-flex;box-sizing:border-box;width:32px;height:32px;min-width:32px;min-height:32px;
+  align-items:center;justify-content:center;flex:0 0 32px;line-height:1;white-space:nowrap;
+  appearance:none;border:1px solid transparent;border-radius:7px;padding:6px;margin:0;
+  color:#146e82;background:transparent;text-decoration:none;cursor:pointer;
+  transition:background .15s ease,border-color .15s ease
+}
+.action-icon{width:18px;height:18px;stroke:currentColor;stroke-width:1.85;
+  stroke-linecap:round;stroke-linejoin:round;fill:none;flex:0 0 auto}
+.action-icon-button:hover:not(:disabled),.action-icon-button:focus-visible{
+  color:#084d64;background:#e9f7fa;border-color:#9cc8d3;outline-offset:1px
+}
+.action-icon-button.is-destructive,.action-icon-button.is-destructive:link,
+.action-icon-button.is-destructive:visited{color:#a42d31}
+.action-icon-button.is-destructive:hover:not(:disabled),.action-icon-button.is-destructive:focus-visible{
+  color:#912122;background:#fff0ef;border-color:#edbbb9
+}
+.action-icon-button:disabled{opacity:.35;cursor:not-allowed}
+.action-icon-button.is-muted{color:#4e6974}
+.action-icon-button .action-icon{pointer-events:none}
+.action-inline-error{display:block;margin-top:4px}
+@media(max-width:900px){.action-icon-button{width:34px;height:34px}}

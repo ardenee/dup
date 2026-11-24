@@ -28,8 +28,8 @@ $registry=new ModuleRegistry([
 ]);
 $links=$registry->navigation();
 $routes=array_column($links,'route');
-assertNav(count($routes)===13,'Lost or duplicated a navigation destination');
-assertNav(count(array_unique($routes))===13,'Duplicate navigation routes');
+assertNav(count($routes)===12,'Lost or duplicated a navigation destination');
+assertNav(count(array_unique($routes))===12,'Duplicate navigation routes');
 assertNav($routes[0]==='app_dashboard','Overview should be the first link');
 $groups=array_values(array_unique(array_column($links,'section')));
 assertNav($groups===['overview','find','scan','actions','settings'],
@@ -68,10 +68,10 @@ foreach(['OVERVIEW','FIND FILES','SCAN &amp; MONITOR','FILE OPERATIONS','SETTING
 }
 assertNav(str_contains($html,'href="/duplicates" class="nav-link active" aria-current="page"'),
     'Nested duplicate-group pages do not highlight the parent navigation');
-assertNav(str_contains($html,'File exists rules'),'Action settings are hard to find');
+assertNav(!str_contains($html,'File exists rules'),'Global File Exists is still exposed in navigation');
 $admin=false;
 $readOnly=$twig->render('base.html.twig',['app'=>$app]);
-foreach(['User accounts','File exists rules','Ignored folders','File actions & restores','Job monitor'] as $private)
+foreach(['User accounts','Ignored folders','File actions & restores','Job monitor'] as $private)
     assertNav(!str_contains($readOnly,$private),'Read-only role sees admin navigation: '.$private);
 foreach(['Duplicates','Find files','Scan history &amp; reports'] as $allowed)
     assertNav(str_contains($readOnly,$allowed),'Read-only user lost navigation: '.$allowed);

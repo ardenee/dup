@@ -1,4 +1,5 @@
 {% extends 'base.html.twig' %}
+{% from '_action_icons.html.twig' import icon %}
 {% block title %}Reports{% endblock %}
 {% block section %}Reports{% endblock %}
 {% block body %}
@@ -74,14 +75,12 @@
     <div class="empty-state">No scan history for this selection.</div>
   {% else %}
     <div class="table-wrap"><table>
-      <thead><tr><th>Run / profile</th><th>State</th><th>Indexed files</th><th>Duplicate groups</th><th>Started</th><th>Finished / error</th>{% if is_granted('ROLE_ADMIN') %}<th>Manage</th>{% endif %}</tr></thead>
+      <thead><tr><th>Run / profile</th><th>State</th><th>Indexed files</th><th>Duplicate groups</th><th>Started</th><th>Finished / error</th><th>Actions</th></tr></thead>
       <tbody>{% for run in history %}
         <tr>
           <td><a href="{{ path('app_report_run',{id:run.id}) }}"><strong>#{{ run.id }}</strong></a>
             <div class="muted">{{ run.profile_name }}</div>
-            {% if run.state in ['completed','archived'] %}
-              <a class="text-link" href="{{ path('app_duplicates',{run:run.id}) }}">Browse duplicates in this scan</a>
-            {% endif %}</td>
+            {# Duplicate results are opened with the icon in Actions. #}</td>
           <td><span class="status">{{ run.state }}</span></td>
           <td class="group-size">{{ run.files_indexed|number_format }}</td>
           <td class="group-size">{{ run.duplicate_groups|number_format }}</td>
@@ -89,7 +88,15 @@
           <td>{{ run.finished_at ?? '—' }}
             {% if run.job_error %}<div class="report-error">{{ run.job_error }}</div>{% endif %}
           </td>
-          {% if is_granted('ROLE_ADMIN') %}<td><a class="text-link" href="{{ path('app_report_run',{id:run.id}) }}">Review / remove</a></td>{% endif %}
+          <td><div class="action-icon-group">
+            {% if run.state in ['completed','archived'] %}
+            <a class="action-icon-button" href="{{ path('app_duplicates',{run:run.id}) }}"
+               title="Browse scan duplicate results" aria-label="Duplicates for scan {{ run.id }}">{{ icon('eye') }}</a>
+            {% endif %}
+            <a class="action-icon-button" href="{{ path('app_report_run',{id:run.id}) }}"
+               title="{{ is_granted('ROLE_ADMIN') ? 'Review report and manage scan' : 'View scan report' }}"
+               aria-label="{{ is_granted('ROLE_ADMIN') ? 'Manage' : 'View report for' }} scan {{ run.id }}">{{ icon('report') }}</a>
+          </div></td>
         </tr>
       {% endfor %}</tbody></table></div>
     <div class="result-toolbar">
