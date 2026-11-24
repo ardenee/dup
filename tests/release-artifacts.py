@@ -3,8 +3,8 @@
 from pathlib import Path
 import io, tarfile, zipfile, sys, subprocess, tempfile
 root=Path(__file__).resolve().parent.parent
-web=root/'dist'/'DUP-Web-0.7.16.zip'
-dsm=root/'dist'/'DUP-DSM7-0.7.16.spk'
+web=root/'dist'/'DUP-Web-0.7.17.zip'
+dsm=root/'dist'/'DUP-DSM7-0.7.17.spk'
 assert web.is_file() and dsm.is_file()
 with zipfile.ZipFile(web) as archive:
     names=archive.namelist()
@@ -17,10 +17,10 @@ with zipfile.ZipFile(web) as archive:
     assert not forbidden,forbidden[:15]
     assert files['LICENSE']==files['public/license.txt']==files['public/assets/license.txt']
     assert b'APP_ENV=prod' in files['.env']
-    assert b'0.7.16' in files['templates/base.html.twig']
+    assert b'0.7.17' in files['templates/base.html.twig']
     assert b'Development preview' not in files['templates/base.html.twig']
-    assert b'0.7.16' in files['public/setup.php']
-    assert b'0.7.16' in files['templates/accounts/login.html.twig']
+    assert b'0.7.17' in files['public/setup.php']
+    assert b'0.7.17' in files['templates/accounts/login.html.twig']
     assert 'migrations/Version20261124001000.php' in files
     assert 'migrations/Version20261124001100.php' in files
     assert 'templates/_action_sprite.html.twig' in files
@@ -55,6 +55,17 @@ with zipfile.ZipFile(web) as archive:
     assert b'Diagnostic storage check' in files['templates/jobs/worker-log.html.twig']
     assert b'worker_log_readable' in files['src/Module/Jobs/Service/JobDebugLog.php']
     assert b'profile-action-toolbar{display:flex' in files['public/assets/app.css']
+    assert b'DUP DEBUG LOG WRITE FAILED' in files['src/Module/Jobs/Service/JobDebugLog.php']
+    assert b'function probe():array' in files['src/Module/Jobs/Service/JobDebugLog.php']
+    assert b'DUP CLI DEBUG LOG UNAVAILABLE' in files['src/Module/Jobs/Command/WorkJobsCommand.php']
+    assert b'app_job_debug_test' in files['src/Module/Jobs/Controller/JobsController.php']
+    assert b'Test debug logging now' in files['templates/jobs/worker-log.html.twig']
+    assert b'function recentJobs(' in files['src/Module/Jobs/Service/JobDebugLog.php']
+    assert 'src/Module/Jobs/Service/VerificationCancelSignal.php' in files
+    assert b'app_job_force_stop_verify' in files['src/Module/Jobs/Controller/JobsController.php']
+    assert b'VERIFICATION_SUPERVISOR_STOP_REQUESTED' in files['src/Module/Jobs/Service/VerificationCancelSignal.php']
+    assert b'Force stop verification worker' in files['templates/jobs/detail.html.twig']
+    assert b'verification.cancel.signal_queued' in files['src/Module/Jobs/Service/VerificationCancelSignal.php']
     assert 'templates/jobs/worker-log.html.twig' in files
     assert b'VERIFICATION_CANDIDATE_PAGE_READY' in files['src/Module/Duplicates/Service/DuplicateVerificationWorker.php']
     assert b'worker-process-exit' not in files['templates/base.html.twig']
@@ -68,7 +79,7 @@ with tarfile.open(dsm,'r') as outer:
     assert outer.extractfile('LICENSE').read()==files['LICENSE']
     info=outer.extractfile('INFO').read()
     resource=outer.extractfile('conf/resource').read()
-    assert b'version="0.7.16"' in info
+    assert b'version="0.7.17"' in info
     assert b'development preview' not in info.lower()
     assert b'Preview' not in resource
     package=outer.extractfile('package.tgz').read()
@@ -81,6 +92,8 @@ with tarfile.open(dsm,'r') as outer:
     assert 'app/src/Module/Jobs/Command/WorkerExitedCommand.php' in entries
     assert 'app/src/Module/Jobs/Service/WorkerLogReader.php' in entries
     assert 'app/src/Module/Jobs/Service/JobDebugLog.php' in entries
+    assert 'app/src/Module/Jobs/Service/VerificationCancelSignal.php' in entries
+    assert b'kill -KILL "$pid"' in entries['app/worker-loop.sh']
     assert b'worker-output.log' in entries['app/worker-loop.sh']
     assert 'app/templates/jobs/worker-log.html.twig' in entries
     assert b'dup:jobs:worker-exited' in entries['app/worker-loop.sh']
@@ -95,4 +108,4 @@ with tarfile.open(dsm,'r') as outer:
                          'app/vendor/monolog/monolog/src/Monolog/Test/',
                          'app/vendor/twig/twig/src/Test/'))
         for n in entries)
-print('PASS official 0.7.16 ZIP/SPK: production Symfony lint, no test/preview material, proper icons/migrations and matching MIT licenses')
+print('PASS official 0.7.17 ZIP/SPK: production Symfony lint, no test/preview material, proper icons/migrations and matching MIT licenses')

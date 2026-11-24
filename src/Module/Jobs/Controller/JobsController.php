@@ -4,6 +4,7 @@ namespace App\Module\Jobs\Controller;
 
 use App\Module\Jobs\Service\JobStore;
 use App\Module\Jobs\Service\JobDebugLog;
+use App\Module\Jobs\Service\VerificationCancelSignal;
 use App\Module\Jobs\Service\WorkerMaintenance;
 use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Jobs\Service\JobHistoryCleanup;
@@ -112,8 +113,27 @@ final class JobsController extends AbstractController
             'log'=>$logs->latest(),
             'supervisor_log'=>$logs->latest(true),
             'debug'=>$debug->read($id),'storage'=>$debug->status(),
+            'recent_debug_jobs'=>$debug->recentJobs(),
             'selected_job'=>$id
         ],new Response(status:200,headers:['Cache-Control'=>'private, no-store']));
+    }
+
+    #[Route('/jobs/debug-log/test',name:'app_job_debug_test',methods:['POST'])]
+    public function testDebugLog(Request $request,JobDebugLog $debug):Response
+    {
+        if(!$this->isCsrfTokenValid('test_job_debug',
+            (string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid diagnostic test token.');
+        $result=$debug->probe();
+        if($result['success']) {
+            $this->addFlash('success','Web PHP debug write/read test succeeded: '.
+                $result['path'].'. Verify that the CLI worker also writes worker.boot.');
+        } else {
+            $this->addFlash('warning','DEBUG LOGGING FAILED: '.
+                ($result['error']??'Diagnostic write/read failed.').
+                '. Path: '.$result['path']);
+        }
+        return $this->redirectToRoute('app_worker_log',['job'=>0]);
     }
 
     #[Route('/jobs/debug-log/download',name:'app_job_debug_download',methods:['GET'])]
@@ -265,16 +285,35 @@ final class JobsController extends AbstractController
         ],200,['Cache-Control'=>'no-store']);
     }
 
+    #[Route('/jobs/{id<\d+>}/force-stop-verify',name:'app_job_force_stop_verify',methods:['POST'])]
+    public function forceStopVerification(
+        int $id,Request $request,VerificationCancelSignal $signal
+    ):Response {
+        if(!$this->isCsrfTokenValid('stop_verify_job_'.$id,
+            (string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid force-stop token.');
+        if($request->request->get('confirm')!=='STOP')
+            throw $this->createAccessDeniedException('Explicit verification stop confirmation required.');
+        $result=$signal->notify($id);
+        $this->addFlash($result['sent']?'success':'warning',$result['message']);
+        return $this->redirectToRoute('app_job_detail',['id'=>$id]);
+    }
+
     #[Route('/jobs/{id<\\d+>}/cancel',name:'app_job_cancel',methods:['POST'])]
-    public function cancel(int $id,Request $request,JobStore $store): Response
+    public function cancel(int $id,Request $request,JobStore $store,VerificationCancelSignal $signal): Response
     {
         if(!$this->isCsrfTokenValid('cancel_job_'.$id,
             (string)$request->request->get('_token','')))
             throw $this->createAccessDeniedException('Invalid form token.');
         $changed=$store->requestCancel($id);
-        $this->addFlash($changed?'success':'warning',$changed?
-            'Cancellation requested. Running scans stop at a safe checkpoint.':
-            'Cancellation is unavailable: the job has finished, is missing, or a file action is already executing.');
+        if($changed) {
+            $notice=$signal->notify($id);
+            $this->addFlash('success',
+                'Cancellation requested. '.$notice['message']);
+        } else {
+            $this->addFlash('warning',
+                'Cancellation is unavailable: the job has finished, is missing, or a file action is already executing.');
+        }
         return $request->request->get('return_to')==='detail'
             ?$this->redirectToRoute('app_job_detail',['id'=>$id])
             :$this->redirectToRoute('app_jobs');

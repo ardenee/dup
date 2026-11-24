@@ -21,6 +21,13 @@
   </div>
   <div class="panel-content">
     <p>{{ storage.help }}</p>
+    <form method="post" action="{{ path('app_job_debug_test') }}" class="diagnostic-test-form">
+      <input type="hidden" name="_token" value="{{ csrf_token('test_job_debug') }}">
+      <button type="submit" class="primary">Test debug logging now</button>
+      <span class="muted">Writes a unique test entry and reads it back as the Web Station account.
+        If this fails, you will see the exact error rather than a blank log.
+        The worker's own <code>worker.boot</code> entry independently proves CLI logging.</span>
+    </form>
     <dl class="details diagnostic-storage-details">
       <div><dt>Diagnostic directory</dt><dd><code>{{ storage.directory }}</code></dd></div>
       <div><dt>Directory exists / readable</dt><dd>{{ storage.directory_exists ? 'Yes' : 'No' }} / {{ storage.directory_readable ? 'Yes' : 'No' }}</dd></div>
@@ -50,6 +57,22 @@
     </div>
     <button class="primary" type="submit">View debug log</button>
   </form>
+  <div class="panel-content">
+    {% if recent_debug_jobs|default([]) is not empty %}
+      <p class="muted">Recent job debug logs — select a job to inspect its detailed trace:</p>
+      <div class="debug-job-links">
+        {% for recent in recent_debug_jobs %}
+          <a class="secondary link-button" href="{{ path('app_worker_log',{job:recent.id}) }}"
+            title="Job #{{ recent.id }} debug log, last updated {{ recent.updated_at }} UTC">
+            Job #{{ recent.id }}
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">No per-job debug logs found yet. The CLI worker must start and be able to write them.
+        Check worker lifecycle messages and run the logging self-test above.</p>
+    {% endif %}
+  </div>
   <div class="panel-content">
     <p class="muted">Log file: <code>{{ debug.path }}</code>
       {% if debug.last_updated is defined %} — Last update: {{ debug.last_updated }} UTC{% endif %}

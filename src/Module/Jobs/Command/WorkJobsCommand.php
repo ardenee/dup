@@ -75,7 +75,7 @@ final class WorkJobsCommand extends Command
             return Command::INVALID;
         }
         $this->stopping=false;
-        $this->debug->write(0,'info','worker.boot',[
+        $bootLogWritable=$this->debug->write(0,'info','worker.boot',[
             'php_version'=>PHP_VERSION,'sapi'=>PHP_SAPI,'memory_limit'=>ini_get('memory_limit'),
             'php_ini'=>php_ini_loaded_file(),'extensions'=>[
                 'pdo_mysql'=>extension_loaded('pdo_mysql'),
@@ -83,6 +83,14 @@ final class WorkJobsCommand extends Command
                 'hash'=>extension_loaded('hash')
             ],'loop'=>$loop
         ]);
+        if(!$bootLogWritable) {
+            $message='DUP CLI DEBUG LOG UNAVAILABLE: '.
+                ($this->debug->lastWriteError()??'write verification failed').
+                '. Worker refuses to claim jobs without independent diagnostics.';
+            $output->writeln('<error>'.$message.'</error>');
+            error_log($message);
+            return Command::FAILURE;
+        }
         $activeId=null;
         register_shutdown_function(function()use(&$activeId):void {
             $last=error_get_last();
@@ -155,6 +163,12 @@ final class WorkJobsCommand extends Command
                 $state=(string)$this->db->fetchOne('SELECT state FROM jobs WHERE id=?',[$id]);
                 $this->debug->write($id,'info','worker.job.finished',['state'=>$state]);
                 $output->writeln('Job #'.$id.' finished with state: '.$state);
+                if($job['kind']==='duplicate-verify' && $state==='cancelled') {
+                    $this->debug->write($id,'info','worker.exit.after_verification_cancel',[
+                        'note'=>'Exit before claiming another job; supervisor owns this cancellation request.'
+                    ]);
+                    $this->stopping=true;
+                }
                 $activeId=null;
                 if($state==='failed') $failed=true;
                 $processed++;

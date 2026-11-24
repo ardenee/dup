@@ -5,6 +5,9 @@ VAR="${2:?persistent runtime directory required}"
 umask 077
 DIAG="$VAR/runtime/log/dup-jobs"
 OUTPUT="$DIAG/worker-output.log"
+CONTROL="$VAR/runtime/worker-control"
+mkdir -p "$CONTROL"
+chmod 0700 "$CONTROL"
 # Expose only diagnostics to the Web Station 'http' group. Private config
 # files remain owner-only; parent folders provide traversal, not listing.
 mkdir -p "$DIAG"
@@ -98,14 +101,49 @@ while [ "$stopping" -eq 0 ]; do
     chmod 0640 "$OUTPUT" 2>/dev/null || :
     chgrp http "$OUTPUT" 2>/dev/null || :
     pid="$child"
+    request="$CONTROL/verify-$pid.request"
+    # Never act on a request from a previous incarnation of the same PID.
+    rm -f "$request"
+    requested_job=""
+    requested_at=0
     status=0
-    wait "$pid" || status="$?"
-    # If TERM interrupted wait, the child may still be exiting. Never start
-    # two workers while the old one has not exited.
+    # Poll the private control file while this specific child is alive.
+    # The web application never signals a PID directly. Only the parent
+    # supervisor can signal the worker it launched itself.
     while kill -0 "$pid" 2>/dev/null; do
-        wait "$pid" || :
-        sleep 1
+        if [ "$stopping" -ne 0 ]; then
+            kill -TERM "$pid" 2>/dev/null || :
+            break
+        fi
+        if [ -z "$requested_job" ] && [ -f "$request" ]; then
+            job_id=""
+            IFS= read -r job_id < "$request" || :
+            rm -f "$request" || :
+            case "$job_id" in
+                ''|*[!0-9]*)
+                    log "WARNING: ignored malformed private cancellation request for worker PID $pid"
+                    ;;
+                *)
+                    requested_job="$job_id"
+                    requested_at=$(date +%s)
+                    log "SHA-256 job #$requested_job: sending TERM to owned worker PID $pid"
+                    kill -TERM "$pid" 2>/dev/null || :
+                    ;;
+            esac
+        fi
+        if [ -n "$requested_job" ]; then
+            now=$(date +%s)
+            if [ $((now-requested_at)) -ge 8 ]; then
+                log "SHA-256 job #$requested_job: worker PID $pid failed to exit after TERM; sending KILL"
+                kill -KILL "$pid" 2>/dev/null || :
+                break
+            fi
+        fi
+        sleep 1 &
+        wait "$!" || :
     done
+    wait "$pid" || status="$?"
+    rm -f "$request" || :
     child=""
     log "PHP worker PID $pid exited (status $status)"
 

@@ -41,6 +41,8 @@ $base=[
 ];
 $html=$twig->render('jobs/index.html.twig',$base+['jobs'=>[$job]]);
 foreach(['data-job-resolve','/app_job_resolve?id=8',
+    '/app_job_force_stop_verify?id=8','csrf-stop_verify_job_8',
+    'Force stop unresponsive SHA-256 verification',
     'Finish stalled cancellation #8','csrf-resolve_stale_job_8',
     'Cancellation requested','data-rendered-state="cancelling"'] as $needle)
     checkUi(str_contains($html,$needle),'Stalled cancellation lacks direct action: '.$needle);
@@ -63,8 +65,9 @@ foreach(['Delete job #8 and its event log','/app_job_remove?id=8',
     '/app_job_retry?id=8','csrf-remove_job_8'] as $needle)
     checkUi(str_contains($html,$needle),
         'Resolved verification lacks retry/delete action: '.$needle);
-checkUi(!str_contains($html,'data-job-resolve'),
-    'Finished job still offers stale cancellation.');
+checkUi(!str_contains($html,'data-job-resolve') &&
+    !str_contains($html,'app_job_force_stop_verify'),
+    'Finished job still offers stale cancellation or a force-stop action.');
 
 $running=$job;$running['state']='running';
 $running['heartbeat_at']='2026-11-24 15:01:00';

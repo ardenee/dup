@@ -144,6 +144,16 @@
                       title="Request cancellation of job #{{ job.id }}" aria-label="Cancel job {{ job.id }}">{{ icon('stop') }}</button>
                   </form>
                 {% endif %}
+                {% if job.state == 'cancelling' and job.kind == 'duplicate-verify' %}
+                  <form method="post" action="{{ path('app_job_force_stop_verify',{id:job.id}) }}"
+                    onsubmit="return confirm('Force stop SHA-256 job #{{ job.id }}? The DSM supervisor will stop its own worker process, escalating after 8 seconds if necessary. No source files are deleted.')">
+                    <input type="hidden" name="_token" value="{{ csrf_token('stop_verify_job_' ~ job.id) }}">
+                    <input type="hidden" name="confirm" value="STOP">
+                    <button class="action-icon-button is-destructive" type="submit"
+                      title="Force stop unresponsive SHA-256 verification #{{ job.id }} via DSM supervisor"
+                      aria-label="Force stop verification job {{ job.id }}">{{ icon('stop') }}</button>
+                  </form>
+                {% endif %}
                 {% if job.state in ['running','cancelling'] and scan_kind and overdue %}
                   <form method="post" data-job-resolve action="{{ path('app_job_resolve',{id:job.id}) }}"
                     onsubmit="return confirm('Confirm the original DUP worker is stopped. Resolve stalled job #{{ job.id }} and release its lease? This does not kill an OS process.')">
@@ -268,5 +278,5 @@
     {% endif %}
   </div>
 </section>
-<script type="module" src="{{ asset('assets/jobs.js') }}?v=0.7.16"></script>
+<script type="module" src="{{ asset('assets/jobs.js') }}?v=0.7.17"></script>
 {% endblock %}

@@ -68,7 +68,17 @@
           <button class="secondary" type="submit">Cancel job</button>
         </form>
       {% elseif job.state == 'cancelling' %}
-        <span class="status">Cancellation requested — awaiting worker acknowledgement</span>
+        {% if job.kind == 'duplicate-verify' %}
+          <form method="post" action="{{ path('app_job_force_stop_verify',{id:job.id}) }}"
+            onsubmit="return confirm('Force stop SHA-256 verification #{{ job.id }} via DSM worker supervisor? The supervisor will send TERM then KILL after eight seconds if needed. No source files will be deleted.')">
+            <input type="hidden" name="_token" value="{{ csrf_token('stop_verify_job_' ~ job.id) }}">
+            <input type="hidden" name="confirm" value="STOP">
+            <button class="primary" type="submit">Force stop verification worker</button>
+          </form>
+          <span class="muted">The DSM supervisor targets only the worker process it launched. If the old worker is already gone, use the stalled cancellation recovery below.</span>
+        {% else %}
+          <span class="status">Cancellation requested — awaiting worker acknowledgement</span>
+        {% endif %}
       {% elseif job.state == 'running' and job.kind not in ['scan','rebuild-duplicates','duplicate-verify'] %}
         <span class="muted">File operations cannot be interrupted during execution.</span>
       {% endif %}
