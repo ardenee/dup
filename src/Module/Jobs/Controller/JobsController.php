@@ -8,6 +8,7 @@ use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Jobs\Service\JobHistoryCleanup;
 use App\Module\Accounts\Domain\Account;
 use App\Module\Jobs\Repository\JobHistoryRepository;
+
 use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -42,19 +43,29 @@ final class JobsController extends AbstractController
         $state=(string)$request->query->get('state','');
         if($state!=='' && !in_array($state,self::STATES,true))
             throw $this->createNotFoundException('Unknown job state.');
+        $kind=(string)$request->query->get('kind','');
+        $kinds=['scan','rebuild-duplicates','duplicate-verify','file-action','file-restore',
+            'file-rename','file-move','file-move-restore','file-link','file-unlink',
+            'bulk-link','bulk-quarantine','bulk-restore','bulk-unlink','file-delete'];
+        if($kind!=='' && !in_array($kind,$kinds,true))
+            throw $this->createNotFoundException('Invalid job type.');
+        $sort=(string)$request->query->get('sort','id');
+        $dir=(string)$request->query->get('dir','desc');
+        if(!isset(JobHistoryRepository::SORTS[$sort]) || !in_array($dir,['asc','desc'],true))
+            throw $this->createNotFoundException('Invalid job sorting.');
         $profiles=$history->profiles();
         if($profile!==null && !in_array($profile,
             array_map(static fn(array $p):int=>(int)$p['id'],$profiles),true))
             throw $this->createNotFoundException('Unknown profile.');
-        $page=$history->page($profile,$state?:null,$before,$after);
+        $page=$history->page($profile,$state?:null,$before,$after,$sort,$dir,$kind?:null);
         return $this->render('jobs/index.html.twig',[
             'is_dsm'=>\App\Core\Setup\HostEnvironment::isSynology(dirname(__DIR__,4)),
             'worker'=>$heartbeat->report(),
             'jobs'=>$page['rows'],'page'=>$page,
             'profiles'=>$profiles,'selected_profile'=>$profile,
-            'selected_state'=>$state,
-            'job_filters'=>array_filter(['profile'=>$profile,'state'=>$state],
-                static fn($value):bool=>$value!==null && $value!=='')
+            'selected_state'=>$state,'selected_kind'=>$kind,'job_kinds'=>$kinds,'sort'=>$sort,'dir'=>$dir,
+            'job_filters'=>array_filter(['profile'=>$profile,'state'=>$state,'kind'=>$kind,
+                'sort'=>$sort,'dir'=>$dir],static fn($value):bool=>$value!==null && $value!=='')
         ]);
     }
 
@@ -65,9 +76,21 @@ final class JobsController extends AbstractController
         $after=$this->positive($request,'after');
         if($before!==null && $after!==null)
             throw $this->createNotFoundException('Invalid event paging.');
-        $details=$history->detail($id,$before,$after);
+        $sort=(string)$request->query->get('sort','id');
+        $dir=(string)$request->query->get('dir','desc');
+        $severity=(string)$request->query->get('severity','');
+        if(!isset(JobHistoryRepository::EVENT_SORTS[$sort]) ||
+           !in_array($dir,['asc','desc'],true) ||
+           !in_array($severity,['','info','warning','error'],true))
+            throw $this->createNotFoundException('Invalid event sorting or filter.');
+        $details=$history->detail($id,$before,$after,$sort,$dir,$severity);
         if(!$details) throw $this->createNotFoundException('Job does not exist.');
-        return $this->render('jobs/detail.html.twig',$details+['cleanup'=>$cleanup->inspect($id)]);
+        return $this->render('jobs/detail.html.twig',$details+[
+            'cleanup'=>$cleanup->inspect($id),'event_sort'=>$sort,'event_dir'=>$dir,
+            'event_severity'=>$severity,'event_filters'=>array_filter([
+                'id'=>$id,'sort'=>$sort,'dir'=>$dir,'severity'=>$severity
+            ],static fn($v)=>$v!=='')
+        ]);
     }
 
 

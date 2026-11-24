@@ -119,7 +119,7 @@
   {% if health.checks.recent_failures is empty %}
     <div class="empty-state">No failed jobs have been recorded.</div>
   {% else %}
-    <div class="table-wrap"><table>
+    <div class="table-wrap"><table data-local-table="recent failures">
       <thead><tr><th>Job</th><th>Type</th><th>Error code</th><th>Finished (UTC)</th></tr></thead>
       <tbody>{% for job in health.checks.recent_failures %}
         <tr><td><a href="{{ path('app_job_detail',{id:job.id}) }}">#{{ job.id }} · View events</a></td>

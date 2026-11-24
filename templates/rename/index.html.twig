@@ -1,5 +1,6 @@
 {% extends 'base.html.twig' %}
 {% from '_action_icons.html.twig' import icon %}
+{% from '_table_headers.html.twig' import sort as sort_heading %}
 {% block title %}Rename files{% endblock %}
 {% block section %}Files / Rename{% endblock %}
 {% block body %}
@@ -35,6 +36,11 @@
       <p class="muted">Current policy: <strong>{{ collision|replace({'fail':'Fail','number':'Append Number','overwrite':'Overwrite'}) }}</strong>.
         <a href="{{ path('app_profile_edit',{id:profile}) }}">Edit profile</a> to change it.</p>
     </div>
+    <div class="field"><label for="rename-name-filter">Only filenames/folders containing</label>
+      <input id="rename-name-filter" name="name" maxlength="200"
+        value="{{ name_filter|default('') }}" placeholder="Optional filename or folder"></div>
+    <input type="hidden" name="sort" value="{{ sort|default('id') }}">
+    <input type="hidden" name="dir" value="{{ dir|default('asc') }}">
     <div class="rename-options-actions">
       <label class="search-check"><input type="checkbox" name="collapse" value="1" {{ collapse ? 'checked' : '' }}> Collapse repeated spaces</label>
       <label class="search-check"><input type="checkbox" name="dups" value="1" {{ dups ? 'checked' : '' }}> Duplicates only</label>
@@ -62,7 +68,12 @@
     <input type="hidden" name="collapse" value="{{ collapse ? '1' : '0' }}">
     <p class="muted">Destinations are fixed in this preview. Overwrite applies only to existing destinations explicitly approved here. Files appearing after the preview are never replaced.</p>
     <div class="table-wrap"><table>
-      <thead><tr><th><label><input type="checkbox" id="rename-select-all" aria-label="Select all shown"> Select</label></th><th>Folder</th><th>Current filename</th><th>Proposed filename</th><th>Size</th><th>Manual</th></tr></thead>
+      <thead><tr><th><label><input type="checkbox" id="rename-select-all" aria-label="Select all shown"> Select</label></th>
+        {{ sort_heading('app_rename',paging|default({}),sort|default('id'),dir|default('asc'),'folder','Folder') }}
+        {{ sort_heading('app_rename',paging|default({}),sort|default('id'),dir|default('asc'),'file','Current filename') }}
+        <th>Proposed filename</th>
+        {{ sort_heading('app_rename',paging|default({}),sort|default('id'),dir|default('asc'),'size','Size') }}
+        <th>Manual</th></tr></thead>
       <tbody>{% for file in candidates.rows %}
         <tr>
           <td><input type="checkbox" name="files[]" value="{{ file.id }}" class="rename-selection" aria-label="Select {{ file.filename }}"></td>
@@ -86,7 +97,7 @@
 <section class="panel">
   <div class="panel-heading"><h2>Recent rename operations</h2><span class="muted">Recorded in the file-action audit history</span></div>
   {% if batches is empty %}<div class="empty-state">No renaming jobs have been queued.</div>
-  {% else %}<div class="table-wrap"><table><thead><tr><th>Batch</th><th>Profile</th><th>Status</th><th>Renamed</th><th>Failed</th><th>Created (UTC)</th></tr></thead>
+  {% else %}<div class="table-wrap"><table data-local-table="recent rename operations"><thead><tr><th>Batch</th><th>Profile</th><th>Status</th><th data-sort-type="number">Renamed</th><th data-sort-type="number">Failed</th><th>Created (UTC)</th></tr></thead>
     <tbody>{% for batch in batches %}
       <tr><td><span>#{{ batch.id }}</span>
           <a class="action-icon-button" href="{{ path('app_action_detail',{id:batch.id}) }}"

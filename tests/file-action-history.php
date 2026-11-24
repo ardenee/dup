@@ -72,4 +72,11 @@ checkBatches($detail['items'][1]['result_code']==='NAME_CONFLICT','Per-file fail
 checkBatches($history->renameDetails(62)===false,'Wrong operation included as rename');
 checkBatches(count($history->profiles())===2,'Profile list incomplete');
 checkBatches(in_array('needs_review',$history->states(),true),'State selector incomplete');
+$sorted=$history->page(null,null,null,null,null,'files','desc');
+checkBatches((int)$sorted['rows'][0]['id']===63 &&
+    (int)$sorted['rows'][0]['item_count']===2,
+    'Sorting by file count must work across all matching action batches.');
+$ascState=$history->page(null,null,null,null,null,'status','asc');
+checkBatches(count($ascState['rows'])===25 &&
+    $ascState['total']===65,'Sorted action history changed the total count.');
 echo "PASS file actions: 65 batches, cursor paging, reverse paging, combined filters, rename details and errors\n";

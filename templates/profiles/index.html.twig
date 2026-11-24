@@ -14,15 +14,15 @@
   {% if profiles is empty %}
     <div class="empty-state">No profiles configured. <a href="{{ path('app_profile_new') }}">Create the first profile</a>.</div>
   {% else %}
-    <div class="table-wrap"><table><thead>
-      <tr><th>Name / source</th><th>File type</th><th>Matching</th><th>Completed scans</th><th>Latest result</th><th>File exists</th><th>Schedule</th><th>State</th><th>Actions</th></tr>
+    <div class="table-wrap"><table data-local-table="profiles"><thead>
+      <tr><th>Name / source</th><th>File type</th><th>Matching</th><th data-sort-type="number">Completed scans</th><th>Latest result</th><th>File exists</th><th>Schedule</th><th>State</th><th>Actions</th></tr>
     </thead><tbody>
     {% for profile in profiles %}
       <tr>
         <td><strong><a href="{{ path('app_duplicates',{profile:profile.id}) }}" title="Browse current and historical scans for this profile">{{ profile.name }}</a></strong><div class="muted"><code>{{ profile.source_root }}</code></div></td>
         <td>{{ profile.type_name }}</td>
         <td>{{ profile.hash_mode == 'sha256' ? 'Verified SHA-256' : (profile.hash_mode == 'crc32_3part' ? 'CRC32 3 Part (fast)' : (profile.hash_mode == 'crc32_full' ? 'CRC32 Full' : 'Size candidates only')) }}</td>
-        <td class="group-size"><strong>{{ profile.completed_scans|default(0)|number_format }}</strong>
+        <td class="group-size" data-sort-value="{{ profile.completed_scans|default(0) }}"><strong>{{ profile.completed_scans|default(0)|number_format }}</strong>
           <div class="muted">retained successful snapshots</div>
         </td>
         <td>{% if profile.finished_at %}
@@ -80,7 +80,7 @@
 </section>
 <section class="panel">
   <div class="panel-heading"><h2>File-type presets</h2><a class="secondary link-button" href="{{ path('app_profile_types') }}">Manage presets ({{ types|length }})</a></div>
-  <div class="table-wrap"><table><thead><tr><th>Name</th><th>Extensions</th></tr></thead><tbody>
+  <div class="table-wrap"><table data-local-table="file type presets"><thead><tr><th>Name</th><th>Extensions</th></tr></thead><tbody>
     {% for preset in types %}<tr><td>{{ preset.name }}</td>
       <td><code>{{ preset.extensions is empty ? 'All file types' : preset.extensions }}</code></td></tr>{% endfor %}
   </tbody></table></div>

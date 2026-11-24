@@ -21,8 +21,8 @@
       <div><dt>Batch error</dt><dd>{{ batch.error_code ?? 'None' }}</dd></div>
     </dl>
   </div>
-  <div class="table-wrap"><table>
-    <thead><tr><th>#</th><th>Original path</th><th>Requested new path</th><th>Size</th><th>Item status</th><th>Result</th></tr></thead>
+  <div class="table-wrap"><table data-local-table="rename batch items">
+    <thead><tr><th data-sort-type="number">#</th><th>Original path</th><th>Requested new path</th><th>Size</th><th>Item status</th><th>Result</th></tr></thead>
     <tbody>
     {% for item in batch.items %}
       <tr>

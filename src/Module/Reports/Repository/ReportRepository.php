@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Module\Reports\Repository;
 
 use Doctrine\DBAL\Connection;
+use App\Core\Table\KeysetPage;
 
 /**
  * Read-only reporting over immutable scan runs. Never opens server
@@ -70,58 +71,43 @@ final class ReportRepository
         return $totals;
     }
 
-    /** Newer/older keyset navigation with no unbounded SQL OFFSET. */
-    public function history(?int $profileId,?int $before,?int $after): array
-    {
-        if($before!==null && $after!==null)
-            throw new \DomainException('Choose only one history cursor.');
-        $base=' WHERE 1=1';
-        $args=[];
-        if($profileId!==null) {
-            $base.=' AND r.profile_id=?';
-            $args[]=$profileId;
-        }
-        $where=$base;
-        $params=$args;
-        if($after!==null) {
-            $where.=' AND r.id>?';
-            $params[]=$after;
-            $sort='ASC';
-        } else {
-            if($before!==null) {
-                $where.=' AND r.id<?';
-                $params[]=$before;
-            }
-            $sort='DESC';
-        }
-        $rows=$this->db->fetchAllAssociative(
-            'SELECT r.id,r.profile_id,p.name AS profile_name,r.state,r.files_seen,' .
-            'r.files_indexed,r.bytes_indexed,r.duplicate_groups,r.error_count,' .
-            'r.started_at,r.finished_at,j.id AS job_id,j.error_code AS job_error ' .
-            'FROM scan_runs r JOIN scan_profiles p ON p.id=r.profile_id ' .
-            "LEFT JOIN jobs j ON j.run_id=r.id AND j.kind='scan' " .
-            $where.' ORDER BY r.id '.$sort.' LIMIT '.(self::PAGE_RUNS+1),
-            $params
-        );
-        if(count($rows)>self::PAGE_RUNS) $rows=array_slice($rows,0,self::PAGE_RUNS);
-        if($after!==null) $rows=array_reverse($rows);
-        if(!$rows) return ['rows'=>[],'next'=>null,'previous'=>null];
+    public const RUN_SORTS=[
+        'id'=>'r.id',
+        'profile'=>'p.name',
+        'state'=>'r.state',
+        'files'=>'COALESCE(r.files_indexed,0)',
+        'groups'=>'COALESCE(r.duplicate_groups,0)',
+        'started'=>"COALESCE(r.started_at,'')",
+        'finished'=>"COALESCE(r.finished_at,'')"
+    ];
 
-        $first=(int)$rows[0]['id'];
-        $last=(int)$rows[count($rows)-1]['id'];
-        $previous=(bool)$this->db->fetchOne(
-            'SELECT 1 FROM scan_runs r'.$base.' AND r.id>? LIMIT 1',
-            [...$args,$first]
+    /** Newer/older keyset navigation in the chosen global sort order. */
+    public function history(
+        ?int $profileId,?int $before,?int $after,
+        string $sort='id',string $direction='desc',?string $state=null
+    ): array
+    {
+        if(!isset(self::RUN_SORTS[$sort]) || !in_array($direction,['asc','desc'],true))
+            throw new \DomainException('Invalid scan-history sorting.');
+        $where=" FROM scan_runs r JOIN scan_profiles p ON p.id=r.profile_id ".
+            "LEFT JOIN jobs j ON j.run_id=r.id AND j.kind='scan' WHERE 1=1";
+        $params=[];
+        if($profileId!==null) {
+            $where.=' AND r.profile_id=:profile';
+            $params['profile']=$profileId;
+        }
+        if($state!==null && $state!=='') {
+            $where.=' AND r.state=:state';
+            $params['state']=$state;
+        }
+        return KeysetPage::fetch(
+            $this->db,
+            'r.id,r.profile_id,p.name AS profile_name,r.state,r.files_seen,'.
+            'r.files_indexed,r.bytes_indexed,r.duplicate_groups,r.error_count,'.
+            'r.started_at,r.finished_at,j.id AS job_id,j.error_code AS job_error',
+            $where,$params,'r.id',self::RUN_SORTS[$sort],strtoupper($direction),
+            self::PAGE_RUNS,$before,$after,in_array($sort,['id','files','groups'],true)
         );
-        $next=(bool)$this->db->fetchOne(
-            'SELECT 1 FROM scan_runs r'.$base.' AND r.id<? LIMIT 1',
-            [...$args,$last]
-        );
-        return [
-            'rows'=>$rows,
-            'next'=>$next?$last:null,
-            'previous'=>$previous?$first:null
-        ];
     }
 
     /** @return array<string,mixed>|false */
@@ -159,26 +145,43 @@ final class ReportRepository
         return $run;
     }
 
-    public function flaggedFiles(int $runId,?int $after): array
+    public const FILE_STATE_SORTS=[
+        'id'=>'f.id','file'=>'f.filename','status'=>'f.error_code',
+        'size'=>'f.size_bytes','modified'=>'f.mtime_epoch','ignored'=>'d.is_ignored'
+    ];
+
+    public function flaggedStates(int $runId):array
     {
-        $sql='SELECT f.id,f.filename,d.path AS directory,f.error_code,f.size_bytes,' .
-            'f.mtime_epoch,d.is_ignored FROM file_entries f ' .
-            'JOIN directories d ON d.id=f.directory_id ' .
-            'WHERE f.run_id=? AND f.error_code IS NOT NULL';
-        $params=[$runId];
-        if($after!==null) {
-            $sql.=' AND f.id>?';
-            $params[]=$after;
-        }
-        $rows=$this->db->fetchAllAssociative(
-            $sql.' ORDER BY f.id ASC LIMIT '.(self::PAGE_STATES+1),$params
+        return $this->db->fetchFirstColumn(
+            'SELECT DISTINCT error_code FROM file_entries '.
+            'WHERE run_id=? AND error_code IS NOT NULL ORDER BY error_code',[$runId]
         );
-        $next=null;
-        if(count($rows)>self::PAGE_STATES) {
-            $rows=array_slice($rows,0,self::PAGE_STATES);
-            $next=(int)$rows[count($rows)-1]['id'];
+    }
+
+    public function flaggedFiles(
+        int $runId,?int $after,string $sort='id',string $direction='asc',
+        ?string $status=null,?int $before=null
+    ): array
+    {
+        if(!isset(self::FILE_STATE_SORTS[$sort]) ||
+           !in_array($direction,['asc','desc'],true))
+            throw new \DomainException('Invalid file status sort.');
+        $where=' FROM file_entries f JOIN directories d ON d.id=f.directory_id '.
+            'WHERE f.run_id=:run AND f.error_code IS NOT NULL';
+        $params=['run'=>$runId];
+        if($status!==null && $status!=='') {
+            $where.=' AND f.error_code=:status';
+            $params['status']=$status;
         }
-        return ['rows'=>$rows,'next'=>$next];
+        $page=KeysetPage::fetch(
+            $this->db,
+            'f.id,f.filename,d.path AS directory,f.error_code,f.size_bytes,'.
+            'f.mtime_epoch,d.is_ignored',
+            $where,$params,'f.id',self::FILE_STATE_SORTS[$sort],
+            strtoupper($direction),self::PAGE_STATES,$after,$before,
+            in_array($sort,['id','size','modified','ignored'],true)
+        );
+        return $page;
     }
 
     public function warnings(int $runId): array

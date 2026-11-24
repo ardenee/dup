@@ -52,21 +52,29 @@ final class RenameController extends AbstractController
         if(!in_array($collision,['fail','number','overwrite'],true))
             throw $this->createNotFoundException('Invalid collision policy.');
         $after=$this->number($request->query->get('after'),0);
+        $sort=(string)$request->query->get('sort','id');
+        $dir=(string)$request->query->get('dir','asc');
+        $name=trim((string)$request->query->get('name',''));
+        if(!isset(RenameService::PREVIEW_SORTS[$sort]) ||
+           !in_array($dir,['asc','desc'],true) || mb_strlen($name)>200)
+            throw $this->createNotFoundException('Invalid rename preview filter.');
         if(!in_array($dots,[0,1,2],true) || !in_array($unders,[0,1,2],true))
             throw $this->createNotFoundException('Invalid cleanup options.');
         $candidates=$profile>0?$renames->candidates(
-            $profile,$filters,$dots,$unders,$collapse,$dups,$after>0?$after:null,$collision==='number',$find,$replace,$collision==='overwrite'
+            $profile,$filters,$dots,$unders,$collapse,$dups,$after>0?$after:null,$collision==='number',$find,$replace,$collision==='overwrite',
+            $sort,$dir,$name
         ):['rows'=>[],'next'=>null,'scanned'=>0];
         return $this->render('rename/index.html.twig',[
             'profiles'=>$profiles,'profile'=>$profile,'filters'=>$filters,
             'dots'=>$dots,'unders'=>$unders,'collapse'=>$collapse,
             'dups'=>$dups,'collision'=>$collision,'find'=>$find,'replace'=>$replace,
+            'sort'=>$sort,'dir'=>$dir,'name_filter'=>$name,
             'candidates'=>$candidates,'batches'=>$renames->batches(),
             'paging'=>[
                 'profile'=>$profile,'filters'=>$filters,'dots'=>$dots,
                 'unders'=>$unders,'collapse'=>$collapse?'1':'0',
                 'dups'=>$dups?'1':'0','collision'=>$collision,
-                'find'=>$find,'replace'=>$replace
+                'find'=>$find,'replace'=>$replace,'sort'=>$sort,'dir'=>$dir,'name'=>$name
             ]
         ]);
     }

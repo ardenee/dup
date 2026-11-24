@@ -1,0 +1,13 @@
+{# Reusable server-side column headings. Sorting always queries the full dataset. #}
+{% macro sort(route,filters,current_sort,current_dir,key,label) %}
+  {% set active = current_sort == key %}
+  {% set next_dir = active and current_dir == 'asc' ? 'desc' : (key in ['id','started','finished','created','heartbeat','requested','size','count'] ? 'desc' : 'asc') %}
+  <th aria-sort="{{ active ? (current_dir == 'asc' ? 'ascending' : 'descending') : 'none' }}">
+    <a class="table-sort-link {{ active ? 'is-active' : '' }}"
+       href="{{ path(route,filters|merge({sort:key,dir:next_dir})) }}"
+       title="Sort all matching rows by {{ label|lower }}"
+       aria-label="Sort by {{ label }}, {{ next_dir == 'asc' ? 'ascending' : 'descending' }}">
+      {{ label }}<span aria-hidden="true">{{ active ? (current_dir == 'asc' ? '↑' : '↓') : '↕' }}</span>
+    </a>
+  </th>
+{% endmacro %}

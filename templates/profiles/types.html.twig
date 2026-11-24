@@ -10,7 +10,7 @@
 </div>
 <section class="panel">
  <div class="panel-heading"><h2>Configured types</h2><span class="muted">{{ types|length }} presets</span></div>
- <div class="table-wrap"><table><thead><tr><th>Preset</th><th>Extensions</th><th>Profiles using</th><th>Actions</th></tr></thead>
+ <div class="table-wrap"><table data-local-table="file type presets"><thead><tr><th>Preset</th><th>Extensions</th><th data-sort-type="number">Profiles using</th><th>Actions</th></tr></thead>
  <tbody>{% for preset in types %}
   <tr>
    <td><strong>{{ preset.name }}</strong></td>

@@ -14,7 +14,7 @@
   <p><strong>Destination folder:</strong> <code>{{ batch.move_root }}</code></p>
   <p class="muted">The original relative folder structure is preserved. If Append Number is enabled in action settings, the preview includes the chosen numbered destination. An existing destination is overwritten only when that exact target is approved under File exists settings. Moves across filesystems are rejected.</p>
  </div>
- <div class="table-wrap"><table>
+ <div class="table-wrap"><table data-local-table="move batch files">
   <thead><tr><th>#</th><th>Original file</th><th>New location</th><th>Size</th><th>Status</th></tr></thead>
   <tbody>{% for file in batch.items %}
    <tr><td>{{ loop.index }}</td>

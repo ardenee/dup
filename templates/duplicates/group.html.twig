@@ -1,8 +1,9 @@
 {% extends 'base.html.twig' %}
 {% from 'duplicates/_actions.html.twig' import actions %}
+{% from '_table_headers.html.twig' import sort as sort_heading %}
 {% block title %}Duplicate group #{{ group.id }}{% endblock %}
 {% block section %}Duplicates / Group #{{ group.id }}{% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ asset('assets/duplicates.css') }}?v=3">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ asset('assets/duplicates.css') }}?v=4">{% endblock %}
 {% block body %}
 {% include 'duplicates/_icons.html.twig' %}
 <div class="page-heading"><div><div class="eyebrow">DUPLICATE COMPARISON</div><h1>Group #{{ group.id }}</h1>
@@ -20,10 +21,29 @@
 </div>
 <section class="panel">
   <div class="panel-heading"><h2>File members</h2><span class="muted">{{ historical|default(false) ? 'Historical records only — no filesystem actions' : 'View, rename, move, link or permanently delete. Delete always requires confirmation.' }}</span></div>
+  <form class="dup-table-filters" method="get" action="{{ path('app_duplicate_group',{id:group.id}) }}">
+    <input type="hidden" name="sort" value="{{ sort|default('id') }}">
+    <input type="hidden" name="dir" value="{{ dir|default('asc') }}">
+    <div class="field"><label for="member-filename">File or folder contains</label>
+      <input id="member-filename" name="name" maxlength="200" value="{{ name_filter|default('') }}" placeholder="File or folder"></div>
+    <div class="field"><label for="member-status">File status</label>
+      <select name="status" id="member-status">
+        <option value="">All members</option>
+        <option value="available" {{ status_filter|default('') == 'available' ? 'selected' : '' }}>Available</option>
+        <option value="changed" {{ status_filter|default('') == 'changed' ? 'selected' : '' }}>Changed / unavailable</option>
+      </select></div>
+    <div class="dup-filter-buttons"><button type="submit" class="primary">Filter members</button>
+      <a class="secondary link-button" href="{{ path('app_duplicate_group',{id:group.id}) }}">Clear</a></div>
+  </form>
   {% if members is empty %}
-    <div class="empty-state">No file records in this group.</div>
+    <div class="empty-state">No group members match this selection.</div>
   {% else %}
-    <div class="table-wrap"><table><thead><tr><th>File path</th><th>Size (bytes)</th><th>Modified (Unix time)</th><th>Hash</th><th>Actions</th></tr></thead>
+    <div class="table-wrap"><table><thead><tr>
+      {{ sort_heading('app_duplicate_group',table_filters|default({id:group.id}),sort|default('id'),dir|default('asc'),'file','File path') }}
+      {{ sort_heading('app_duplicate_group',table_filters|default({id:group.id}),sort|default('id'),dir|default('asc'),'size','Size (bytes)') }}
+      {{ sort_heading('app_duplicate_group',table_filters|default({id:group.id}),sort|default('id'),dir|default('asc'),'modified','Modified (Unix time)') }}
+      {{ sort_heading('app_duplicate_group',table_filters|default({id:group.id}),sort|default('id'),dir|default('asc'),'hash','Hash') }}
+      <th>Actions</th></tr></thead>
     <tbody>{% for file in members %}
       <tr><td><code>{{ file.path }}{{ file.path ends with '/' or file.path ends with '\\' ? '' : '/' }}{{ file.filename }}</code></td>
       <td class="group-size">{{ file.size_bytes|number_format }}</td>
@@ -37,10 +57,10 @@
         <span class="muted">Unavailable</span>
       {% endif %}</td></tr>
     {% endfor %}</tbody></table></div>
-    <div class="result-toolbar"><span class="muted">{{ members|length }} files shown on this page</span>
+    <div class="result-toolbar"><span class="muted">{{ members|length }} of {{ total_members|default(group.file_count)|number_format }} matching group members</span>
       <nav aria-label="Group members pagination">
-        {% if previous %}<a href="{{ path('app_duplicate_group',{id:group.id,before:previous}) }}">Previous</a>{% endif %}
-        {% if next %}<a href="{{ path('app_duplicate_group',{id:group.id,after:next}) }}">Next</a>{% endif %}
+        {% if previous %}<a href="{{ path('app_duplicate_group',table_filters|default({id:group.id})|merge({before:previous})) }}">Previous</a>{% endif %}
+        {% if next %}<a href="{{ path('app_duplicate_group',table_filters|default({id:group.id})|merge({after:next})) }}">Next</a>{% endif %}
       </nav>
     </div>
   {% endif %}

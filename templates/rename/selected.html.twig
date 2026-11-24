@@ -15,7 +15,7 @@
   <div class="rename-selected-options"><span>File exists (this profile):
     <strong>{{ collision|replace({'fail':'Fail','number':'Append Number','overwrite':'Overwrite'}) }}</strong>.</span>
     <a href="{{ path('app_profile_edit',{id:profile}) }}">Edit profile</a> to change it.</div>
-  <div class="table-wrap"><table>
+  <div class="table-wrap"><table data-local-table="selected rename files">
    <thead><tr><th>Current path</th><th>New filename</th><th>Size</th></tr></thead>
    <tbody>{% for file in files %}
      <tr>

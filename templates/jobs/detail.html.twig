@@ -1,4 +1,5 @@
 {% extends 'base.html.twig' %}
+{% from '_table_headers.html.twig' import sort as sort_heading %}
 {% block title %}Job #{{ job.id }}{% endblock %}
 {% block section %}Job monitor / #{{ job.id }}{% endblock %}
 {% block body %}
@@ -70,14 +71,31 @@
 {% endif %}
 <section class="panel">
   <div class="panel-heading"><div><h2>Job events and errors</h2>
-    <p class="muted">Newest first. Event details are displayed below rather than opening raw JSON.</p>
+    <p class="muted">Sort and filter every recorded event, including older pages. Details are displayed below instead of raw JSON.</p>
   </div></div>
+  <form method="get" action="{{ path('app_job_detail',{id:job.id}) }}" class="table-event-filter">
+    <label for="job-event-severity">Event severity</label>
+    <select name="severity" id="job-event-severity">
+      <option value="">All severities</option>
+      {% for value in ['info','warning','error'] %}
+        <option value="{{ value }}" {{ event_severity|default('') == value ? 'selected' : '' }}>{{ value|capitalize }}</option>
+      {% endfor %}
+    </select>
+    <input type="hidden" name="sort" value="{{ event_sort|default('id') }}">
+    <input type="hidden" name="dir" value="{{ event_dir|default('desc') }}">
+    <button type="submit" class="secondary">Filter events</button>
+    <a class="secondary link-button" href="{{ path('app_job_detail',{id:job.id}) }}">Clear</a>
+  </form>
   {% if events is empty %}
-    <div class="empty-state">No job events have been recorded. The job status and heartbeat above may still be available.</div>
+    <div class="empty-state">No events match this selection. Change the severity filter or inspect the job status above.</div>
   {% else %}
     <div class="table-wrap">
       <table>
-        <thead><tr><th>When (UTC)</th><th>Severity</th><th>Event</th><th>Details</th></tr></thead>
+        <thead><tr>
+          {{ sort_heading('app_job_detail',event_filters|default({id:job.id}),event_sort|default('id'),event_dir|default('desc'),'when','When (UTC)') }}
+          {{ sort_heading('app_job_detail',event_filters|default({id:job.id}),event_sort|default('id'),event_dir|default('desc'),'severity','Severity') }}
+          {{ sort_heading('app_job_detail',event_filters|default({id:job.id}),event_sort|default('id'),event_dir|default('desc'),'code','Event') }}
+          <th>Details</th></tr></thead>
         <tbody>{% for event in events %}
           <tr>
             <td>{{ event.created_at }}</td>
@@ -98,10 +116,10 @@
       </table>
     </div>
     <div class="result-toolbar">
-      <span>Showing {{ events|length }} events (100 per page)</span>
+      <span>Showing {{ events|length }} of {{ event_total|default(events|length)|number_format }} matching events (100 per page)</span>
       <nav aria-label="Job event pages">
-        {% if previous %}<a href="{{ path('app_job_detail',{id:job.id,after:previous}) }}">Newer events</a>{% endif %}
-        {% if next %}<a href="{{ path('app_job_detail',{id:job.id,before:next}) }}">Older events</a>{% endif %}
+        {% if previous %}<a href="{{ path('app_job_detail',event_filters|default({id:job.id})|merge({after:previous})) }}">Previous page</a>{% endif %}
+        {% if next %}<a href="{{ path('app_job_detail',event_filters|default({id:job.id})|merge({before:next})) }}">Next page</a>{% endif %}
       </nav>
     </div>
   {% endif %}

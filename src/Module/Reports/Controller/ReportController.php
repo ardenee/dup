@@ -73,8 +73,16 @@ final class ReportController extends AbstractController
         $after=$this->positiveCursor($request,'after');
         if($before!==null && $after!==null)
             throw $this->createNotFoundException('Only one history cursor is allowed.');
+        $sort=(string)$request->query->get('sort','id');
+        $dir=(string)$request->query->get('dir','desc');
+        $state=(string)$request->query->get('state','');
+        if(!isset(ReportRepository::RUN_SORTS[$sort]) ||
+           !in_array($dir,['asc','desc'],true) ||
+           ($state!=='' && !in_array($state,
+               ['queued','running','completed','archived','failed','cancelled'],true)))
+            throw $this->createNotFoundException('Unknown scan-history filter or sorting.');
         $snapshots=$reports->snapshots($profile);
-        $history=$reports->history($profile,$before,$after);
+        $history=$reports->history($profile,$before,$after,$sort,$dir,$state?:null);
         return $this->render('reports/index.html.twig',[
             'profiles'=>$reports->profiles(),
             'selected_profile'=>$profile,
@@ -83,6 +91,11 @@ final class ReportController extends AbstractController
             'history'=>$history['rows'],
             'next'=>$history['next'],
             'previous'=>$history['previous'],
+            'history_total'=>$history['total'],
+            'history_sort'=>$sort,'history_dir'=>$dir,'history_state'=>$state,
+            'history_filters'=>array_filter([
+                'profile'=>$profile,'state'=>$state,'sort'=>$sort,'dir'=>$dir
+            ],static fn($v)=>$v!==null && $v!==''),
             'recent_failures'=>$reports->recentFailures()
         ]);
     }
@@ -92,11 +105,24 @@ final class ReportController extends AbstractController
     {
         $run=$reports->run($id);
         if(!$run) throw $this->createNotFoundException('Scan run not found.');
-        $flags=$reports->flaggedFiles($id,$this->positiveCursor($request,'after'));
+        $sort=(string)$request->query->get('sort','id');
+        $dir=(string)$request->query->get('dir','asc');
+        $status=(string)$request->query->get('status','');
+        $states=$reports->flaggedStates($id);
+        if(!isset(ReportRepository::FILE_STATE_SORTS[$sort]) ||
+           !in_array($dir,['asc','desc'],true) ||
+           ($status!=='' && !in_array($status,$states,true)))
+            throw $this->createNotFoundException('Invalid file status filter.');
+        $flags=$reports->flaggedFiles($id,$this->positiveCursor($request,'after'),
+            $sort,$dir,$status?:null,$this->positiveCursor($request,'before'));
         return $this->render('reports/run.html.twig',[
             'run'=>$run,
             'flagged'=>$flags['rows'],
-            'next'=>$flags['next'],
+            'next'=>$flags['next'],'previous'=>$flags['previous'],
+            'flagged_total'=>$flags['total'],'file_states'=>$states,
+            'file_sort'=>$sort,'file_dir'=>$dir,'file_status'=>$status,
+            'file_filters'=>array_filter(['id'=>$id,'sort'=>$sort,'dir'=>$dir,'status'=>$status],
+                static fn($v)=>$v!==''),
             'warnings'=>$reports->warnings($id),
             'cleanup'=>$this->isGranted('ROLE_ADMIN')?$cleanup->inspect($id):null
         ]);

@@ -1,4 +1,5 @@
 {% extends 'base.html.twig' %}
+{% from '_table_headers.html.twig' import sort as sort_heading %}
 {% block title %}Search{% endblock %}
 {% block section %}Search{% endblock %}
 {% block body %}
@@ -33,6 +34,29 @@
         {% endfor %}
       </select>
     </div>
+    {% if mode == 'history' %}
+    <div class="field">
+      <label for="search-action">Operation</label>
+      <select name="action" id="search-action">
+        <option value="">All recorded actions</option>
+        {% for value in ['move','link','quarantine','bulk_link','bulk_quarantine','delete'] %}
+          <option value="{{ value }}" {{ action_kind|default('') == value ? 'selected' : '' }}>{{ value|replace({'_':' '})|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% else %}
+    <div class="field">
+      <label for="search-file-state">File state</label>
+      <select name="file_state" id="search-file-state">
+        <option value="">All states</option>
+        {% for value in ['indexed','ignored','symlink','moved','linked','quarantined','error'] %}
+          <option value="{{ value }}" {{ file_state|default('') == value ? 'selected' : '' }}>{{ value|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <input type="hidden" name="sort" value="{{ sort|default('id') }}">
+    <input type="hidden" name="dir" value="{{ dir|default('desc') }}">
     <div class="search-actions">
       <label class="search-check">
         <input type="checkbox" name="case" value="1" {{ case_sensitive ? 'checked' : '' }}> Case sensitive
@@ -62,9 +86,13 @@
       <table>
         <thead>
           <tr>
-            <th>Requested (UTC)</th><th>Profile / Scan</th><th>Operation</th>
-            <th>Original file</th><th>Destination / link target</th>
-            <th>Item / batch status</th><th>Details</th>
+            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'requested','Requested (UTC)') }}
+            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'profile','Profile / Scan') }}
+            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'type','Operation') }}
+            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'path','Original file') }}
+            <th>Destination / link target</th>
+            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'state','Item / batch status') }}
+            <th>Details</th>
           </tr>
         </thead>
         <tbody>
@@ -106,8 +134,13 @@
       <table>
         <thead>
           <tr>
-            <th>File path</th><th>Profile</th><th>Size</th><th>Modified (Unix time)</th>
-            <th>Hash method</th><th>State</th><th>Duplicate group</th>
+            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'path','File path') }}
+            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'profile','Profile') }}
+            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'size','Size') }}
+            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'modified','Modified (Unix time)') }}
+            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'method','Hash method') }}
+            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'state','State') }}
+            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'group','Duplicate group') }}
             {% if mode == 'moved' %}<th>Destination / link target</th>{% endif %}
             <th>Actions</th>
           </tr>

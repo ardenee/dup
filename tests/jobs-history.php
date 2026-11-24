@@ -94,7 +94,7 @@ foreach(['Job history','job-profile','job-state','Older jobs','Job details and e
     assertJobs(str_contains($html,$needle),'Job monitor UI missing '.$needle);
 assertJobs(!str_contains($html,'/app_job_events'),'Raw events JSON remains primary workflow');
 $detailHtml=$twig->render('jobs/detail.html.twig',$app+$details);
-foreach(['Job #125','Job events and errors','Older events','View duplicate results',
+foreach(['Job #125','Job events and errors','Next page','View duplicate results',
     'Scan report #44'] as $needle)
     assertJobs(str_contains($detailHtml,$needle),'Job detail missing '.$needle);
 assertJobs(!str_contains($detailHtml,'<script>alert(1)</script>'),
@@ -113,4 +113,14 @@ $runningDetail=$twig->render('jobs/detail.html.twig',$app+$runningAction);
 assertJobs(!str_contains($runningDetail,'Cancel job') &&
     str_contains($runningDetail,'cannot be interrupted'),
     'Unsafe cancellation displayed during file operation');
+$byType=$repo->page(null,null,null,null,'type','asc');
+$sortValues=array_column($byType['rows'],'kind');
+$sortedValues=$sortValues;sort($sortedValues);
+assertJobs($sortValues===$sortedValues,'Job type sorting did not cover the full results.');
+$onlyScan=$repo->page(null,null,null,null,'id','desc','scan');
+assertJobs($onlyScan['total']===63 && count($onlyScan['rows'])===50,
+    'Job type filter failed to preserve total across pages.');
+$moreScans=$repo->page(null,null,$onlyScan['next'],null,'id','desc','scan');
+assertJobs($moreScans['total']===63 && count($moreScans['rows'])===13 &&
+    $moreScans['previous']!==null,'Filtered job cursor did not preserve type.');
 echo "PASS 125 jobs, profile/state filters, keyset pagination, 125 readable events, links, escaping and safe cancellation\n";

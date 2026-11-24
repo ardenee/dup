@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Module\Duplicates\Controller;
 
 use Doctrine\DBAL\Connection;
+use App\Core\Table\KeysetPage;
 use App\Module\Duplicates\Repository\ScanSelectionRepository;
 use App\Module\Duplicates\Service\DuplicateVerificationService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -14,6 +15,21 @@ final class DuplicatesController extends AbstractController
 {
     private const PAGE_GROUPS=50;
     private const PAGE_MEMBERS=100;
+    private const MEMBER_SORTS=[
+        'id'=>'m.id','file'=>'f.filename','folder'=>'d.path',
+        'size'=>'f.size_bytes','modified'=>'f.mtime_epoch',
+        'hash'=>"COALESCE(f.hash_value,'')"
+    ];
+    private const SORTS=[
+        'id'=>'g.id',
+        'file'=>"COALESCE(firstf.filename,'')",
+        'profile'=>'p.name',
+        'size'=>'g.size_bytes',
+        'matches'=>'g.file_count',
+        'savings'=>'g.reclaimable_bytes',
+        'modified'=>'COALESCE(firstf.mtime_epoch,0)',
+        'confidence'=>'g.rules_version'
+    ];
 
     /** Parse keyset cursor. No unbounded OFFSET and no hidden form input limits. */
     private function cursor(Request $request,string $key): ?int
@@ -87,29 +103,58 @@ final class DuplicatesController extends AbstractController
             $where.=' AND p.id=:profile';
             $params['profile']=$profile;
         }
-        $pageWhere=$where;
-        if($before!==null) {
-            $pageWhere.=' AND g.id<:before';
-            $params['before']=$before;
-            $order=' ORDER BY g.id DESC';
-        } elseif($after!==null) {
-            $pageWhere.=' AND g.id>:after';
-            $params['after']=$after;
-            $order=' ORDER BY g.id ASC';
-        } else $order=' ORDER BY g.id ASC';
-
-        $rows=$db->fetchAllAssociative(
-            'SELECT g.id,g.size_bytes,g.file_count,g.reclaimable_bytes,' .
-            'g.rules_version,p.name AS profile_name,p.id AS profile_id,' .
-            'p.source_root,firstf.id AS first_file_id,' .
-            'firstf.filename AS first_filename,firstf.mtime_epoch AS first_mtime_epoch,' .
-            'firstf.hash_value AS first_hash_value,firstf.error_code AS first_error_code,' .
-            'firstd.path AS first_directory ' .
-            $pageWhere.$order.' LIMIT '.(self::PAGE_GROUPS+1),
-            $params
+        $sort=(string)$request->query->get('sort','id');
+        $dir=(string)$request->query->get('dir','asc');
+        if(!isset(self::SORTS[$sort]) || !in_array($dir,['asc','desc'],true))
+            throw $this->createNotFoundException('Invalid duplicate group ordering.');
+        $name=trim((string)$request->query->get('name',''));
+        if(mb_strlen($name)>200) throw $this->createNotFoundException('File filter is too long.');
+        $confidence=(string)$request->query->get('confidence','');
+        if(!in_array($confidence,['','verified','candidate'],true))
+            throw $this->createNotFoundException('Invalid duplicate match type.');
+        $rawFiles=$request->query->get('min_files','');
+        $minFiles=($rawFiles==='' || $rawFiles===null)?null:
+            filter_var($rawFiles,FILTER_VALIDATE_INT,['options'=>['min_range'=>2,'max_range'=>100000]]);
+        $rawSize=$request->query->get('min_size','');
+        $minSize=($rawSize==='' || $rawSize===null)?null:
+            filter_var($rawSize,FILTER_VALIDATE_INT,['options'=>['min_range'=>0]]);
+        if($minFiles===false || $minSize===false)
+            throw $this->createNotFoundException('Invalid duplicate group filter.');
+        if($name!=='') {
+            $where.=' AND EXISTS(SELECT 1 FROM duplicate_group_members fm '.
+                'JOIN file_entries ff ON ff.id=fm.file_entry_id '.
+                'JOIN directories fd ON fd.id=ff.directory_id '.
+                "WHERE fm.group_id=g.id AND (LOWER(ff.filename) LIKE :filename_a ESCAPE '!' ".
+                "OR LOWER(fd.path) LIKE :filename_b ESCAPE '!'))";
+            $pattern=str_replace(['!','%','_'],['!!','!%','!_'],mb_strtolower($name));
+            $params['filename_a']='%'.$pattern.'%';
+            $params['filename_b']='%'.$pattern.'%';
+        }
+        if($confidence==='verified') $where.=' AND g.rules_version=1';
+        if($confidence==='candidate') $where.=' AND g.rules_version<>1';
+        if($minFiles!==null) {
+            $where.=' AND g.file_count>=:min_files';
+            $params['min_files']=$minFiles;
+        }
+        if($minSize!==null) {
+            $where.=' AND g.size_bytes>=:min_size';
+            $params['min_size']=$minSize;
+        }
+        // Duplicates historically names its cursors "before" (previous) and
+        // "after" (next). KeysetPage uses the opposite conventional names.
+        $page=KeysetPage::fetch(
+            $db,
+            'g.id,g.size_bytes,g.file_count,g.reclaimable_bytes,'.
+            'g.rules_version,p.name AS profile_name,p.id AS profile_id,'.
+            'p.source_root,firstf.id AS first_file_id,'.
+            'firstf.filename AS first_filename,firstf.mtime_epoch AS first_mtime_epoch,'.
+            'firstf.hash_value AS first_hash_value,firstf.error_code AS first_error_code,'.
+            'firstd.path AS first_directory',
+            $where,$params,'g.id',self::SORTS[$sort],strtoupper($dir),
+            self::PAGE_GROUPS,$after,$before,
+            in_array($sort,['id','size','matches','savings','modified','confidence'],true)
         );
-        if(count($rows)>self::PAGE_GROUPS) $rows=array_slice($rows,0,self::PAGE_GROUPS);
-        if($before!==null) $rows=array_reverse($rows);
+        $rows=$page['rows'];
         foreach($rows as &$row) {
             $directory=str_replace('\\','/',(string)($row['first_directory']??''));
             $root=rtrim(str_replace('\\','/',(string)$row['source_root']),'/');
@@ -123,27 +168,16 @@ final class DuplicatesController extends AbstractController
             $row['full_path']=rtrim($directory,'/').'/'.$filename;
         }
         unset($row);
-        $first=$rows?(int)$rows[0]['id']:null;
-        $last=$rows?(int)$rows[count($rows)-1]['id']:null;
-        $baseParams=$selectedRun!==null?['selected_run'=>$selectedRun]:($profile===null?[]:['profile'=>$profile]);
-        $prior=$first===null?false:(bool)$db->fetchOne(
-            'SELECT 1'.$where.' AND g.id<:cursor LIMIT 1',
-            array_merge($baseParams,['cursor'=>$first])
-        );
-        $later=$last===null?false:(bool)$db->fetchOne(
-            'SELECT 1'.$where.' AND g.id>:cursor LIMIT 1',
-            array_merge($baseParams,['cursor'=>$last])
-        );
+        $prior=$page['previous']!==null;
+        $later=$page['next']!==null;
+        $baseParams=$params;
         $totals=$db->fetchAssociative(
             'SELECT COUNT(*) AS total_groups, '.
             'COALESCE(SUM(g.file_count),0) AS total_members, '.
             'COALESCE(SUM(g.reclaimable_bytes),0) AS reclaimable_bytes '.
             $where,$baseParams
         );
-        $pageStart=$first===null?0:1+(int)$db->fetchOne(
-            'SELECT COUNT(*)'.$where.' AND g.id<:cursor',
-            array_merge($baseParams,['cursor'=>$first])
-        );
+        $pageStart=$page['start'];
         $pageEnd=$rows?$pageStart+count($rows)-1:0;
         $pageRows=array_sum(array_map(static fn(array $g)=>(int)$g['file_count'],$rows));
         $pageListedBytes=array_sum(array_map(
@@ -158,7 +192,14 @@ final class DuplicatesController extends AbstractController
             'latest_run_id'=>$latestRunId,'verification'=>$verification,
             'scan_choices'=>$history['rows'],'scan_choices_more'=>$history['more'],
             'scan_before'=>$scanBefore,'scan_choices_last'=>$scanChoicesLast,
-            'previous'=>$prior?$first:null,'next'=>$later?$last:null,
+            'previous'=>$page['previous'],'next'=>$page['next'],
+            'sort'=>$sort,'dir'=>$dir,'name_filter'=>$name,
+            'confidence_filter'=>$confidence,'min_files'=>$minFiles,'min_size'=>$minSize,
+            'table_filters'=>array_filter([
+                'profile'=>$profile,'run'=>$selectedRun,
+                'sort'=>$sort,'dir'=>$dir,'name'=>$name,
+                'confidence'=>$confidence,'min_files'=>$minFiles,'min_size'=>$minSize
+            ],static fn($v)=>$v!==null && $v!==''),
             'totals'=>$totals ?: ['total_groups'=>0,'total_members'=>0,'reclaimable_bytes'=>0],
             'page_start'=>$pageStart,'page_end'=>$pageEnd,'page_rows'=>$pageRows,
             'page_listed_bytes'=>$pageListedBytes,'page_reclaimable'=>$pageReclaimable
@@ -185,36 +226,42 @@ final class DuplicatesController extends AbstractController
 
         $after=$this->cursor($request,'after');
         $before=$this->cursor($request,'before');
-        $where=' FROM duplicate_group_members m JOIN file_entries f ON f.id=m.file_entry_id ' .
-            'JOIN directories d ON d.id=f.directory_id WHERE m.group_id=?';
-        $params=[$id];
-        if($before!==null) {
-            $where.=' AND m.id<?';
-            $params[]=$before;
-            $order=' ORDER BY m.id DESC';
-        } elseif($after!==null) {
-            $where.=' AND m.id>?';
-            $params[]=$after;
-            $order=' ORDER BY m.id ASC';
-        } else $order=' ORDER BY m.id ASC';
-
-        $members=$db->fetchAllAssociative(
-            'SELECT m.id AS member_id,f.id AS file_entry_id,d.path,f.filename,f.size_bytes,f.mtime_epoch,' .
-            'f.hash_value,f.error_code'.$where.$order.' LIMIT '.(self::PAGE_MEMBERS+1),$params
-        );
-        if(count($members)>self::PAGE_MEMBERS) $members=array_slice($members,0,self::PAGE_MEMBERS);
-        if($before!==null) $members=array_reverse($members);
-        $first=$members?(int)$members[0]['member_id']:null;
-        $last=$members?(int)$members[count($members)-1]['member_id']:null;
-        $prior=$first===null?false:(bool)$db->fetchOne(
-            'SELECT 1 FROM duplicate_group_members WHERE group_id=? AND id<? LIMIT 1',[$id,$first]
-        );
-        $later=$last===null?false:(bool)$db->fetchOne(
-            'SELECT 1 FROM duplicate_group_members WHERE group_id=? AND id>? LIMIT 1',[$id,$last]
+        $sort=(string)$request->query->get('sort','id');
+        $dir=(string)$request->query->get('dir','asc');
+        $filename=trim((string)$request->query->get('name',''));
+        $status=(string)$request->query->get('status','');
+        if(!isset(self::MEMBER_SORTS[$sort]) ||
+           !in_array($dir,['asc','desc'],true) ||
+           !in_array($status,['','available','changed'],true) ||
+           mb_strlen($filename)>200)
+            throw $this->createNotFoundException('Invalid group member filter.');
+        $where=' FROM duplicate_group_members m JOIN file_entries f ON f.id=m.file_entry_id '.
+            'JOIN directories d ON d.id=f.directory_id WHERE m.group_id=:group';
+        $params=['group'=>$id];
+        if($filename!=='') {
+            $pattern=str_replace(['!','%','_'],['!!','!%','!_'],mb_strtolower($filename));
+            $where.=" AND (LOWER(f.filename) LIKE :file_filter ESCAPE '!' ".
+                "OR LOWER(d.path) LIKE :folder_filter ESCAPE '!')";
+            $params['file_filter']='%'.$pattern.'%';
+            $params['folder_filter']='%'.$pattern.'%';
+        }
+        if($status==='available') $where.=' AND f.error_code IS NULL';
+        if($status==='changed') $where.=' AND f.error_code IS NOT NULL';
+        $page=KeysetPage::fetch(
+            $db,'m.id AS id,m.id AS member_id,f.id AS file_entry_id,'.
+            'd.path,f.filename,f.size_bytes,f.mtime_epoch,f.hash_value,f.error_code',
+            $where,$params,'m.id',self::MEMBER_SORTS[$sort],strtoupper($dir),
+            self::PAGE_MEMBERS,$after,$before,
+            in_array($sort,['id','size','modified'],true)
         );
         return $this->render('duplicates/group.html.twig',[
-            'group'=>$group,'members'=>$members,'historical'=>$historical,
-            'previous'=>$prior?$first:null,'next'=>$later?$last:null
+            'group'=>$group,'members'=>$page['rows'],'historical'=>$historical,
+            'previous'=>$page['previous'],'next'=>$page['next'],
+            'total_members'=>$page['total'],'sort'=>$sort,'dir'=>$dir,
+            'name_filter'=>$filename,'status_filter'=>$status,
+            'table_filters'=>array_filter([
+                'id'=>$id,'sort'=>$sort,'dir'=>$dir,'name'=>$filename,'status'=>$status
+            ],static fn($v)=>$v!=='')
         ]);
     }
 }

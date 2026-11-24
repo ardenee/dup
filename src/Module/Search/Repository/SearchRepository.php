@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Module\Search\Repository;
 
 use Doctrine\DBAL\Connection;
+use App\Core\Table\KeysetPage;
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 
 /**
@@ -13,6 +14,13 @@ use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 final class SearchRepository
 {
     private const PAGE=50;
+    public const SORTS=[
+        'id'=>'f.id','path'=>'f.filename','profile'=>'p.name',
+        'size'=>'f.size_bytes','modified'=>'f.mtime_epoch',
+        'method'=>"COALESCE(f.hash_method,'')",
+        'state'=>"COALESCE(f.error_code,'')",
+        'group'=>'COALESCE((SELECT MIN(m.group_id) FROM duplicate_group_members m WHERE m.file_entry_id=f.id),0)'
+    ];
 
     public function __construct(private readonly Connection $db) {}
 
@@ -26,12 +34,15 @@ final class SearchRepository
     /** @return array{rows:array,total:int,next:?int,previous:?int} */
     public function find(
         string $term,?int $profile,string $mode,bool $caseSensitive,
-        ?int $after=null,?int $before=null
+        ?int $after=null,?int $before=null,
+        string $sort='id',string $direction='desc',string $fileState=''
     ): array {
         if(!in_array($mode,['all','duplicates','moved'],true))
             throw new \InvalidArgumentException('Unsupported search mode.');
         if($after!==null && $before!==null)
             throw new \InvalidArgumentException('Choose only one page cursor.');
+        if(!isset(self::SORTS[$sort]) || !in_array($direction,['asc','desc'],true))
+            throw new \InvalidArgumentException('Invalid file search sorting.');
 
         $sql=' FROM file_entries f JOIN directories d ON d.id=f.directory_id '.
             'JOIN scan_runs r ON r.id=f.run_id '.
@@ -69,19 +80,19 @@ final class SearchRepository
         } elseif($mode==='moved') {
             $sql.=" AND f.error_code IN ('QUARANTINED','MOVED','LINKED')";
         }
-        $total=(int)$this->db->fetchOne('SELECT COUNT(*)'.$sql,$params);
-        $paged=$sql;
-        $cursor=$params;
-        $reverse=$before!==null;
-        if($after!==null) {
-            $paged.=' AND f.id<:after';
-            $cursor['after']=$after;
-        } elseif($before!==null) {
-            $paged.=' AND f.id>:before';
-            $cursor['before']=$before;
+        if($fileState!=='') {
+            $stateSql=match($fileState) {
+                'indexed'=>'f.error_code IS NULL AND f.is_symlink=0 AND d.is_ignored=0',
+                'ignored'=>'d.is_ignored=1',
+                'symlink'=>'f.is_symlink=1',
+                'moved'=>"f.error_code='MOVED'",
+                'linked'=>"f.error_code='LINKED'",
+                'quarantined'=>"f.error_code='QUARANTINED'",
+                'error'=>'f.error_code IS NOT NULL',
+                default=>throw new \InvalidArgumentException('Unsupported file status filter.')
+            };
+            $sql.=' AND '.$stateSql;
         }
-        $paged.=' ORDER BY f.id '.($reverse?'ASC':'DESC').
-            ' LIMIT '.(self::PAGE+1);
         $targetSelect=$mode==='moved'?
             "(SELECT CASE WHEN b.action_kind='link' THEN i.link_target_path ".
             "ELSE i.target_path END FROM file_action_items i ".
@@ -92,24 +103,27 @@ final class SearchRepository
             "(f.error_code='QUARANTINED' AND i.state='quarantined' AND b.action_kind='quarantine')) ".
             "ORDER BY i.id DESC LIMIT 1) AS action_target,":
             'NULL AS action_target,';
-        $rows=$this->db->fetchAllAssociative(
-            'SELECT '.$targetSelect.'f.id,f.filename,f.size_bytes,f.mtime_epoch,f.hash_method,'.
-            'f.is_symlink,f.link_target,'.
-            'f.hash_value,f.error_code,d.path AS directory,d.is_ignored,'.
+        $expr=$sort==='path' ?
+            ($this->db->getDatabasePlatform() instanceof AbstractMySQLPlatform
+                ? "LOWER(CONCAT(d.path,'/',f.filename))"
+                : "LOWER(d.path || '/' || f.filename)") :
+            self::SORTS[$sort];
+        $result=KeysetPage::fetch(
+            $this->db,
+            $targetSelect.'f.id,f.filename,f.size_bytes,f.mtime_epoch,f.hash_method,'.
+            'f.is_symlink,f.link_target,f.hash_value,f.error_code,'.
+            'd.path AS directory,d.is_ignored,'.
             'p.id AS profile_id,p.name AS profile_name,'.
             '(SELECT MIN(m.group_id) FROM duplicate_group_members m '.
-            'WHERE m.file_entry_id=f.id) AS group_id'.$paged,
-            $cursor
+            'WHERE m.file_entry_id=f.id) AS group_id',
+            $sql,$params,'f.id',$expr,strtoupper($direction),
+            self::PAGE,$after,$before,in_array($sort,['id','size','modified','group'],true)
         );
-        $extra=count($rows)>self::PAGE;
-        if($extra) array_pop($rows);
-        if($reverse) $rows=array_reverse($rows);
-        $first=$rows?(int)$rows[0]['id']:null;
-        $last=$rows?(int)$rows[count($rows)-1]['id']:null;
+        // Search URLs historically use after for the NEXT (older) page
+        // and before for the PREVIOUS page; preserve their names.
         return [
-            'rows'=>$rows,'total'=>$total,
-            'next'=>$last!==null && (!$reverse?$extra:true)?$last:null,
-            'previous'=>$first!==null && ($reverse?$extra:$after!==null)?$first:null
+            'rows'=>$result['rows'],'total'=>$result['total'],
+            'next'=>$result['next'],'previous'=>$result['previous']
         ];
     }
 }

@@ -13,7 +13,7 @@
   <div class="panel-heading"><h2>Files selected for deletion</h2>
     <span class="muted">Current scan · original paths</span></div>
   <div class="table-wrap">
-    <table><thead><tr><th>#</th><th>File to delete</th><th>Size</th><th>Status</th></tr></thead>
+    <table data-local-table="delete batch files"><thead><tr><th data-sort-type="number">#</th><th>File to delete</th><th>Size</th><th>Status</th></tr></thead>
       <tbody>{% for item in batch.items %}
         <tr><td>{{ loop.index }}</td>
           <td><code>{{ item.source_path }}</code></td>

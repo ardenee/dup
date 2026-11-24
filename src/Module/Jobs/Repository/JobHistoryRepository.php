@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Module\Jobs\Repository;
 
 use Doctrine\DBAL\Connection;
+use App\Core\Table\KeysetPage;
 
 /** Bounded, read-only job monitor with stable keyset pagination. */
 final class JobHistoryRepository
@@ -24,102 +25,97 @@ final class JobHistoryRepository
     /**
      * @return array{rows:list<array<string,mixed>>,total:int,previous:?int,next:?int}
      */
-    public function page(?int $profile,?string $state,?int $before,?int $after):array
+    public const SORTS=[
+        'id'=>'j.id',
+        'profile'=>"COALESCE(p.name,'')",
+        'type'=>'j.kind',
+        'stage'=>'j.phase',
+        'status'=>'j.state',
+        'progress'=>'j.progress_current',
+        'created'=>"COALESCE(j.created_at,'')",
+        'heartbeat'=>"COALESCE(j.heartbeat_at,'')",
+        'finished'=>"COALESCE(j.finished_at,'')"
+    ];
+
+    public function page(
+        ?int $profile,?string $state,?int $before,?int $after,
+        string $sort='id',string $direction='desc',?string $kind=null
+    ):array
     {
-        if($before!==null && $after!==null)
-            throw new \DomainException('Only one job paging cursor may be used.');
+        if(!isset(self::SORTS[$sort]) || !in_array($direction,['asc','desc'],true))
+            throw new \DomainException('Invalid job table sorting.');
         $where=' FROM jobs j LEFT JOIN scan_profiles p ON p.id=j.profile_id '.
             'LEFT JOIN scan_runs r ON r.id=j.run_id WHERE 1=1';
-        $base=[];
+        $params=[];
         if($profile!==null) {
             $where.=' AND j.profile_id=:profile';
-            $base['profile']=$profile;
+            $params['profile']=$profile;
         }
         if($state!==null && $state!=='') {
             $where.=' AND j.state=:state';
-            $base['state']=$state;
+            $params['state']=$state;
         }
-        $total=(int)$this->db->fetchOne('SELECT COUNT(*)'.$where,$base);
-        $params=$base;
-        $pageWhere=$where;
-        if($before!==null) {
-            $pageWhere.=' AND j.id<:cursor';
-            $params['cursor']=$before;
-            $order=' ORDER BY j.id DESC';
-        } elseif($after!==null) {
-            $pageWhere.=' AND j.id>:cursor';
-            $params['cursor']=$after;
-            $order=' ORDER BY j.id ASC';
-        } else $order=' ORDER BY j.id DESC';
-
-        $rows=$this->db->fetchAllAssociative(
-            'SELECT j.id,j.kind,j.phase,j.state,j.progress_current,j.progress_total,'.
+        if($kind!==null && $kind!=='') {
+            $where.=' AND j.kind=:kind';
+            $params['kind']=$kind;
+        }
+        return KeysetPage::fetch(
+            $this->db,
+            'j.id,j.kind,j.phase,j.state,j.progress_current,j.progress_total,'.
             'j.created_at,j.started_at,j.finished_at,j.heartbeat_at,j.error_code,'.
-            'j.history_prunable_at,'.
-            'j.run_id,j.file_action_batch_id,j.profile_id,p.name AS profile_name,'.
-            'r.state AS run_state '.
-            $pageWhere.$order.' LIMIT '.(self::PAGE_SIZE+1),$params
+            'j.history_prunable_at,j.run_id,j.file_action_batch_id,j.profile_id,'.
+            'p.name AS profile_name,r.state AS run_state',
+            $where,$params,'j.id',self::SORTS[$sort],strtoupper($direction),
+            self::PAGE_SIZE,$before,$after,in_array($sort,['id','progress'],true)
         );
-        if(count($rows)>self::PAGE_SIZE) array_pop($rows);
-        if($after!==null) $rows=array_reverse($rows);
-
-        $first=$rows?(int)$rows[0]['id']:null;
-        $last=$rows?(int)$rows[count($rows)-1]['id']:null;
-        $previous=$first!==null && $this->db->fetchOne(
-            'SELECT 1'.$where.' AND j.id>:cursor LIMIT 1',
-            array_merge($base,['cursor'=>$first])
-        ) ? $first : null;
-        $next=$last!==null && $this->db->fetchOne(
-            'SELECT 1'.$where.' AND j.id<:cursor LIMIT 1',
-            array_merge($base,['cursor'=>$last])
-        ) ? $last : null;
-        return compact('rows','total','previous','next');
     }
+
+    public const EVENT_SORTS=[
+        'id'=>'e.id','when'=>"COALESCE(e.created_at,'')",
+        'severity'=>'e.severity','code'=>'e.code'
+    ];
 
     /**
      * @return array{job:array<string,mixed>,events:list<array<string,mixed>>,
      * previous:?int,next:?int}|false
      */
-    public function detail(int $id,?int $before=null,?int $after=null):array|false
+    public function detail(
+        int $id,?int $before=null,?int $after=null,
+        string $sort='id',string $direction='desc',string $severity=''
+    ):array|false
     {
         if($before!==null && $after!==null)
-            throw new \DomainException('Only one event paging cursor may be used.');
+            throw new \DomainException('Only one event paging cursor is allowed.');
+        if(!isset(self::EVENT_SORTS[$sort]) ||
+            !in_array($direction,['asc','desc'],true) ||
+            !in_array($severity,['','info','warning','error'],true))
+            throw new \DomainException('Invalid job event sorting or filter.');
         $job=$this->db->fetchAssociative(
             'SELECT j.*,p.name AS profile_name,r.state AS run_state '.
             'FROM jobs j LEFT JOIN scan_profiles p ON p.id=j.profile_id '.
             'LEFT JOIN scan_runs r ON r.id=j.run_id WHERE j.id=?',[$id]
         );
         if(!$job) return false;
-        $query='SELECT id,severity,code,context,created_at FROM job_events WHERE job_id=?';
-        $params=[$id];
-        if($before!==null) {
-            $query.=' AND id<?';
-            $params[]=$before;
-            $order=' DESC';
-        } elseif($after!==null) {
-            $query.=' AND id>?';
-            $params[]=$after;
-            $order=' ASC';
-        } else $order=' DESC';
-        $events=$this->db->fetchAllAssociative($query.' ORDER BY id'.$order.
-            ' LIMIT '.(self::EVENT_PAGE_SIZE+1),$params);
-        if(count($events)>self::EVENT_PAGE_SIZE) array_pop($events);
-        if($after!==null) $events=array_reverse($events);
+        $source=' FROM job_events e WHERE e.job_id=:job';
+        $params=['job'=>$id];
+        if($severity!=='') {
+            $source.=' AND e.severity=:severity';
+            $params['severity']=$severity;
+        }
+        $page=KeysetPage::fetch(
+            $this->db,'e.id,e.severity,e.code,e.context,e.created_at',
+            $source,$params,'e.id',self::EVENT_SORTS[$sort],strtoupper($direction),
+            self::EVENT_PAGE_SIZE,$before,$after,$sort==='id'
+        );
+        $events=$page['rows'];
         foreach($events as &$event) {
             $decoded=json_decode((string)($event['context']??'{}'),true);
             $event['fields']=is_array($decoded)?$decoded:[];
         }
         unset($event);
-        $first=$events?(int)$events[0]['id']:null;
-        $last=$events?(int)$events[count($events)-1]['id']:null;
-        $previous=$first!==null && $this->db->fetchOne(
-            'SELECT 1 FROM job_events WHERE job_id=? AND id>? LIMIT 1',
-            [$id,$first]
-        )?$first:null;
-        $next=$last!==null && $this->db->fetchOne(
-            'SELECT 1 FROM job_events WHERE job_id=? AND id<? LIMIT 1',
-            [$id,$last]
-        )?$last:null;
-        return ['job'=>$job,'events'=>$events,'previous'=>$previous,'next'=>$next];
+        return ['job'=>$job,'events'=>$events,
+            'previous'=>$page['previous'],'next'=>$page['next'],
+            'event_total'=>$page['total']];
     }
+
 }

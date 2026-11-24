@@ -79,4 +79,15 @@ $link=$search->find('sample-link',1,'all',false);
 checkSearch($link['total']===1 && (int)$link['rows'][0]['is_symlink']===1 &&
     $link['rows'][0]['link_target']==='/archive/original.mp3',
     'Search did not return indexed symlink metadata');
+$bySize=$search->find('',1,'all',false,null,null,'size','asc');
+checkSearch(count($bySize['rows'])===50 &&
+    (int)$bySize['rows'][0]['size_bytes']<=(int)$bySize['rows'][1]['size_bytes'],
+    'Indexed search sorting by size is not global.');
+$ignoredStatus=$search->find('',1,'all',false,null,null,'id','desc','ignored');
+checkSearch($ignoredStatus['total']===1 &&
+    (int)$ignoredStatus['rows'][0]['is_ignored']===1,
+    'File status filtering did not isolate ignored files.');
+$byPath=$search->find('',1,'all',false,null,null,'path','asc');
+checkSearch($byPath['total']>=70 && count($byPath['rows'])===50,
+    'Path sorting lost search scope or page size.');
 echo "PASS latest snapshots, 50-item keyset paging, historical states, symlink metadata, case handling and literal wildcards\n";

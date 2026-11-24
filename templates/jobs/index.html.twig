@@ -1,5 +1,6 @@
 {% extends 'base.html.twig' %}
 {% from '_action_icons.html.twig' import icon %}
+{% from '_table_headers.html.twig' import sort as sort_heading %}
 {% block title %}Jobs{% endblock %}
 {% block section %}Jobs{% endblock %}
 {% block body %}
@@ -33,6 +34,19 @@
         {% endfor %}
       </select>
     </div>
+    <div class="field">
+      <label for="job-kind">Job type</label>
+      <select id="job-kind" name="kind">
+        <option value="">All types</option>
+        {% for name in job_kinds|default([]) %}
+          <option value="{{ name }}" {{ selected_kind|default('') == name ? 'selected' : '' }}>
+            {{ name|replace({'-':' ','_':' '})|capitalize }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <input type="hidden" name="sort" value="{{ sort|default('id') }}">
+    <input type="hidden" name="dir" value="{{ dir|default('desc') }}">
     <div class="job-filter-actions">
       <button class="primary" type="submit">Filter jobs</button>
       <a class="secondary link-button" href="{{ path('app_jobs') }}">Clear</a>
@@ -41,7 +55,7 @@
 </section>
 <section class="panel">
   <div class="panel-heading">
-    <div><h2>Job history</h2><p class="muted">50 jobs per page, newest first. Select a job to see readable events and errors.</p></div>
+    <div><h2>Job history</h2><p class="muted">50 jobs per page. Click a column heading to sort all matching jobs; use the filters above to narrow the results.</p></div>
     <span class="muted">{{ page.total|number_format }} matching</span>
   </div>
   {% if jobs is empty %}
@@ -52,8 +66,15 @@
     {% include 'jobs/_pager.html.twig' %}
     <div class="table-wrap">
       <table id="jobs-table">
-        <thead><tr><th>Job / profile</th><th>Type</th><th>Stage</th><th>Status</th>
-          <th>Progress</th><th>Heartbeat</th><th>Results & details</th><th>Actions</th></tr></thead>
+        <thead><tr>
+          {{ sort_heading('app_jobs',job_filters|default({}),sort|default('id'),dir|default('desc'),'id','Job / profile') }}
+          {{ sort_heading('app_jobs',job_filters|default({}),sort|default('id'),dir|default('desc'),'type','Type') }}
+          {{ sort_heading('app_jobs',job_filters|default({}),sort|default('id'),dir|default('desc'),'stage','Stage') }}
+          {{ sort_heading('app_jobs',job_filters|default({}),sort|default('id'),dir|default('desc'),'status','Status') }}
+          {{ sort_heading('app_jobs',job_filters|default({}),sort|default('id'),dir|default('desc'),'progress','Progress') }}
+          {{ sort_heading('app_jobs',job_filters|default({}),sort|default('id'),dir|default('desc'),'heartbeat','Heartbeat') }}
+          <th>Results &amp; details</th><th>Actions</th>
+        </tr></thead>
         <tbody>
         {% for job in jobs %}
           <tr data-job-id="{{ job.id }}">

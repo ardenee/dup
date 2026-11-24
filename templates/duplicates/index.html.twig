@@ -3,7 +3,8 @@
 {% from 'duplicates/_actions.html.twig' import actions %}
 {% block title %}Duplicates{% endblock %}
 {% block section %}Duplicates{% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ asset('assets/duplicates.css') }}?v=3">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ asset('assets/duplicates.css') }}?v=4">{% endblock %}
+{% from '_table_headers.html.twig' import sort as sort_heading %}
 {% block body %}
 {% include 'duplicates/_icons.html.twig' %}
 <div class="page-heading dup-heading">
@@ -131,6 +132,25 @@
   data-bulk-duplicate-url="{{ path('app_bulk_preview') }}"
   data-bulk-duplicate-token="{{ csrf_token('bulk_duplicate_action') }}"
   data-historical="{{ historical|default(false) ? '1' : '0' }}">
+  <form method="get" action="{{ path('app_duplicates') }}" class="dup-table-filters">
+    {% if selected_run|default(null) %}<input type="hidden" name="run" value="{{ selected_run }}">{% elseif selected_profile|default(null) %}<input type="hidden" name="profile" value="{{ selected_profile }}">{% endif %}
+    <input type="hidden" name="sort" value="{{ sort|default('id') }}">
+    <input type="hidden" name="dir" value="{{ dir|default('asc') }}">
+    <div class="field"><label for="dup-file-filter">File or folder contains</label>
+      <input id="dup-file-filter" name="name" maxlength="200" value="{{ name_filter|default('') }}" placeholder="Filename or folder"></div>
+    <div class="field"><label for="dup-confidence-filter">Match confidence</label>
+      <select id="dup-confidence-filter" name="confidence">
+        <option value="">All groups</option>
+        <option value="verified" {{ confidence_filter|default('') == 'verified' ? 'selected' : '' }}>Verified SHA-256</option>
+        <option value="candidate" {{ confidence_filter|default('') == 'candidate' ? 'selected' : '' }}>Candidates only</option>
+      </select></div>
+    <div class="field"><label for="dup-min-files">Minimum files in group</label>
+      <input id="dup-min-files" name="min_files" type="number" min="2" value="{{ min_files|default('') }}" placeholder="2 or more"></div>
+    <div class="field"><label for="dup-min-size">Minimum file size (bytes)</label>
+      <input id="dup-min-size" name="min_size" type="number" min="0" value="{{ min_size|default('') }}" placeholder="Any size"></div>
+    <div class="dup-filter-buttons"><button class="primary" type="submit">Filter groups</button>
+      <a class="secondary link-button" href="{{ path('app_duplicates',selected_run|default(null) ? {run:selected_run} : (selected_profile ? {profile:selected_profile} : {})) }}">Clear</a></div>
+  </form>
   <div class="dup-toolbar">
     <div class="dup-overview">
       <strong>{{ totals.total_groups|number_format }}</strong> groups
@@ -168,7 +188,7 @@
     </div>
   {% endif %}
   {% if groups is empty %}
-    <div class="empty-state">No duplicate groups were indexed in this {{ selected_run|default(null) ? 'scan' : 'current scan selection' }}.</div>
+    <div class="empty-state">{% if name_filter|default('') or confidence_filter|default('') or min_files|default(null) or min_size|default(null) %}No duplicate groups match your filters. Try reducing the restrictions or <a href="{{ path('app_duplicates',selected_run|default(null) ? {run:selected_run} : (selected_profile ? {profile:selected_profile} : {})) }}">clear filters</a>.{% else %}No duplicate groups were indexed in this {{ selected_run|default(null) ? 'scan' : 'current scan selection' }}.{% endif %}</div>
   {% else %}
     {% include 'duplicates/_pager.html.twig' %}
     <p class="dup-scroll-hint">Scroll the table sideways to view hashes and file actions.
@@ -183,8 +203,13 @@
         </colgroup>
         <thead>
           <tr>
-            <th>#</th><th>ID / Select</th><th>File (relative to profile folder)</th>
-            <th>Size</th><th>Modified</th><th>Hash</th><th>Actions</th>
+            {{ sort_heading('app_duplicates',table_filters|default({}),sort|default('id'),dir|default('asc'),'id','#') }}
+            <th>ID / Select</th>
+            {{ sort_heading('app_duplicates',table_filters|default({}),sort|default('id'),dir|default('asc'),'file','File (relative to profile folder)') }}
+            {{ sort_heading('app_duplicates',table_filters|default({}),sort|default('id'),dir|default('asc'),'size','Size') }}
+            {{ sort_heading('app_duplicates',table_filters|default({}),sort|default('id'),dir|default('asc'),'modified','Modified') }}
+            {{ sort_heading('app_duplicates',table_filters|default({}),sort|default('id'),dir|default('asc'),'confidence','Hash') }}
+            <th>Actions</th>
           </tr>
         </thead>
         {% for group in groups %}

@@ -1,5 +1,6 @@
 {% extends 'base.html.twig' %}
 {% from '_action_icons.html.twig' import icon %}
+{% from '_table_headers.html.twig' import sort as sort_heading %}
 {% block title %}Reports{% endblock %}
 {% block section %}Reports{% endblock %}
 {% block body %}
@@ -23,7 +24,17 @@
         <option value="{{ profile.id }}" {{ selected_profile == profile.id ? 'selected' : '' }}>{{ profile.name }}</option>
       {% endfor %}
     </select>
-    <button type="submit" class="secondary">Apply</button>
+    <label for="scan-state">Scan status</label>
+    <select name="state" id="scan-state">
+      <option value="">All statuses</option>
+      {% for value in ['queued','running','completed','archived','failed','cancelled'] %}
+        <option value="{{ value }}" {{ history_state|default('') == value ? 'selected' : '' }}>{{ value|capitalize }}</option>
+      {% endfor %}
+    </select>
+    <input type="hidden" name="sort" value="{{ history_sort|default('id') }}">
+    <input type="hidden" name="dir" value="{{ history_dir|default('desc') }}">
+    <button type="submit" class="secondary">Filter scans</button>
+    <a class="secondary link-button" href="{{ path('app_reports') }}">Clear</a>
   </form>
 </section>
 
@@ -45,8 +56,8 @@
       {% if is_granted('ROLE_ADMIN') %}<a href="{{ path('app_profiles') }}">Create a profile</a>.{% endif %}
     </div>
   {% else %}
-    <div class="table-wrap"><table>
-      <thead><tr><th>Profile</th><th>Latest completed</th><th>Files indexed</th><th>Duplicate groups</th><th>Verified potential savings</th><th>Candidate candidates</th></tr></thead>
+    <div class="table-wrap"><table data-local-table="profile snapshots">
+      <thead><tr><th>Profile</th><th>Latest completed</th><th data-sort-type="number">Files indexed</th><th data-sort-type="number">Duplicate groups</th><th>Verified potential savings</th><th>Candidate candidates</th></tr></thead>
       <tbody>{% for profile in snapshots %}
         <tr><td><strong><a href="{{ path('app_duplicates',{profile:profile.profile_id}) }}">{{ profile.profile_name }}</a></strong></td>
           {% if profile.run_id is null %}
@@ -68,14 +79,21 @@
 
 <section class="panel">
   <div class="panel-heading"><div><h2>Scan history</h2>
-    <p class="muted">Completed, failed, cancelled and queued runs. 25 runs per page, newest first.</p></div>
-    <span class="muted">{{ history|length }} shown on this page</span>
+    <p class="muted">25 runs per page. Filter by profile or scan status; click a column heading to sort every matching scan.</p></div>
+    <span class="muted">{{ history_total|default(history|length)|number_format }} matching scans · {{ history|length }} on this page</span>
   </div>
   {% if history is empty %}
     <div class="empty-state">No scan history for this selection.</div>
   {% else %}
     <div class="table-wrap"><table>
-      <thead><tr><th>Run / profile</th><th>State</th><th>Indexed files</th><th>Duplicate groups</th><th>Started</th><th>Finished / error</th><th>Actions</th></tr></thead>
+      <thead><tr>
+        {{ sort_heading('app_reports',history_filters|default({}),history_sort|default('id'),history_dir|default('desc'),'id','Run / profile') }}
+        {{ sort_heading('app_reports',history_filters|default({}),history_sort|default('id'),history_dir|default('desc'),'state','State') }}
+        {{ sort_heading('app_reports',history_filters|default({}),history_sort|default('id'),history_dir|default('desc'),'files','Indexed files') }}
+        {{ sort_heading('app_reports',history_filters|default({}),history_sort|default('id'),history_dir|default('desc'),'groups','Duplicate groups') }}
+        {{ sort_heading('app_reports',history_filters|default({}),history_sort|default('id'),history_dir|default('desc'),'started','Started') }}
+        {{ sort_heading('app_reports',history_filters|default({}),history_sort|default('id'),history_dir|default('desc'),'finished','Finished / error') }}
+        <th>Actions</th></tr></thead>
       <tbody>{% for run in history %}
         <tr>
           <td><a href="{{ path('app_report_run',{id:run.id}) }}"><strong>#{{ run.id }}</strong></a>
@@ -102,8 +120,8 @@
     <div class="result-toolbar">
       <span class="muted">Navigating by scan ID avoids slow large offsets.</span>
       <nav aria-label="Scan history pagination">
-        {% if previous %}<a href="{{ path('app_reports',selected_profile ? {profile:selected_profile,after:previous} : {after:previous}) }}">Newer</a>{% endif %}
-        {% if next %}<a href="{{ path('app_reports',selected_profile ? {profile:selected_profile,before:next} : {before:next}) }}">Older</a>{% endif %}
+        {% if previous %}<a href="{{ path('app_reports',history_filters|default({})|merge({after:previous})) }}">Previous page</a>{% endif %}
+        {% if next %}<a href="{{ path('app_reports',history_filters|default({})|merge({before:next})) }}">Next page</a>{% endif %}
       </nav>
     </div>
   {% endif %}

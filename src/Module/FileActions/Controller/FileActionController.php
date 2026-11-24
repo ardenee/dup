@@ -85,7 +85,7 @@ final class FileActionController extends AbstractController
     public function index(Request $request,FileActionHistoryRepository $history): Response
     {
         $kind=(string)$request->query->get('kind','');
-        if($kind!=='' && !in_array($kind,['quarantine','link','move','rename','bulk_quarantine','bulk_link'],true))
+        if($kind!=='' && !in_array($kind,['quarantine','link','move','rename','bulk_quarantine','bulk_link','delete'],true))
             throw $this->createNotFoundException('Invalid action type.');
         $state=(string)$request->query->get('state','');
         $states=$history->states();
@@ -100,11 +100,16 @@ final class FileActionController extends AbstractController
         if($profile!==null && !in_array($profile,array_map(
             static fn(array $row)=>(int)$row['id'],$profiles
         ),true)) throw $this->createNotFoundException('Unknown profile.');
+        $sort=(string)$request->query->get('sort','id');
+        $dir=(string)$request->query->get('dir','desc');
+        if(!isset(FileActionHistoryRepository::SORTS[$sort]) ||
+           !in_array($dir,['asc','desc'],true))
+            throw $this->createNotFoundException('Invalid action-history sorting.');
         return $this->render('actions/index.html.twig',[
-            'page'=>$history->page($profile,$kind?:null,$state?:null,$before,$after),
+            'page'=>$history->page($profile,$kind?:null,$state?:null,$before,$after,$sort,$dir),
             'profiles'=>$profiles,'states'=>$states,
-            'profile'=>$profile,'kind'=>$kind,'state'=>$state,
-            'filters'=>['profile'=>$profile,'kind'=>$kind,'state'=>$state]
+            'profile'=>$profile,'kind'=>$kind,'state'=>$state,'sort'=>$sort,'dir'=>$dir,
+            'filters'=>['profile'=>$profile,'kind'=>$kind,'state'=>$state,'sort'=>$sort,'dir'=>$dir]
         ]);
     }
 

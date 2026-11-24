@@ -1,4 +1,5 @@
 {% extends 'base.html.twig' %}
+{% from '_table_headers.html.twig' import sort as sort_heading %}
 {% block title %}Scan #{{ run.id }}{% endblock %}
 {% block section %}Reports / Scan #{{ run.id }}{% endblock %}
 {% block body %}
@@ -85,20 +86,39 @@
 
 <section class="panel">
   <div class="panel-heading"><div><h2>File status records</h2><p class="muted">Quarantined files, failed file actions and any other indexed file states — up to 50 per page.</p></div></div>
+  <form method="get" action="{{ path('app_report_run',{id:run.id}) }}" class="table-event-filter">
+    <label for="file-status-filter">File status</label>
+    <select name="status" id="file-status-filter">
+      <option value="">All flagged states</option>
+      {% for state in file_states|default([]) %}
+        <option value="{{ state }}" {{ file_status|default('') == state ? 'selected' : '' }}>{{ state|replace({'_':' '}) }}</option>
+      {% endfor %}
+    </select>
+    <input type="hidden" name="sort" value="{{ file_sort|default('id') }}">
+    <input type="hidden" name="dir" value="{{ file_dir|default('asc') }}">
+    <button class="secondary" type="submit">Filter files</button>
+    <a class="secondary link-button" href="{{ path('app_report_run',{id:run.id}) }}">Clear</a>
+  </form>
   {% if flagged is empty %}
-    <div class="empty-state">No flagged indexed files on this page. For scan-level errors, inspect the job events below.</div>
+    <div class="empty-state">No flagged files match your filters. For scan-level errors, inspect the events below.</div>
   {% else %}
     <div class="table-wrap"><table>
-      <thead><tr><th>File</th><th>Status</th><th>Size</th><th>Ignored folder</th></tr></thead>
+      <thead><tr>
+        {{ sort_heading('app_report_run',file_filters|default({id:run.id}),file_sort|default('id'),file_dir|default('asc'),'file','File') }}
+        {{ sort_heading('app_report_run',file_filters|default({id:run.id}),file_sort|default('id'),file_dir|default('asc'),'status','Status') }}
+        {{ sort_heading('app_report_run',file_filters|default({id:run.id}),file_sort|default('id'),file_dir|default('asc'),'size','Size') }}
+        {{ sort_heading('app_report_run',file_filters|default({id:run.id}),file_sort|default('id'),file_dir|default('asc'),'ignored','Ignored folder') }}
+      </tr></thead>
       <tbody>{% for file in flagged %}
       <tr><td><code>{{ file.directory }}{{ file.directory ends with '/' or file.directory ends with '\\' ? '' : '/' }}{{ file.filename }}</code></td>
       <td><span class="status">{{ file.error_code }}</span></td>
       <td class="group-size">{{ file.size_bytes|number_format }} bytes</td>
       <td>{{ file.is_ignored ? 'Yes' : 'No' }}</td></tr>
       {% endfor %}</tbody></table></div>
-    <div class="result-toolbar"><span class="muted">{{ flagged|length }} records shown</span>
+    <div class="result-toolbar"><span class="muted">{{ flagged|length }} of {{ flagged_total|default(flagged|length)|number_format }} flagged files shown</span>
       <nav aria-label="File states pagination">
-        {% if next %}<a href="{{ path('app_report_run',{id:run.id,after:next}) }}">Next 50</a>{% endif %}
+        {% if previous|default(null) %}<a href="{{ path('app_report_run',file_filters|default({id:run.id})|merge({before:previous})) }}">Previous page</a>{% endif %}
+        {% if next %}<a href="{{ path('app_report_run',file_filters|default({id:run.id})|merge({after:next})) }}">Next page</a>{% endif %}
       </nav>
     </div>
   {% endif %}
@@ -109,7 +129,7 @@
   {% if warnings is empty %}
     <div class="empty-state">No warning or error events recorded for this run.</div>
   {% else %}
-    <div class="table-wrap"><table><thead><tr><th>When (UTC)</th><th>Job</th><th>Severity</th><th>Code / detail</th></tr></thead>
+    <div class="table-wrap"><table data-local-table="recent warning events"><thead><tr><th>When (UTC)</th><th>Job</th><th>Severity</th><th>Code / detail</th></tr></thead>
     <tbody>{% for event in warnings %}<tr>
       <td>{{ event.created_at }}</td><td>#{{ event.job_id }}</td>
       <td><span class="status">{{ event.severity }}</span></td>

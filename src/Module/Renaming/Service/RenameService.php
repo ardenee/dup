@@ -6,6 +6,7 @@ use App\Module\FileActions\Service\FileActionService;
 use App\Module\FileActions\Service\SafeFileSystem;
 use App\Module\FileActions\Service\ActionSettings;
 use Doctrine\DBAL\Connection;
+use App\Core\Table\KeysetPage;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 
 /**
@@ -15,6 +16,8 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
  */
 final class RenameService
 {
+    public const PREVIEW_SORTS=['id'=>'f.id','file'=>'f.filename',
+        'folder'=>'d.path','size'=>'f.size_bytes'];
     public function __construct(
         private readonly Connection $db,
         private readonly SafeFileSystem $fs,
@@ -49,26 +52,39 @@ final class RenameService
     public function candidates(
         int $profileId,string $filters,int $dots,int $unders,bool $collapse,
         bool $duplicatesOnly=false,?int $after=null,bool $numberCollisions=false,
-        string $find='',string $replace='',bool $overwriteCollisions=false
+        string $find='',string $replace='',bool $overwriteCollisions=false,
+        string $sort='id',string $direction='asc',string $name=''
     ): array {
         $latest=(int)$this->db->fetchOne(
             "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=? AND state='completed'",
             [$profileId]
         );
         if(!$latest) return ['rows'=>[],'next'=>null,'scanned'=>0];
-        $sql="SELECT f.id,f.filename,f.size_bytes,f.mtime_epoch,d.path AS directory ".
-            "FROM file_entries f JOIN directories d ON d.id=f.directory_id ".
-            "WHERE f.run_id=? AND f.error_code IS NULL AND d.is_ignored=0 ";
-        $args=[$latest];
+        if(!isset(self::PREVIEW_SORTS[$sort]) || !in_array($direction,['asc','desc'],true))
+            throw new \DomainException('Invalid rename preview sort.');
+        if(mb_strlen($name)>200) throw new \DomainException('File filter is too long.');
+        $sql='FROM file_entries f JOIN directories d ON d.id=f.directory_id '.
+            'WHERE f.run_id=:run AND f.error_code IS NULL AND d.is_ignored=0';
+        $args=['run'=>$latest];
         if($duplicatesOnly) {
             $sql.=" AND EXISTS (SELECT 1 FROM duplicate_group_members m ".
                   "JOIN duplicate_groups g ON g.id=m.group_id ".
                   "WHERE m.file_entry_id=f.id AND g.run_id=f.run_id)";
         }
-        if($after!==null) {$sql.=" AND f.id>?";$args[]=$after;}
-        $data=$this->db->fetchAllAssociative($sql.' ORDER BY f.id LIMIT 101',$args);
-        $more=count($data)>100;
-        if($more) array_pop($data);
+        if($name!=='') {
+            $pattern=str_replace(['!','%','_'],['!!','!%','!_'],mb_strtolower($name));
+            $sql.=" AND (LOWER(f.filename) LIKE :name_a ESCAPE '!' ".
+                "OR LOWER(d.path) LIKE :name_b ESCAPE '!')";
+            $args['name_a']='%'.$pattern.'%';
+            $args['name_b']='%'.$pattern.'%';
+        }
+        $page=KeysetPage::fetch(
+            $this->db,'f.id,f.filename,f.size_bytes,f.mtime_epoch,d.path AS directory',
+            ' '.$sql,$args,'f.id',self::PREVIEW_SORTS[$sort],strtoupper($direction),100,
+            $after,null,in_array($sort,['id','size'],true)
+        );
+        $data=$page['rows'];
+        $next=$page['next'];
         $list=[];$reserved=[];
         foreach($data as $row) {
             try {
@@ -96,7 +112,7 @@ final class RenameService
         }
         return [
             'rows'=>$list,
-            'next'=>$more && $data?(int)$data[count($data)-1]['id']:null,
+            'next'=>$next,
             'scanned'=>count($data)
         ];
     }

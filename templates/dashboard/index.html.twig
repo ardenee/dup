@@ -74,8 +74,8 @@
       {% if is_granted('ROLE_ADMIN') %}<a href="{{ path('app_profiles') }}">Configure a scan profile</a>.{% endif %}
     </div>
   {% else %}
-    <div class="table-wrap"><table>
-      <thead><tr><th>Profile / scan</th><th>Finished</th><th>Status</th><th>Indexed files</th><th>Duplicate groups</th><th>Actions</th></tr></thead>
+    <div class="table-wrap"><table data-local-table="recent scans">
+      <thead><tr><th>Profile / scan</th><th>Finished</th><th>Status</th><th data-sort-type="number">Indexed files</th><th data-sort-type="number">Duplicate groups</th><th>Actions</th></tr></thead>
       <tbody>{% for scan in scans %}
         <tr>
           <td><strong>{{ scan.profile_name }}</strong><div class="muted">#{{ scan.id }}</div></td>
@@ -105,7 +105,7 @@
   {% if jobs is empty %}
     <div class="empty-state">No jobs yet. Set up a profile to begin.</div>
   {% else %}
-    <div class="table-wrap"><table><thead><tr><th>Job</th><th>Type</th><th>Stage</th><th>Status</th><th>Progress</th></tr></thead>
+    <div class="table-wrap"><table data-local-table="recent jobs"><thead><tr><th>Job</th><th>Type</th><th>Stage</th><th>Status</th><th>Progress</th></tr></thead>
     <tbody>{% for job in jobs %}<tr>
       <td>{% if is_granted('ROLE_ADMIN') %}
         <a class="text-link" href="{{ path('app_job_detail',{id:job.id}) }}">#{{ job.id }}</a>

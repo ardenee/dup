@@ -1,4 +1,5 @@
 {% extends 'base.html.twig' %}
+{% from '_table_headers.html.twig' import sort as sort_heading %}
 {% block title %}File actions{% endblock %}
 {% block section %}File actions{% endblock %}
 {% block body %}
@@ -42,6 +43,8 @@
         {% endfor %}
       </select>
     </div>
+    <input type="hidden" name="sort" value="{{ sort|default('id') }}">
+    <input type="hidden" name="dir" value="{{ dir|default('desc') }}">
     <div class="search-actions">
       <button type="submit" class="primary">Filter</button>
       <a href="{{ path('app_actions') }}" class="secondary link-button">Clear</a>
@@ -60,8 +63,13 @@
     {% include 'actions/_pager.html.twig' %}
     <div class="table-wrap"><table>
       <thead><tr>
-        <th>Batch / operation</th><th>Profile / source file</th><th>Files</th>
-        <th>Batch status</th><th>Requested (UTC)</th><th>Completed (UTC)</th><th>Result</th><th>Manage</th>
+        {{ sort_heading('app_actions',filters|default({}),sort|default('id'),dir|default('desc'),'id','Batch / operation') }}
+        {{ sort_heading('app_actions',filters|default({}),sort|default('id'),dir|default('desc'),'profile','Profile / source file') }}
+        {{ sort_heading('app_actions',filters|default({}),sort|default('id'),dir|default('desc'),'files','Files') }}
+        {{ sort_heading('app_actions',filters|default({}),sort|default('id'),dir|default('desc'),'status','Batch status') }}
+        {{ sort_heading('app_actions',filters|default({}),sort|default('id'),dir|default('desc'),'requested','Requested (UTC)') }}
+        {{ sort_heading('app_actions',filters|default({}),sort|default('id'),dir|default('desc'),'completed','Completed (UTC)') }}
+        <th>Result</th><th>Manage</th>
       </tr></thead>
       <tbody>
       {% for batch in page.rows %}
@@ -83,7 +91,7 @@
         </tr>
       {% endfor %}
       </tbody>
-      <tfoot><tr><td colspan="5">Showing {{ page.rows|length }} of {{ page.total|number_format }} matching batches</td><td colspan="3">25 batches per page, newest first</td></tr></tfoot>
+      <tfoot><tr><td colspan="5">Showing {{ page.rows|length }} of {{ page.total|number_format }} matching batches</td><td colspan="3">25 batches per page · server-wide sorting and filtering</td></tr></tfoot>
     </table></div>
     {% include 'actions/_pager.html.twig' %}
   {% endif %}

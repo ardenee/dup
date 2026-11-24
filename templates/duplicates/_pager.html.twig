@@ -4,12 +4,12 @@
   {{ groups|length|number_format }} groups and {{ page_rows|number_format }} file records on this page</span>
   <nav aria-label="Duplicate group pages">
     {% if previous %}
-      <a href="{{ path('app_duplicates',(selected_run|default(null) ? {run:selected_run} : (selected_profile ? {profile:selected_profile} : {}))|merge({before:previous})) }}">Previous</a>
+      <a href="{{ path('app_duplicates',table_filters|default({})|merge({before:previous})) }}">Previous</a>
     {% else %}
       <span class="dup-page-disabled">Previous</span>
     {% endif %}
     {% if next %}
-      <a href="{{ path('app_duplicates',(selected_run|default(null) ? {run:selected_run} : (selected_profile ? {profile:selected_profile} : {}))|merge({after:next})) }}">Next</a>
+      <a href="{{ path('app_duplicates',table_filters|default({})|merge({after:next})) }}">Next</a>
     {% else %}
       <span class="dup-page-disabled">Next</span>
     {% endif %}
