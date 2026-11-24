@@ -13,7 +13,7 @@ foreach([
     'CREATE TABLE scan_profiles(id INT PRIMARY KEY,name TEXT)',
     'CREATE TABLE scan_runs(id INT PRIMARY KEY,state TEXT)',
     'CREATE TABLE jobs(id INT PRIMARY KEY,kind TEXT,profile_id INT,run_id INT,file_action_batch_id INT,'.
-        'state TEXT,phase TEXT,progress_current INT,progress_total INT,created_at TEXT,'.
+        'state TEXT,phase TEXT,progress_current INT,progress_total INT,created_at TEXT,history_prunable_at TEXT,'.
         'started_at TEXT,finished_at TEXT,heartbeat_at TEXT,error_code TEXT,attempts INT)',
     'CREATE TABLE job_events(id INT PRIMARY KEY,job_id INT,severity TEXT,code TEXT,context TEXT,created_at TEXT)'
 ] as $sql)$db->executeStatement($sql);

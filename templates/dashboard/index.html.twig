@@ -11,14 +11,31 @@
     {% endif %}
   </div></div>
 <div class="stats-grid">
-  <div class="stat"><span>Profiles</span><strong>{{ metrics.profiles|number_format }}</strong></div>
-  <div class="stat"><span>Retained scan results</span><strong>{{ metrics.completed_scans|number_format }}</strong></div>
-  <div class="stat"><span>Indexed files</span><strong>{{ metrics.files|number_format }}</strong></div>
-  <div class="stat"><span>Duplicate groups</span><strong>{{ metrics.duplicate_groups|number_format }}</strong></div>
-  <div class="stat"><span>Potential verified recovery</span><strong>{{ metrics.verified_potential_bytes|number_format }} <small>bytes</small></strong></div>
-  <div class="stat"><span>Active jobs</span><strong>{{ metrics.active_jobs|number_format }}</strong></div>
-</div>
-<section class="panel">
+  <a class="stat stat-link" href="{{ is_granted('ROLE_ADMIN') ? path('app_profiles') : path('app_reports') }}">
+    <span>Profiles</span><strong>{{ metrics.profiles|number_format }}</strong>
+    <small>Manage or review scan profiles</small></a>
+  <a class="stat stat-link" href="{{ path('app_reports') }}">
+    <span>Retained scan results</span><strong>{{ metrics.completed_scans|number_format }}</strong>
+    <small>Browse historical scans</small></a>
+  <a class="stat stat-link" href="{{ path('app_search') }}">
+    <span>Indexed files</span><strong>{{ metrics.files|number_format }}</strong>
+    <small>Search indexed file records</small></a>
+  <a class="stat stat-link" href="{{ path('app_duplicates') }}">
+    <span>Duplicate groups</span><strong>{{ metrics.duplicate_groups|number_format }}</strong>
+    <small>Browse matching groups</small></a>
+  <a class="stat stat-link" href="{{ path('app_duplicates') }}">
+    <span>Potential verified recovery</span>
+    <strong>{{ metrics.verified_potential_bytes|number_format }} <small>bytes</small></strong>
+    <small>Examine verified duplicates</small></a>
+  {% if is_granted('ROLE_ADMIN') %}
+    <a class="stat stat-link" href="{{ path('app_jobs') }}">
+      <span>Active jobs</span><strong>{{ metrics.active_jobs|number_format }}</strong>
+      <small>Inspect live job progress</small></a>
+  {% else %}
+    <div class="stat"><span>Active jobs</span><strong>{{ metrics.active_jobs|number_format }}</strong>
+      <small>Job details require administrator access</small></div>
+  {% endif %}
+</div><section class="panel">
   <div class="panel-heading"><div><h2>Common tasks</h2>
     <p class="muted">Open what you need without searching through multiple sections.</p>
   </div></div>

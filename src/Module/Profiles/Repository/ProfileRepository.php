@@ -24,13 +24,19 @@ final class ProfileRepository
         return $this->db->fetchAllAssociative(
             'SELECT p.id,p.name,p.source_root,p.move_root,p.hash_mode,p.minimum_bytes,p.enabled, '.
             't.name AS type_name,r.files_indexed,r.duplicate_groups,r.finished_at, '.
+            "(SELECT COUNT(*) FROM scan_runs s2 WHERE s2.profile_id=p.id AND ".
+            "s2.state IN ('completed','archived')) AS completed_scans, ".
             "(SELECT COUNT(*) FROM scan_runs s WHERE s.profile_id=p.id AND s.state IN ('completed','archived')) AS retained_runs,".
             "(SELECT MAX(s.finished_at) FROM scan_runs s WHERE s.profile_id=p.id AND s.state IN ('completed','archived')) AS last_saved_at,".
-            'j.state AS active_state,j.phase AS active_phase FROM scan_profiles p '.
+            'j.state AS active_state,j.phase AS active_phase, '.
+            's.interval_minutes AS schedule_interval,s.next_run_at AS schedule_next, '.
+            's.last_error AS schedule_error,s.last_attempt_at AS schedule_attempt '.
+            'FROM scan_profiles p '.
             'INNER JOIN profile_types t ON t.id=p.profile_type_id '.
             'LEFT JOIN scan_runs r ON r.id=(SELECT MAX(id) FROM scan_runs '.
             "WHERE profile_id=p.id AND state='completed') ".
-            'LEFT JOIN jobs j ON j.active_profile_id=p.id ORDER BY p.id'
+            'LEFT JOIN jobs j ON j.active_profile_id=p.id '.
+            'LEFT JOIN scan_schedules s ON s.profile_id=p.id ORDER BY p.id'
         );
     }
 

@@ -5,6 +5,7 @@ namespace App\Module\Reports\Controller;
 
 use App\Module\Reports\Repository\ReportRepository;
 use App\Module\Reports\Service\ScanHistoryCleanup;
+use App\Module\Reports\Service\ScanRetentionService;
 use App\Module\Accounts\Domain\Account;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -22,6 +23,46 @@ final class ReportController extends AbstractController
         $cursor=filter_var($input,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
         if($cursor===false) throw $this->createNotFoundException('Invalid report filter.');
         return $cursor;
+    }
+
+
+    #[Route('/reports/cleanup',name:'app_reports_cleanup',methods:['GET','POST'])]
+    public function cleanup(
+        Request $request,ScanRetentionService $retention,ReportRepository $reports
+    ):Response {
+        $this->denyAccessUnlessGranted('ROLE_ADMIN');
+        $raw=$request->isMethod('POST')?
+            $request->request->get('days','90'):$request->query->get('days','90');
+        $days=filter_var($raw,FILTER_VALIDATE_INT);
+        if($days===false || !in_array($days,ScanRetentionService::DAYS,true))
+            throw $this->createNotFoundException('Invalid retention period.');
+        $rawProfile=$request->isMethod('POST')?
+            $request->request->get('profile',''):$request->query->get('profile','');
+        $profile=($rawProfile==='' || $rawProfile===null)?null:
+            filter_var($rawProfile,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+        $profiles=$reports->profiles();
+        if($profile===false || ($profile!==null && !in_array($profile,
+            array_map(static fn(array $p):int=>(int)$p['id'],$profiles),true)))
+            throw $this->createNotFoundException('Unknown scan profile.');
+        if($request->isMethod('POST')) {
+            if(!$this->isCsrfTokenValid('prune_scans',(string)$request->request->get('_token','')))
+                throw $this->createAccessDeniedException('Invalid cleanup token.');
+            $actor=$this->getUser();
+            if(!$actor instanceof Account) throw $this->createAccessDeniedException();
+            try {
+                $removed=$retention->prune($days,$profile,$actor->id,
+                    (string)$request->request->get('confirm',''));
+                $this->addFlash('success',$removed.' old scans removed from the database. Files on disk and the latest completed results were preserved.');
+            } catch(\DomainException $ex) {
+                $this->addFlash('warning',$ex->getMessage());
+            }
+            return $this->redirectToRoute('app_reports_cleanup',
+                array_filter(['days'=>$days,'profile'=>$profile]));
+        }
+        return $this->render('reports/cleanup.html.twig',[
+            'days'=>$days,'profile'=>$profile,'profiles'=>$profiles,
+            'eligible'=>$retention->estimate($days,$profile)
+        ]);
     }
 
     #[Route('/reports',name:'app_reports',methods:['GET'])]

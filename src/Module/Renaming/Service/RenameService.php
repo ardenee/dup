@@ -46,7 +46,8 @@ final class RenameService
 
     public function candidates(
         int $profileId,string $filters,int $dots,int $unders,bool $collapse,
-        bool $duplicatesOnly=false,?int $after=null,bool $numberCollisions=false
+        bool $duplicatesOnly=false,?int $after=null,bool $numberCollisions=false,
+        string $find='',string $replace=''
     ): array {
         $latest=(int)$this->db->fetchOne(
             "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=? AND state='completed'",
@@ -70,7 +71,7 @@ final class RenameService
         foreach($data as $row) {
             try {
                 $target=RenameRules::cleaned(
-                    (string)$row['filename'],$filters,$dots,$unders,$collapse
+                    (string)$row['filename'],$filters,$dots,$unders,$collapse,$find,$replace
                 );
             } catch(\DomainException) {continue;}
             if($target!==(string)$row['filename']) {
@@ -102,7 +103,8 @@ final class RenameService
      */
     public function queue(
         int $profileId,int $actorId,array $entryIds,string $filters,
-        int $dots,int $unders,bool $collapse,array $names=[]
+        int $dots,int $unders,bool $collapse,array $names=[],
+        string $find='',string $replace=''
     ): int {
         $entryIds=array_values(array_unique($entryIds));
         if(count($entryIds)<1 || count($entryIds)>50 || $profileId<1)
@@ -126,7 +128,7 @@ final class RenameService
                 RenameRules::validateName($targetName);
             } else {
                 $targetName=RenameRules::cleaned(
-                    (string)$file['filename'],$filters,$dots,$unders,$collapse
+                    (string)$file['filename'],$filters,$dots,$unders,$collapse,$find,$replace
                 );
             }
             if($targetName===(string)$file['filename'])

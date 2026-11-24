@@ -4,6 +4,7 @@ namespace App\Module\FileActions\Controller;
 
 use App\Module\Accounts\Domain\Account;
 use App\Module\FileActions\Service\FileActionService;
+use App\Module\FileActions\Service\FileActionHistoryCleanup;
 use App\Module\FileActions\Repository\FileActionHistoryRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -17,6 +18,67 @@ final class FileActionController extends AbstractController
         $user=$this->getUser();
         if(!$user instanceof Account) throw $this->createAccessDeniedException();
         return $user->id;
+    }
+
+
+    #[Route('/actions/cleanup',name:'app_actions_cleanup',methods:['GET','POST'])]
+    public function cleanup(
+        Request $request,FileActionHistoryCleanup $cleanup,
+        FileActionHistoryRepository $history
+    ):Response {
+        $raw=$request->isMethod('POST')?
+            $request->request->get('days','90'):$request->query->get('days','90');
+        $days=filter_var($raw,FILTER_VALIDATE_INT);
+        if($days===false || !in_array($days,FileActionHistoryCleanup::DAYS,true))
+            throw $this->createNotFoundException('Invalid retention period.');
+        $rawProfile=$request->isMethod('POST')?
+            $request->request->get('profile',''):$request->query->get('profile','');
+        $profile=($rawProfile==='' || $rawProfile===null)?null:
+            filter_var($rawProfile,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+        $profiles=$history->profiles();
+        if($profile===false || ($profile!==null && !in_array($profile,
+            array_map(static fn(array $p):int=>(int)$p['id'],$profiles),true)))
+            throw $this->createNotFoundException('Unknown profile.');
+        if($request->isMethod('POST')) {
+            if(!$this->isCsrfTokenValid('prune_action_history',
+                (string)$request->request->get('_token','')))
+                throw $this->createAccessDeniedException('Invalid cleanup token.');
+            try {
+                $count=$cleanup->prune($days,$profile,$this->adminId(),
+                    (string)$request->request->get('confirm',''));
+                $this->addFlash('success',$count.' resolved action histories removed. Audit and jobs retained.');
+            } catch(\DomainException $ex) {
+                $this->addFlash('warning',$ex->getMessage());
+            }
+            return $this->redirectToRoute('app_actions_cleanup',
+                array_filter(['days'=>$days,'profile'=>$profile]));
+        }
+        return $this->render('actions/cleanup.html.twig',[
+            'days'=>$days,'profile'=>$profile,'profiles'=>$profiles,
+            'eligible'=>$cleanup->estimate($days,$profile)
+        ]);
+    }
+
+    #[Route('/actions/{id<\\d+>}/remove',name:'app_action_remove',methods:['GET','POST'])]
+    public function removeBatch(int $id,Request $request,FileActionHistoryCleanup $cleanup):Response
+    {
+        $batch=$cleanup->inspect($id);
+        if(!$batch) throw $this->createNotFoundException('Action batch not found.');
+        if($request->isMethod('POST')) {
+            if(!$this->isCsrfTokenValid('remove_action_'.$id,
+                (string)$request->request->get('_token','')))
+                throw $this->createAccessDeniedException('Invalid removal token.');
+            try {
+                $cleanup->remove($id,$this->adminId(),
+                    (string)$request->request->get('confirm',''));
+                $this->addFlash('success','Resolved action history #'.$id.' removed. Audit records remain.');
+                return $this->redirectToRoute('app_actions');
+            } catch(\DomainException $ex) {
+                $this->addFlash('warning',$ex->getMessage());
+                return $this->redirectToRoute('app_action_remove',['id'=>$id]);
+            }
+        }
+        return $this->render('actions/remove.html.twig',['batch'=>$batch]);
     }
 
     #[Route('/actions',name:'app_actions',methods:['GET'])]

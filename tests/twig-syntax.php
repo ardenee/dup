@@ -19,8 +19,11 @@ $files = [
     'dashboard/index.html.twig',
     'jobs/index.html.twig',
     'jobs/detail.html.twig',
+    'jobs/cleanup.html.twig',
     'jobs/_pager.html.twig',
     'actions/settings.html.twig',
+    'actions/cleanup.html.twig',
+    'actions/remove.html.twig',
     'actions/bulk.html.twig',
     'actions/index.html.twig',
     'actions/_pager.html.twig',
@@ -34,6 +37,7 @@ $files = [
     'duplicates/_format.html.twig',
     'duplicates/_pager.html.twig',
     'reports/run.html.twig',
+    'reports/cleanup.html.twig',
     'reports/index.html.twig'
 ];
 foreach ($files as $file) {

@@ -6,7 +6,11 @@
   <div class="eyebrow">STORAGE & SCAN ANALYTICS</div>
   <h1>Reports</h1>
   <p class="muted">Current results use only each profile's latest completed scan. Previous scans remain available below. Overlapping profile roots may count the same files more than once.</p>
-</div>{% if is_granted('ROLE_ADMIN') %}<a class="secondary link-button" href="{{ path('app_system') }}">System health</a>{% endif %}</div>
+</div>{% if is_granted('ROLE_ADMIN') %}
+  <div class="profile-page-actions">
+    <a class="secondary link-button" href="{{ path('app_reports_cleanup') }}">Clean old scans</a>
+    <a class="secondary link-button" href="{{ path('app_system') }}">System health</a>
+  </div>{% endif %}</div>
 
 <section class="panel">
   <div class="panel-heading"><h2>Profile filter</h2></div>

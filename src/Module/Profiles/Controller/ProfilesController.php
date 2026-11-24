@@ -6,6 +6,8 @@ use App\Module\Profiles\Repository\ProfileRepository;
 use App\Module\Profiles\Service\DirectoryBrowser;
 use App\Module\Scans\Service\FileHasher;
 use App\Module\Jobs\Service\JobStore;
+use App\Module\Profiles\Service\ScanScheduleService;
+use App\Module\Accounts\Domain\Account;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -106,6 +108,27 @@ final class ProfilesController extends AbstractController
             $repository->setEnabled($id,$newState);
             $this->addFlash('success','Profile '.($newState?'enabled':'disabled').
                 '. Historical scan data remains available.');
+        } catch(\DomainException $ex) {
+            $this->addFlash('warning',$ex->getMessage());
+        }
+        return $this->redirectToRoute('app_profiles');
+    }
+
+    #[Route('/profiles/{id<\\d+>}/schedule',name:'app_profile_schedule',methods:['POST'])]
+    public function schedule(int $id,Request $request,ScanScheduleService $schedules):Response
+    {
+        if(!$this->isCsrfTokenValid('schedule_profile_'.$id,
+            (string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid schedule token.');
+        $user=$this->getUser();
+        if(!$user instanceof Account) throw $this->createAccessDeniedException();
+        $interval=filter_var($request->request->get('interval_minutes'),FILTER_VALIDATE_INT);
+        try {
+            if($interval===false) throw new \DomainException('Choose a scan interval.');
+            $schedules->save($id,$interval,$user->id);
+            $this->addFlash('success',$interval===0?
+                'Automatic scanning disabled for this profile.':
+                'Schedule saved. The background worker will start scans automatically.');
         } catch(\DomainException $ex) {
             $this->addFlash('warning',$ex->getMessage());
         }

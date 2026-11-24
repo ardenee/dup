@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Module\Jobs\Command;
 
 use App\Module\Jobs\Service\JobStore;
+use App\Module\Profiles\Service\ScanScheduleService;
 use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Scans\Service\ScanEngine;
 use App\Module\Duplicates\Service\IgnoreRebuildWorker;
@@ -25,6 +26,7 @@ final class WorkJobsCommand extends Command
 
     public function __construct(
         private readonly JobStore $jobs,
+        private readonly ScanScheduleService $schedules,
         private readonly ScanEngine $scanner,
         private readonly IgnoreRebuildWorker $rebuild,
         private readonly FileActionWorker $fileActions,
@@ -77,6 +79,8 @@ final class WorkJobsCommand extends Command
         try {
         do {
             $this->heartbeat->touch();
+            $scheduled=$this->schedules->dispatchDue();
+            if($scheduled) $output->writeln('<info>Scheduled scan jobs: '.implode(',',$scheduled).'</info>');
             $recovered=$this->jobs->recoverStalled(120);
             if($recovered)
                 $output->writeln('<comment>Marked '.$recovered.' stalled job(s) failed.</comment>');

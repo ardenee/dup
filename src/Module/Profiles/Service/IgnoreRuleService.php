@@ -13,11 +13,13 @@ final class IgnoreRuleService
     ) {}
 
     /** @return list<string> */
-    public function rules(): array
+    public function rules(?int $profileId=null): array
     {
         return array_values($this->db->fetchFirstColumn(
             'SELECT folder_name FROM profile_ignore_rules ' .
-            'WHERE profile_id IS NULL AND enabled=1 ORDER BY folder_name'
+            ($profileId===null?'WHERE profile_id IS NULL ':'WHERE profile_id=? ').
+            'AND enabled=1 ORDER BY folder_name',
+            $profileId===null?[]:[$profileId]
         ));
     }
 
@@ -41,27 +43,35 @@ final class IgnoreRuleService
     }
 
     /** Recalculation uses only stored metadata; no server files are read. */
-    public function save(string $text,?int $actorId=null): int
+    public function save(string $text,?int $actorId=null,?int $profileId=null): int
     {
         $names=$this->validate($text);
-        return $this->db->transactional(function(Connection $db) use ($names,$actorId):int {
-            $active=(int)$db->fetchOne('SELECT COUNT(*) FROM jobs WHERE active_profile_id IS NOT NULL');
+        return $this->db->transactional(function(Connection $db) use ($names,$actorId,$profileId):int {
+            if($profileId!==null && !$db->fetchOne('SELECT id FROM scan_profiles WHERE id=?',[$profileId]))
+                throw new \DomainException('Select an existing scan profile.');
+            $active=(int)$db->fetchOne('SELECT COUNT(*) FROM jobs WHERE active_profile_id IS NOT NULL'.
+                ($profileId===null?'':' AND active_profile_id=?'),
+                $profileId===null?[]:[$profileId]);
             if($active>0) {
                 throw new \DomainException(
                     'Wait for active scans or recalculations to finish before changing ignored folders.'
                 );
             }
-            $db->executeStatement('DELETE FROM profile_ignore_rules WHERE profile_id IS NULL');
+            $db->executeStatement('DELETE FROM profile_ignore_rules WHERE '.
+                ($profileId===null?'profile_id IS NULL':'profile_id=?'),
+                $profileId===null?[]:[$profileId]);
             foreach($names as $name)
                 $db->insert('profile_ignore_rules',[
-                    'profile_id'=>null,'folder_name'=>$name,'enabled'=>1
+                    'profile_id'=>$profileId,'folder_name'=>$name,'enabled'=>1
                 ]);
 
             // Only the latest COMPLETE scan gets its derived matches refreshed.
             // Historical runs, file metadata and hashes remain untouched.
             $runs=$db->fetchAllAssociative(
                 "SELECT r.id,r.profile_id FROM scan_runs r WHERE r.state='completed' " .
-                "AND r.id=(SELECT MAX(id) FROM scan_runs WHERE profile_id=r.profile_id AND state='completed')"
+                "AND r.id=(SELECT MAX(id) FROM scan_runs WHERE profile_id=r.profile_id AND state='completed')".
+                ($profileId===null?'':' AND r.profile_id=?'),
+                $profileId===null?[]:[$profileId]
             );
             $queued=0;
             foreach($runs as $run) {
@@ -79,10 +89,11 @@ final class IgnoreRuleService
             }
             $db->insert('audit_events',[
                 'actor_id'=>$actorId,'action'=>'IGNORE_RULES_CHANGED',
-                'entity_type'=>'global_ignore_rules','entity_id'=>null,
+                'entity_type'=>$profileId===null?'global_ignore_rules':'profile_ignore_rules',
+                'entity_id'=>$profileId===null?null:(string)$profileId,
                 'correlation_id'=>bin2hex(random_bytes(16)),'outcome'=>'queued',
                 'context'=>json_encode([
-                    'folder_names'=>$names,'recalculation_jobs'=>$queued
+                    'folder_names'=>$names,'profile_id'=>$profileId,'recalculation_jobs'=>$queued
                 ],JSON_THROW_ON_ERROR),
                 'created_at'=>gmdate('Y-m-d H:i:s')
             ]);

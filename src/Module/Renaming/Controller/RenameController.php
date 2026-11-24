@@ -42,6 +42,10 @@ final class RenameController extends AbstractController
         $unders=$this->number($request->query->get('unders'),0);
         $collapse=$request->query->get('collapse','1')==='1';
         $dups=$request->query->get('dups')==='1';
+        $find=(string)$request->query->get('find','');
+        $replace=(string)$request->query->get('replace','');
+        if(strlen($find)>255 || strlen($replace)>255)
+            throw $this->createNotFoundException('Find/replace text too long.');
         $collision=(string)$request->query->get('collision',
             $settings->policy()===ActionSettings::NUMBER?'number':'reject');
         if(!in_array($collision,['reject','number'],true))
@@ -50,16 +54,18 @@ final class RenameController extends AbstractController
         if(!in_array($dots,[0,1,2],true) || !in_array($unders,[0,1,2],true))
             throw $this->createNotFoundException('Invalid cleanup options.');
         $candidates=$profile>0?$renames->candidates(
-            $profile,$filters,$dots,$unders,$collapse,$dups,$after>0?$after:null,$collision==='number'
+            $profile,$filters,$dots,$unders,$collapse,$dups,$after>0?$after:null,$collision==='number',$find,$replace
         ):['rows'=>[],'next'=>null,'scanned'=>0];
         return $this->render('rename/index.html.twig',[
             'profiles'=>$profiles,'profile'=>$profile,'filters'=>$filters,
             'dots'=>$dots,'unders'=>$unders,'collapse'=>$collapse,
-            'dups'=>$dups,'collision'=>$collision,'candidates'=>$candidates,'batches'=>$renames->batches(),
+            'dups'=>$dups,'collision'=>$collision,'find'=>$find,'replace'=>$replace,
+            'candidates'=>$candidates,'batches'=>$renames->batches(),
             'paging'=>[
                 'profile'=>$profile,'filters'=>$filters,'dots'=>$dots,
                 'unders'=>$unders,'collapse'=>$collapse?'1':'0',
-                'dups'=>$dups?'1':'0','collision'=>$collision
+                'dups'=>$dups?'1':'0','collision'=>$collision,
+                'find'=>$find,'replace'=>$replace
             ]
         ]);
     }
@@ -74,6 +80,8 @@ final class RenameController extends AbstractController
         $dots=$this->number($request->request->get('dots'));
         $unders=$this->number($request->request->get('unders'));
         $collapse=$request->request->get('collapse')==='1';
+        $find=(string)$request->request->get('find','');
+        $replace=(string)$request->request->get('replace','');
         $ids=$request->request->all('files');
         $planned=$request->request->all('planned_names');
         $selected=[];
@@ -91,7 +99,7 @@ final class RenameController extends AbstractController
             }
         }
         try {
-            $job=$renames->queue($profile,$this->actor(),$selected,$filters,$dots,$unders,$collapse,$overrides);
+            $job=$renames->queue($profile,$this->actor(),$selected,$filters,$dots,$unders,$collapse,$overrides,$find,$replace);
             $this->addFlash('success','Filename changes queued as job #'.$job.'. No existing files will be overwritten.');
             return $this->redirectToRoute('app_jobs');
         } catch(\DomainException $ex) {

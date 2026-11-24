@@ -8,7 +8,10 @@
     <h1>File action history</h1>
     <p class="muted">All recorded quarantine, link, move, restore and rename batches, including failures. Permanent deletion is disabled.</p>
   </div>
-  <a href="{{ path('app_duplicates') }}" class="secondary link-button">Browse duplicates</a>
+  <div class="profile-page-actions">
+    <a href="{{ path('app_actions_cleanup') }}" class="secondary link-button">Clean old history</a>
+    <a href="{{ path('app_duplicates') }}" class="secondary link-button">Browse duplicates</a>
+  </div>
 </div>
 <section class="panel">
   <form method="get" action="{{ path('app_actions') }}" class="search-form">
@@ -58,7 +61,7 @@
     <div class="table-wrap"><table>
       <thead><tr>
         <th>Batch / operation</th><th>Profile / source file</th><th>Files</th>
-        <th>Batch status</th><th>Requested (UTC)</th><th>Completed (UTC)</th><th>Result</th>
+        <th>Batch status</th><th>Requested (UTC)</th><th>Completed (UTC)</th><th>Result</th><th>Manage</th>
       </tr></thead>
       <tbody>
       {% for batch in page.rows %}
@@ -76,10 +79,11 @@
           <td>{{ batch.requested_at }}</td>
           <td>{{ batch.completed_at ?? 'Pending' }}</td>
           <td>{{ batch.error_code ?? '—' }}</td>
+          <td><a class="text-link" href="{{ path('app_action_remove',{id:batch.id}) }}">Review / remove</a></td>
         </tr>
       {% endfor %}
       </tbody>
-      <tfoot><tr><td colspan="4">Showing {{ page.rows|length }} of {{ page.total|number_format }} matching batches</td><td colspan="3">25 batches per page, newest first</td></tr></tfoot>
+      <tfoot><tr><td colspan="5">Showing {{ page.rows|length }} of {{ page.total|number_format }} matching batches</td><td colspan="3">25 batches per page, newest first</td></tr></tfoot>
     </table></div>
     {% include 'actions/_pager.html.twig' %}
   {% endif %}

@@ -1,0 +1,38 @@
+{% extends 'base.html.twig' %}
+{% block title %}Review action history #{{ batch.id }}{% endblock %}
+{% block section %}File actions / History #{{ batch.id }}{% endblock %}
+{% block body %}
+<div class="page-heading">
+  <div><div class="eyebrow">FILE ACTION HISTORY</div><h1>Review / remove batch #{{ batch.id }}</h1>
+    <p class="muted">{{ batch.action_kind|replace({'_':' '})|capitalize }} ·
+      <span class="status">{{ batch.state|replace({'_':' '}) }}</span></p></div>
+  <div class="profile-page-actions">
+    <a class="secondary link-button" href="{{ path('app_action_detail',{id:batch.id}) }}">View action details</a>
+    <a class="secondary link-button" href="{{ path('app_actions') }}">Back to history</a>
+  </div>
+</div>
+<section class="panel panel-content">
+  <h2>Cleanup eligibility</h2>
+  <p><strong>{{ batch.items|number_format }}</strong> recorded file operations.
+    {{ batch.unresolved|number_format }} not fully completed or restored.
+    {{ batch.active_jobs|number_format }} unfinished jobs reference this batch.</p>
+  {% if batch.can_remove %}
+    <p>This action is fully resolved and its per-file history can be removed from the
+      application database. The file system will not be modified. Existing job logs and global audit events remain; the finished action jobs become
+      eligible for separate job-history cleanup. Removed per-file action details cannot be recovered.</p>
+    <form method="post" action="{{ path('app_action_remove',{id:batch.id}) }}">
+      <input type="hidden" name="_token" value="{{ csrf_token('remove_action_' ~ batch.id) }}">
+      <div class="field">
+        <label for="action-delete-confirm">Type DELETE to remove batch #{{ batch.id }} history</label>
+        <input id="action-delete-confirm" name="confirm" required pattern="DELETE" autocomplete="off">
+      </div>
+      <button class="secondary" type="submit">Remove resolved action history</button>
+    </form>
+  {% else %}
+    <div class="notice notice-warning"><strong>History is protected.</strong>
+      {{ batch.blocked_reason }}
+      Restore the original files or resolve any pending recovery problem before requesting deletion.</div>
+    <a class="primary link-button" href="{{ path('app_action_detail',{id:batch.id}) }}">View recovery details</a>
+  {% endif %}
+</section>
+{% endblock %}

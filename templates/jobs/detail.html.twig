@@ -51,6 +51,23 @@
     </div>
   </div>
 </section>
+{% if cleanup.can_remove %}
+<section class="panel panel-content" id="remove-job">
+  <h2>Remove this old job log</h2>
+  <p>This removes job #{{ job.id }} and its {{ cleanup.events|number_format }} event records.
+    The scan result, stored file index and duplicate groups are retained.
+    This action cannot be undone.</p>
+  <form method="post" action="{{ path('app_job_remove',{id:job.id}) }}">
+    <input type="hidden" name="_token" value="{{ csrf_token('remove_job_' ~ job.id) }}">
+    <div class="field"><label for="job-delete-confirm">Type DELETE</label>
+      <input id="job-delete-confirm" name="confirm" required pattern="DELETE" autocomplete="off"></div>
+    <button class="secondary" type="submit">Remove job and events</button>
+  </form>
+</section>
+{% elseif cleanup.blocked_reason %}
+  <div class="notice notice-warning">Removing this job log is unavailable:
+    {{ cleanup.blocked_reason }}</div>
+{% endif %}
 <section class="panel">
   <div class="panel-heading"><div><h2>Job events and errors</h2>
     <p class="muted">Newest first. Event details are displayed below rather than opening raw JSON.</p>

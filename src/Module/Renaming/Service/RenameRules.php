@@ -8,7 +8,7 @@ namespace App\Module\Renaming\Service;
  */
 final class RenameRules
 {
-    public static function cleaned(string $filename,string $filters,int $dots,int $unders,bool $collapse): string
+    public static function cleaned(string $filename,string $filters,int $dots,int $unders,bool $collapse,string $find='',string $replace=''): string
     {
         if(strlen($filters)>1000 || !in_array($dots,[0,1,2],true) || !in_array($unders,[0,1,2],true))
             throw new \DomainException('Invalid filename cleanup options.');
@@ -25,6 +25,9 @@ final class RenameRules
         if($unders===1) $base=str_replace('_',' ',$base);
         if($unders===2) $base=str_replace('_','.',$base);
         if($collapse) $base=(string)preg_replace('/ {2,}/u',' ',$base);
+        if(strlen($find)>255 || strlen($replace)>255)
+            throw new \DomainException('Find and replace text must be 255 bytes or less.');
+        if($find!=='') $base=str_replace($find,$replace,$base);
         $new=trim($base).$extension;
         self::validateName($new);
         return $new;

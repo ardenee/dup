@@ -7,13 +7,27 @@
   <p class="muted">Exclude selected directory names from duplicate matches, without losing indexed file information.</p>
 </div></div>
 <section class="panel ignored-folder-panel">
-  <div class="panel-heading"><h2>Global exclusions</h2></div>
+  <div class="panel-heading"><h2>{{ selected_profile is null ? 'Global defaults (all profiles)' : 'Profile-specific folder exclusions' }}</h2></div>
   <form action="{{ path('app_ignore_folders_save') }}" method="post" class="panel-content">
     <input type="hidden" name="_token" value="{{ csrf_token('ignore_rules') }}">
+    <div class="field"><label for="ignore-profile">Apply ignored folders to</label>
+      <select id="ignore-profile" data-ignore-profile-switch>
+        {% for profile in profiles %}
+          <option value="{{ profile.id }}" {{ selected_profile == profile.id ? 'selected' : '' }}>{{ profile.name }}</option>
+        {% endfor %}
+        <option value="global" {{ selected_profile is null ? 'selected' : '' }}>Global defaults (all profiles)</option>
+      </select>
+      <input type="hidden" name="profile" value="{{ selected_profile ?? 'global' }}">
+      <p class="muted">Each profile has its own exclusions. Global defaults are inherited by every profile, but can be edited independently.</p>
+    </div>
     <div class="field"><label for="ignored-folders">Directory names (one per line)</label>
       <textarea id="ignored-folders" name="names" rows="9" spellcheck="false" maxlength="24000">{{ names }}</textarea>
       <p class="muted field-help">Examples: <code>@eaDir</code>, <code>#recycle</code>. Enter folder names only, one per line; they match anywhere within the scanned folders. Full paths are not needed.</p>
     </div>
+    {% if selected_profile is not null and global_names is not empty %}
+      <div class="notice">This profile also inherits global exclusions: <strong>{{ global_names|join(', ') }}</strong>.
+        <a href="{{ path('app_ignore_folders',{profile:'global'}) }}">Edit global defaults</a>.</div>
+    {% endif %}
     <div class="notice">
       Scans still index eligible files inside these folders. Changes queue a database-only
       duplicate recalculation for each profile's latest completed run. No filesystem rescan is required.
@@ -23,4 +37,9 @@
       <a class="secondary link-button" href="{{ path('app_jobs') }}">View job monitor</a></div>
   </form>
 </section>
+<script>
+document.querySelector('[data-ignore-profile-switch]')?.addEventListener('change',function(){
+  window.location.href={{ path('app_ignore_folders')|json_encode|raw }}+'?profile='+encodeURIComponent(this.value);
+});
+</script>
 {% endblock %}

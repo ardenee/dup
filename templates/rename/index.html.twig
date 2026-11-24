@@ -20,6 +20,11 @@
       <select id="dots" name="dots"><option value="0" {{ dots == 0 ? 'selected' : '' }}>Keep</option><option value="1" {{ dots == 1 ? 'selected' : '' }}>Change to spaces</option><option value="2" {{ dots == 2 ? 'selected' : '' }}>Change to underscores</option></select></div>
     <div class="field"><label for="unders">Underscores in filename</label>
       <select id="unders" name="unders"><option value="0" {{ unders == 0 ? 'selected' : '' }}>Keep</option><option value="1" {{ unders == 1 ? 'selected' : '' }}>Change to spaces</option><option value="2" {{ unders == 2 ? 'selected' : '' }}>Change to dots</option></select></div>
+    <div class="field"><label for="find">Find text (literal)</label>
+      <input id="find" name="find" maxlength="255" value="{{ find }}" placeholder="Text to replace"></div>
+    <div class="field"><label for="replace">Replace with</label>
+      <input id="replace" name="replace" maxlength="255" value="{{ replace }}" placeholder="Replacement text">
+      <p class="muted">Applied after all other filename cleanup rules; file extensions are preserved. Leave replacement empty to remove matched text.</p></div>
     <div class="field"><label for="collision">Existing filename conflicts (<a href="{{ path('app_action_settings') }}">global default</a>)</label>
       <select id="collision" name="collision">
         <option value="reject" {{ collision == 'reject' ? 'selected' : '' }}>Stop and report conflict (default)</option>
@@ -45,6 +50,8 @@
     <input type="hidden" name="_token" value="{{ csrf_token('queue_renames') }}">
     <input type="hidden" name="profile" value="{{ profile }}">
     <input type="hidden" name="filters" value="{{ filters }}">
+    <input type="hidden" name="find" value="{{ find }}">
+    <input type="hidden" name="replace" value="{{ replace }}">
     <input type="hidden" name="dots" value="{{ dots }}">
     <input type="hidden" name="unders" value="{{ unders }}">
     <input type="hidden" name="collapse" value="{{ collapse ? '1' : '0' }}">

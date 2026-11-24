@@ -9,6 +9,7 @@
   <div class="profile-page-actions">
     <a class="secondary link-button" href="{{ path('app_profiles') }}">Scan profiles</a>
     <a class="secondary link-button" href="{{ path('app_duplicates') }}">Browse duplicates</a>
+    <a class="secondary link-button" href="{{ path('app_job_cleanup') }}">Clean old jobs</a>
   </div>
 </div>
 <section class="panel">
@@ -88,8 +89,10 @@
                 </form>
               {% elseif job.state == 'running' %}
                 <span class="muted">In progress</span>
+              {% elseif (job.kind in ['scan','rebuild-duplicates'] or job.history_prunable_at) and job.state in ['completed','failed','cancelled'] %}
+                <a class="text-link" href="{{ path('app_job_detail',{id:job.id}) }}#remove-job">Remove log</a>
               {% else %}
-                <span class="muted">—</span>
+                <span class="muted">Recovery history protected</span>
               {% endif %}
             </td>
           </tr>

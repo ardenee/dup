@@ -1,0 +1,59 @@
+{% extends 'base.html.twig' %}
+{% block title %}File action history cleanup{% endblock %}
+{% block section %}File actions / History maintenance{% endblock %}
+{% block body %}
+<div class="page-heading">
+  <div><div class="eyebrow">FILE ACTION RECORD MAINTENANCE</div>
+    <h1>Clean up old action history</h1>
+    <p class="muted">Only fully restored operations or completed, successful renames are eligible.
+      Protected recovery history and the audit log are retained.</p></div>
+  <a class="secondary link-button" href="{{ path('app_actions') }}">File action history</a>
+</div>
+<section class="panel panel-content">
+  <h2>Delete obsolete per-file action details</h2>
+  <form method="get" action="{{ path('app_actions_cleanup') }}" class="job-cleanup-form">
+    <div class="field"><label for="action-cleanup-profile">Profile</label>
+      <select id="action-cleanup-profile" name="profile">
+        <option value="">All profiles</option>
+        {% for p in profiles %}
+          <option value="{{ p.id }}" {{ profile == p.id ? 'selected' : '' }}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field"><label for="action-cleanup-days">Older than</label>
+      <select id="action-cleanup-days" name="days">
+        {% for value,label in {30:'30 days',90:'90 days',180:'180 days',365:'1 year'} %}
+          <option value="{{ value }}" {{ days == value ? 'selected' : '' }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="secondary">Preview eligible actions</button>
+  </form>
+  <p><strong>{{ eligible|number_format }}</strong> safe, completed action batches
+    qualify for removal.</p>
+  <p>Rename batches qualify only when every item was successfully renamed.
+    Move, quarantine and link operations qualify only when every original
+    has been restored. Any failed, partially restored, in-progress or uncertain
+    recovery state prevents history cleanup.</p>
+  <p class="muted">The operation removes old per-file action records from the
+    database but never changes files on disk. Associated global audit events and finished job logs remain. The associated
+    completed action jobs become eligible for separate job-history cleanup. Up to
+    50 batches are removed per confirmation.</p>
+  {% if eligible > 0 %}
+    <form method="post" action="{{ path('app_actions_cleanup') }}">
+      <input type="hidden" name="_token" value="{{ csrf_token('prune_action_history') }}">
+      <input type="hidden" name="days" value="{{ days }}">
+      <input type="hidden" name="profile" value="{{ profile ?? '' }}">
+      <div class="field"><label for="action-prune-confirm">Type PRUNE ACTIONS to confirm</label>
+        <input id="action-prune-confirm" name="confirm" required pattern="PRUNE ACTIONS" autocomplete="off"></div>
+      <button class="secondary" type="submit">Remove eligible action history</button>
+    </form>
+  {% endif %}
+</section>
+<section class="panel panel-content">
+  <h2>Unresolved file actions</h2>
+  <p>Keep failed or uncertain actions until the recovery paths have been reviewed.
+    Removing these records would lose the evidence needed to restore files safely.</p>
+  <a class="secondary link-button" href="{{ path('app_actions',{state:'needs_review'}) }}">Review unresolved actions</a>
+</section>
+{% endblock %}

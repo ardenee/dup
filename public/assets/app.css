@@ -272,3 +272,29 @@ textarea{font:inherit;color:var(--ink)}
 .job-event-field strong{text-transform:capitalize;color:#3a5969}
 @media(max-width:900px){.job-filter{grid-template-columns:repeat(2,minmax(0,1fr))}.job-filter-actions{grid-column:1/-1}}
 @media(max-width:600px){.job-filter{grid-template-columns:minmax(0,1fr);padding:16px}.job-filter-actions{grid-column:auto}}
+
+/* Compact per-profile automatic schedules. */
+.schedule-inline-form{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.schedule-inline-form label{flex:0 0 100%;font-size:11px}
+.schedule-inline-form select{max-width:145px;border:1px solid var(--line);padding:7px;background:#fff;border-radius:6px;font-size:12px}
+.schedule-inline-form button{font-size:12px;padding:6px 10px}
+.schedule-inline-form+small{display:block;margin-top:7px}
+
+/* Clickable dashboard/system metric cards use the standard card appearance. */
+.stat-link{display:block;color:inherit;text-decoration:none;transition:border-color .15s,box-shadow .15s}
+.stat-link:hover,.stat-link:focus-visible{border-color:#83bcca;box-shadow:0 3px 14px #0c5e791b}
+.stat-link strong{color:var(--ink)}
+.stat-link>small{display:block;margin-top:4px;color:#386a7e;font-weight:600;font-size:12px}
+.health-extensions{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:9px;padding:18px 22px}
+.health-extension{display:flex;flex-direction:column;gap:2px;border:1px solid;border-radius:8px;padding:10px 13px;font-size:12px}
+.health-extension strong{font-size:14px}
+.health-extension small{font-size:10px}
+.extension-loaded{background:#eaf7ec;border-color:#a5d1b0;color:#175b2e}
+.extension-missing{background:#fff0f0;border-color:#efb4b6;color:#96272d}
+.health-good{color:#126b35;font-weight:800}
+.health-bad{color:#aa2633;font-weight:800}
+.health-notice{margin:12px 20px 20px}
+.job-cleanup-form{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:16px 0}
+.job-cleanup-form .field{margin:0}
+.job-cleanup-form select{min-width:160px;padding:8px 10px;border:1px solid var(--line);border-radius:7px}
+@media(max-width:650px){.health-extensions{padding:12px 15px;grid-template-columns:repeat(2,minmax(0,1fr))}}

@@ -3,6 +3,8 @@ declare(strict_types=1);
 namespace App\Module\Jobs\Controller;
 
 use App\Module\Jobs\Service\JobStore;
+use App\Module\Jobs\Service\JobHistoryCleanup;
+use App\Module\Accounts\Domain\Account;
 use App\Module\Jobs\Repository\JobHistoryRepository;
 use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -55,7 +57,7 @@ final class JobsController extends AbstractController
     }
 
     #[Route('/jobs/{id<\\d+>}',name:'app_job_detail',methods:['GET'])]
-    public function detail(int $id,Request $request,JobHistoryRepository $history):Response
+    public function detail(int $id,Request $request,JobHistoryRepository $history,JobHistoryCleanup $cleanup):Response
     {
         $before=$this->positive($request,'before');
         $after=$this->positive($request,'after');
@@ -63,7 +65,54 @@ final class JobsController extends AbstractController
             throw $this->createNotFoundException('Invalid event paging.');
         $details=$history->detail($id,$before,$after);
         if(!$details) throw $this->createNotFoundException('Job does not exist.');
-        return $this->render('jobs/detail.html.twig',$details);
+        return $this->render('jobs/detail.html.twig',$details+['cleanup'=>$cleanup->inspect($id)]);
+    }
+
+
+    #[Route('/jobs/cleanup',name:'app_job_cleanup',methods:['GET','POST'])]
+    public function cleanup(Request $request,JobHistoryCleanup $cleanup):Response
+    {
+        $raw=$request->isMethod('POST')
+            ?$request->request->get('days','90'):$request->query->get('days','90');
+        $days=filter_var($raw,FILTER_VALIDATE_INT);
+        if($days===false || !in_array($days,JobHistoryCleanup::DAYS,true))
+            throw $this->createNotFoundException('Invalid job retention period.');
+        if($request->isMethod('POST')) {
+            if(!$this->isCsrfTokenValid('prune_job_history',
+                (string)$request->request->get('_token','')))
+                throw $this->createAccessDeniedException('Invalid cleanup token.');
+            $actor=$this->getUser();
+            if(!$actor instanceof Account) throw $this->createAccessDeniedException();
+            try {
+                $count=$cleanup->prune($days,$actor->id,
+                    (string)$request->request->get('confirm',''));
+                $this->addFlash('success',$count.' old job logs removed. Scan results and audit records retained.');
+            } catch(\DomainException $ex) {
+                $this->addFlash('warning',$ex->getMessage());
+            }
+            return $this->redirectToRoute('app_job_cleanup',['days'=>$days]);
+        }
+        return $this->render('jobs/cleanup.html.twig',[
+            'days'=>$days,'eligible'=>$cleanup->estimate($days)
+        ]);
+    }
+
+    #[Route('/jobs/{id<\\d+>}/remove',name:'app_job_remove',methods:['POST'])]
+    public function remove(int $id,Request $request,JobHistoryCleanup $cleanup):Response
+    {
+        if(!$this->isCsrfTokenValid('remove_job_'.$id,
+            (string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid remove-job token.');
+        $actor=$this->getUser();
+        if(!$actor instanceof Account) throw $this->createAccessDeniedException();
+        try {
+            $cleanup->remove($id,$actor->id,(string)$request->request->get('confirm',''));
+            $this->addFlash('success','Job #'.$id.' and its events removed. Scan results remain available.');
+            return $this->redirectToRoute('app_jobs');
+        } catch(\DomainException $ex) {
+            $this->addFlash('warning',$ex->getMessage());
+            return $this->redirectToRoute('app_job_detail',['id'=>$id]);
+        }
     }
 
     #[Route('/api/jobs',name:'app_jobs_api',methods:['GET'])]

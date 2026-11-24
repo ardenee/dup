@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+{% block title %}Clean up job history{% endblock %}
+{% block section %}Job monitor / Cleanup{% endblock %}
+{% block body %}
+<div class="page-heading">
+  <div><div class="eyebrow">HISTORY MAINTENANCE</div><h1>Clean up old job logs</h1>
+    <p class="muted">Remove finished scan/recalculation job logs, and previously
+      retired, fully resolved file-action job logs. Scanned results and audit
+      records remain intact.</p>
+  </div>
+  <a class="secondary link-button" href="{{ path('app_jobs') }}">Job monitor</a>
+</div>
+<section class="panel panel-content">
+  <h2>Select a retention period</h2>
+  <form method="get" action="{{ path('app_job_cleanup') }}" class="job-cleanup-form">
+    <div class="field"><label for="job-prune-days">Delete job logs older than</label>
+      <select id="job-prune-days" name="days">
+      {% for option,label in {30:'30 days',90:'90 days',180:'180 days',365:'1 year'} %}
+        <option value="{{ option }}" {{ days == option ? 'selected' : '' }}>{{ label }}</option>
+      {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="secondary">Check eligible records</button>
+  </form>
+  <p><strong>{{ eligible|number_format }}</strong> old, safe-to-remove jobs
+    qualify for cleanup at this retention age.</p>
+  <p class="muted">Active jobs, recent records and file actions with unresolved
+    restoration or retained recovery history remain protected. To retire a resolved
+    file-action job, first remove its fully resolved batch from File action history.
+    Current and historical scan results remain available.
+    Up to 500 qualifying job logs are removed per confirmation.</p>
+  {% if eligible > 0 %}
+    <form method="post" action="{{ path('app_job_cleanup') }}">
+      <input type="hidden" name="_token" value="{{ csrf_token('prune_job_history') }}">
+      <input type="hidden" name="days" value="{{ days }}">
+      <div class="field"><label for="job-prune-confirm">Type PRUNE to confirm removal</label>
+        <input id="job-prune-confirm" name="confirm" required pattern="PRUNE" autocomplete="off"></div>
+      <button class="secondary" type="submit">Remove eligible old job logs</button>
+    </form>
+  {% endif %}
+</section>
+<section class="panel panel-content">
+  <h2>Clean up scan results</h2>
+  <p>Job logs and scan results are managed independently. To delete actual indexed
+    results from a particular old scan, open the scan under Reports and use
+    <strong>Review / remove</strong>. DUP checks recovery dependencies before permitting removal.</p>
+  <a class="secondary link-button" href="{{ path('app_reports_cleanup') }}">Clean old scan data</a>
+</section>
+{% endblock %}

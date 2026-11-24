@@ -21,11 +21,11 @@ function canReach(array $rules,string $method,string $uri,string $role):bool
 foreach(['/','/duplicates','/duplicates/12','/search','/reports','/reports/run/14','/files/2','/files/2/download','/files/2/inline'] as $url) {
     check(canReach($rules,'GET',$url,'ROLE_USER'),'User blocked on read-only endpoint '.$url);
 }
-foreach(['/accounts','/settings/viewer','/settings/ignored-folders','/profiles','/jobs','/jobs/42','/move/3','/actions','/rename','/system'] as $url) {
+foreach(['/accounts','/settings/viewer','/settings/ignored-folders','/profiles','/jobs','/jobs/42','/jobs/cleanup','/reports/cleanup','/move/3','/actions','/actions/cleanup','/actions/45/remove','/rename','/system'] as $url) {
     check(!canReach($rules,'GET',$url,'ROLE_USER'),'User gained administrative GET '.$url);
     check(canReach($rules,'GET',$url,'ROLE_ADMIN'),'Administrator blocked on '.$url);
 }
-foreach(['/move/preview','/actions/link/preview/12','/accounts/save','/settings/viewer','/profiles/1/scan','/settings/actions','/actions/bulk/preview','/actions/bulk/21/confirm','/actions/bulk/21/restore','/reports/run/14/remove','/rename/selected'] as $url) {
+foreach(['/move/preview','/actions/link/preview/12','/accounts/save','/settings/viewer','/profiles/1/scan','/profiles/1/schedule','/jobs/42/remove','/jobs/cleanup','/reports/cleanup','/settings/actions','/actions/cleanup','/actions/45/remove','/actions/bulk/preview','/actions/bulk/21/confirm','/actions/bulk/21/restore','/reports/run/14/remove','/rename/selected'] as $url) {
     check(!canReach($rules,'POST',$url,'ROLE_USER'),'User gained a mutation endpoint '.$url);
     check(canReach($rules,'POST',$url,'ROLE_ADMIN'),'Administrator blocked POST '.$url);
 }

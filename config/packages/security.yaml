@@ -27,6 +27,7 @@ security:
         - { path: '^/$', methods: [GET], roles: ROLE_USER }
         - { path: '^/duplicates(?:/|$)', methods: [GET], roles: ROLE_USER }
         - { path: '^/search$', methods: [GET], roles: ROLE_USER }
+        - { path: '^/reports/cleanup$', methods: [GET], roles: ROLE_ADMIN }
         - { path: '^/reports(?:/|$)', methods: [GET], roles: ROLE_USER }
         - { path: '^/files/\d+(?:/(?:inline|download))?$', methods: [GET], roles: ROLE_USER }
         - { path: '^/', roles: ROLE_ADMIN }

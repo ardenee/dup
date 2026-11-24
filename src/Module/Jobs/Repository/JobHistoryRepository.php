@@ -55,6 +55,7 @@ final class JobHistoryRepository
         $rows=$this->db->fetchAllAssociative(
             'SELECT j.id,j.kind,j.phase,j.state,j.progress_current,j.progress_total,'.
             'j.created_at,j.started_at,j.finished_at,j.heartbeat_at,j.error_code,'.
+            'j.history_prunable_at,'.
             'j.run_id,j.file_action_batch_id,j.profile_id,p.name AS profile_name,'.
             'r.state AS run_state '.
             $pageWhere.$order.' LIMIT '.(self::PAGE_SIZE+1),$params

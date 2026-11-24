@@ -14,13 +14,16 @@
     <div class="empty-state">No profiles configured. <a href="{{ path('app_profile_new') }}">Create the first profile</a>.</div>
   {% else %}
     <div class="table-wrap"><table><thead>
-      <tr><th>Name / source</th><th>File type</th><th>Matching</th><th>Last completed run</th><th>State</th><th>Actions</th></tr>
+      <tr><th>Name / source</th><th>File type</th><th>Matching</th><th>Completed scans</th><th>Latest result</th><th>Schedule</th><th>State</th><th>Actions</th></tr>
     </thead><tbody>
     {% for profile in profiles %}
       <tr>
         <td><strong><a href="{{ path('app_duplicates',{profile:profile.id}) }}" title="Browse current and historical scans for this profile">{{ profile.name }}</a></strong><div class="muted"><code>{{ profile.source_root }}</code></div></td>
         <td>{{ profile.type_name }}</td>
         <td>{{ profile.hash_mode == 'sha256' ? 'Verified SHA-256' : (profile.hash_mode == 'crc32_3part' ? 'CRC32 3 Part (fast)' : (profile.hash_mode == 'crc32_full' ? 'CRC32 Full' : 'Size candidates only')) }}</td>
+        <td class="group-size"><strong>{{ profile.completed_scans|default(0)|number_format }}</strong>
+          <div class="muted">retained successful snapshots</div>
+        </td>
         <td>{% if profile.finished_at %}
           <strong>{{ profile.duplicate_groups|number_format }} groups</strong>
           <div class="muted">{{ profile.files_indexed|number_format }} indexed · {{ profile.finished_at }}</div>
@@ -28,6 +31,20 @@
             <strong>Historical results available</strong>
             <div class="muted">{{ profile.retained_runs|number_format }} retained scans · last finished {{ profile.last_saved_at }} UTC</div>
           {% else %}<span class="muted">Never scanned</span>{% endif %}</td>
+        <td>
+          <form method="post" action="{{ path('app_profile_schedule',{id:profile.id}) }}" class="schedule-inline-form">
+            <input type="hidden" name="_token" value="{{ csrf_token('schedule_profile_' ~ profile.id) }}">
+            <label for="profile-schedule-{{ profile.id }}" class="muted">Automatically scan</label>
+            <select id="profile-schedule-{{ profile.id }}" name="interval_minutes">
+              {% for minutes,description in {0:'Off',60:'Hourly',360:'Every 6 hours',720:'Every 12 hours',1440:'Daily',10080:'Weekly'} %}
+                <option value="{{ minutes }}" {{ (profile.schedule_interval|default(0)) == minutes ? 'selected' : '' }}>{{ description }}</option>
+              {% endfor %}
+            </select>
+            <button class="secondary" type="submit">Save</button>
+          </form>
+          {% if profile.schedule_next %}<small class="muted">Next: {{ profile.schedule_next }} UTC</small>{% endif %}
+          {% if profile.schedule_error %}<div class="report-error">Last schedule attempt failed: {{ profile.schedule_error }}</div>{% endif %}
+        </td>
         <td>{% if profile.active_state %}<span class="status">{{ profile.active_state }}</span>
           <div class="muted">{{ profile.active_phase }}</div>
           {% else %}<span class="status">{{ profile.enabled ? 'Idle' : 'Disabled' }}</span>{% endif %}</td>
@@ -38,6 +55,7 @@
             <button class="secondary" type="submit" {{ not profile.enabled or profile.active_state ? 'disabled' : '' }}>Start scan</button>
           </form>
           <a class="secondary link-button" href="{{ path('app_reports',{profile:profile.id}) }}">Reports & history</a>
+          <a class="secondary link-button" href="{{ path('app_ignore_folders',{profile:profile.id}) }}">Ignored folders</a>
           <a class="secondary link-button" href="{{ path('app_profile_edit',{id:profile.id}) }}">Edit</a>
           <form method="post" action="{{ path('app_profile_enabled',{id:profile.id}) }}">
             <input type="hidden" name="_token" value="{{ csrf_token('toggle_profile_' ~ profile.id) }}">
