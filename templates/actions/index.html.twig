@@ -81,7 +81,9 @@
             <div><code>{{ batch.source_path ?? 'Not recorded' }}</code></div>
           </td>
           <td>{{ batch.item_count|number_format }}
-            {% if batch.failed_items > 0 %}<small class="muted">{{ batch.failed_items }} failed</small>{% endif %}
+            {% if batch.state in ['completed','partial','failed','restored'] %}
+              <small class="muted">{{ batch.successful_items|number_format }} {{ batch.action_kind == 'delete' ? 'deleted' : 'succeeded' }}{% if batch.failed_items > 0 %} · {{ batch.failed_items|number_format }} failed{% endif %}</small>
+            {% endif %}
           </td>
           <td><span class="status">{{ batch.state|replace({'_':' '}) }}</span></td>
           <td>{{ batch.requested_at }}</td>

@@ -79,6 +79,7 @@ try {
     $jobId=$service->confirm($batch,1);
     $job=$jobs->claimNext($jobId);
     assertBulk($job && $job['kind']==='bulk-quarantine','Quarantine worker was not queued');
+    assertBulk((int)$job['progress_total']===2,'Bulk quarantine must retain two approved files.');
     $worker->run($job);
     assertBulk(!file_exists($source.'/A.mp3') && !file_exists($source.'/B.mp3'),
         'Quarantine did not move both selected duplicates');
@@ -183,6 +184,23 @@ try {
     } catch(DomainException) {}
     assertBulk((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action='BULK_FILE_PROCESSED'")===5,
         'Per-file bulk audit entries missing');
+
+    $db->executeStatement('UPDATE duplicate_groups SET rules_version=1 WHERE id=1');
+    $missingBatch=$service->plan([2],1,'bulk_quarantine');
+    $missingJob=$service->confirm($missingBatch,1);
+    $db->delete('file_entries',['id'=>2]);
+    try {
+        $worker->run($jobs->claimNext($missingJob));
+        throw new RuntimeException('Missing bulk item was silently accepted.');
+    } catch(DomainException $ex) {
+        assertBulk(str_contains($ex->getMessage(),'item count changed'),
+            'Missing bulk entry did not produce a count error.');
+    }
+    assertBulk(is_file($source.'/B.mp3'),'Missing bulk item changed the original file.');
+    assertBulk((string)$db->fetchOne('SELECT state FROM file_action_batches WHERE id=?',[$missingBatch])==='needs_review',
+        'Missing bulk entry did not flag batch for review.');
+    assertBulk((string)$db->fetchOne('SELECT state FROM jobs WHERE id=?',[$missingJob])==='failed',
+        'Missing bulk item incorrectly completed the job.');
 
     echo "PASS bulk quarantine/link, unselected survivor, SHA-256, backups, restore, partial errors, CRC guard and audit\n";
 } finally {

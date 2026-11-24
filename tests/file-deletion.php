@@ -15,7 +15,8 @@ function assertDelete(bool $pass,string $message):void {
 }
 $root=sys_get_temp_dir().DIRECTORY_SEPARATOR.'dup-delete-'.bin2hex(random_bytes(5));
 assertDelete(mkdir($root,0700,true),'Cannot create test directory.');
-$names=['A.mp3','B.mp3','C.mp3'];
+$names=['A.mp3','B.mp3','C.mp3',
+    ...array_map(static fn(int $i):string=>'Extra'.$i.'.mp3',range(1,10))];
 $payload=str_repeat('Media test bytes for permanent deletion!',1000);
 foreach($names as $name)file_put_contents($root.DIRECTORY_SEPARATOR.$name,$payload);
 try {
@@ -41,7 +42,7 @@ try {
     $db->insert('scan_profiles',['id'=>1,'name'=>'Music','source_root'=>realpath($root)]);
     $db->insert('scan_runs',['id'=>1,'profile_id'=>1,'state'=>'completed']);
     $db->insert('directories',['id'=>1,'run_id'=>1,'path'=>realpath($root),'is_ignored'=>0]);
-    $db->insert('duplicate_groups',['id'=>1,'run_id'=>1,'rules_version'=>1,'file_count'=>3]);
+    $db->insert('duplicate_groups',['id'=>1,'run_id'=>1,'rules_version'=>1,'file_count'=>count($names)]);
     foreach($names as $i=>$name) {
         $path=$root.DIRECTORY_SEPARATOR.$name;
         $db->insert('file_entries',[
@@ -57,39 +58,46 @@ try {
     $audit=new FileActionService($db,$fs);
     $service=new FileDeletionService($db,$fs,$audit);
     $worker=new FileDeletionWorker($db,$jobs,$fs,$audit);
-    $batchId=$service->plan([1,2,3],8);
+    $batchId=$service->plan(range(1,count($names)),8);
     $preview=$service->details($batchId);
-    assertDelete(count($preview['items'])===3 && $preview['state']==='planned',
+    assertDelete(count($preview['items'])===13 && $preview['state']==='planned',
         'Deletion preview did not include all requested files.');
     assertDelete(is_file($root.'/A.mp3'),'Preview unexpectedly modified a file.');
     $jobId=$service->confirm($batchId,8);
+    $queued=$db->fetchAssociative('SELECT progress_current,progress_total FROM jobs WHERE id=?',[$jobId]);
+    assertDelete((int)$queued['progress_current']===0 && (int)$queued['progress_total']===13,
+        'Queued deletion must retain its 13-file total.');
     $job=$jobs->claimNext($jobId);
     assertDelete($job && $job['kind']==='file-delete','Deletion job was not dispatched.');
     $worker->run($job);
+    $completed=$db->fetchAssociative('SELECT state,progress_current,progress_total FROM jobs WHERE id=?',[$jobId]);
+    assertDelete($completed['state']==='completed' &&
+        (int)$completed['progress_current']===13 && (int)$completed['progress_total']===13,
+        'Completed deletion must retain 13 / 13, not reset to 0 / 0.');
     foreach($names as $name)
         assertDelete(!file_exists($root.'/'.$name),'Selected file was not permanently deleted: '.$name);
-    assertDelete((int)$db->fetchOne("SELECT COUNT(*) FROM file_action_items WHERE batch_id=? AND state='deleted'",[$batchId])===3,
+    assertDelete((int)$db->fetchOne("SELECT COUNT(*) FROM file_action_items WHERE batch_id=? AND state='deleted'",[$batchId])===13,
         'Deletion status not stored per file.');
     assertDelete((string)$db->fetchOne('SELECT state FROM file_action_batches WHERE id=?',[$batchId])==='completed',
         'Completed delete batch status missing.');
     assertDelete((int)$db->fetchOne("SELECT COUNT(*) FROM jobs WHERE kind='rebuild-duplicates'")===1,
         'Duplicate group rebuild not queued after deleting files.');
-    assertDelete((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action='FILE_DELETED'")===3,
+    assertDelete((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action='FILE_DELETED'")===13,
         'Individual file deletions not audited.');
-    assertDelete((int)$db->fetchOne("SELECT COUNT(*) FROM file_entries WHERE error_code='DELETED'")===3,
+    assertDelete((int)$db->fetchOne("SELECT COUNT(*) FROM file_entries WHERE error_code='DELETED'")===13,
         'Deleted scan entries still show as available.');
     // Clear the deliberately pending rebuild job, then verify stale-file protection.
     $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
     $file=$root.'/D.mp3';
     file_put_contents($file,$payload);
     $db->insert('file_entries',[
-        'id'=>4,'run_id'=>1,'directory_id'=>1,'filename'=>'D.mp3',
+        'id'=>14,'run_id'=>1,'directory_id'=>1,'filename'=>'D.mp3',
         'size_bytes'=>filesize($file),'mtime_epoch'=>filemtime($file),
         'hash_method'=>'sha256','hash_value'=>hash_file('sha256',$file),
         'error_code'=>null,'is_symlink'=>0
     ]);
-    $db->insert('duplicate_group_members',['id'=>4,'group_id'=>1,'file_entry_id'=>4]);
-    $other=$service->plan([4],8);
+    $db->insert('duplicate_group_members',['id'=>14,'group_id'=>1,'file_entry_id'=>14]);
+    $other=$service->plan([14],8);
     $job=$service->confirm($other,8);
     file_put_contents($file,'Modified after delete approval');
     $worker->run($jobs->claimNext($job));
@@ -98,6 +106,29 @@ try {
     assertDelete((string)$db->fetchOne(
         'SELECT state FROM file_action_batches WHERE id=?',[$other])==='failed',
         'Changed file did not mark batch failure.');
+    // A missing indexed entry must not make a confirmed deletion complete as 0/0.
+    $missingPath=$root.'/E.mp3';
+    file_put_contents($missingPath,$payload);
+    $db->insert('file_entries',[
+        'id'=>15,'run_id'=>1,'directory_id'=>1,'filename'=>'E.mp3',
+        'size_bytes'=>filesize($missingPath),'mtime_epoch'=>filemtime($missingPath),
+        'hash_method'=>'sha256','hash_value'=>hash_file('sha256',$missingPath),
+        'error_code'=>null,'is_symlink'=>0
+    ]);
+    $db->insert('duplicate_group_members',['id'=>15,'group_id'=>1,'file_entry_id'=>15]);
+    $missingBatch=$service->plan([15],8);
+    $missingId=$service->confirm($missingBatch,8);
+    $db->delete('file_entries',['id'=>15]);
+    try {
+        $worker->run($jobs->claimNext($missingId));
+        throw new RuntimeException('Missing delete item unexpectedly completed as 0/0.');
+    } catch(DomainException $ex) {
+        assertDelete(str_contains($ex->getMessage(),'item count changed'),
+            'Missing delete item raised the wrong error.');
+    }
+    assertDelete(is_file($missingPath),'Missing indexed entry led to deletion of unapproved file.');
+    assertDelete((string)$db->fetchOne('SELECT state FROM file_action_batches WHERE id=?',[$missingBatch])==='needs_review',
+        'Missing delete entry did not flag its batch for review.');
     $twig=new Twig\Environment(new Twig\Loader\FilesystemLoader(dirname(__DIR__).'/templates'),
         ['autoescape'=>'html']);
     foreach([
@@ -111,7 +142,7 @@ try {
         'app'=>['user'=>null,'flashes'=>[],'environment'=>'test'],
         'batch'=>$preview
     ]);
-    foreach(['Delete 3 files permanently','permanent','A.mp3','B.mp3','C.mp3',
+    foreach(['Delete 13 files permanently','permanent','A.mp3','B.mp3','C.mp3',
         'token-confirm_delete_'.$batchId] as $needle)
         assertDelete(str_contains($html,$needle),'Delete confirmation view missing: '.$needle);
     echo "PASS permanent single/bulk delete, no survivor requirement, confirmation, job audit, stale-file rejection and index update\n";

@@ -124,7 +124,8 @@ final class FileDeletionService
                     'kind'=>'file-delete','profile_id'=>$batch['profile_id'],
                     'active_profile_id'=>$batch['profile_id'],'run_id'=>$runId,
                     'file_action_batch_id'=>$id,'state'=>'queued','phase'=>'waiting',
-                    'progress_current'=>0,'created_at'=>gmdate('Y-m-d H:i:s'),'attempts'=>0
+                    'progress_current'=>0,'progress_total'=>count($batch['items']),
+                    'created_at'=>gmdate('Y-m-d H:i:s'),'attempts'=>0
                 ]);
             } catch(UniqueConstraintViolationException $ex) {
                 throw new \DomainException('Another job is active for this profile.',0,$ex);

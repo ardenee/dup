@@ -74,8 +74,9 @@ async function refresh(manual=false) {
       setText(row,"error",job.error_code);
       const current=Number(job.progress_current ?? 0);
       const total=job.progress_total===null ? null : Number(job.progress_total);
-      setText(row,"progress-text",total===null ? formatCount(current) :
-        `${formatCount(current)} / ${formatCount(total)}`);
+      setText(row,"progress-text",job.kind==="rebuild-duplicates" && job.state==="completed" ?
+        `${formatCount(current)} duplicate groups` :
+        total===null ? formatCount(current) : `${formatCount(current)} / ${formatCount(total)}`);
       const bytesTotal=job.progress_bytes_total===null ? null : Number(job.progress_bytes_total);
       const bytesCurrent=Number(job.progress_bytes_current ?? 0);
       const bytesText=row.querySelector('[data-field="bytes-text"]');

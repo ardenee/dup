@@ -75,7 +75,11 @@ try {
     checkLink($job>0,'Link confirmation did not queue a job');
     $claimed=$jobs->claimNext($job);
     checkLink($claimed && $claimed['kind']==='file-link','Wrong link job claimed');
+    checkLink((int)$claimed['progress_total']===4,'Link must queue four processing stages.');
     (new FileLinkWorker($db,$jobs,$actions,$fs))->run($claimed);
+    $linkCounts=$db->fetchAssociative('SELECT progress_current,progress_total FROM jobs WHERE id=?',[$job]);
+    checkLink((int)$linkCounts['progress_current']===4 && (int)$linkCounts['progress_total']===4,
+        'Link completed with incorrect stage counts (expected 4 / 4).');
     checkLink(is_link($original) && readlink($original)===$survivor,'Correct symbolic link was not created');
     checkLink(file_get_contents($original)===$contents,'Link contents differ from original');
     checkLink(is_file($preview['target_path']),'Original file was not retained for recovery');
@@ -89,6 +93,9 @@ try {
     $claimed=$jobs->claimNext($undoJob);
     checkLink($claimed && $claimed['kind']==='file-unlink','Wrong restore job claimed');
     (new FileLinkWorker($db,$jobs,$actions,$fs))->run($claimed);
+    $unlinkCounts=$db->fetchAssociative('SELECT progress_current,progress_total FROM jobs WHERE id=?',[$undoJob]);
+    checkLink((int)$unlinkCounts['progress_current']===3 && (int)$unlinkCounts['progress_total']===3,
+        'Unlink completed with incorrect stage counts (expected 3 / 3).');
     checkLink(!is_link($original) && is_file($original),'Original file was not restored');
     checkLink(file_get_contents($original)===$contents,'Restored content differs');
     checkLink(!file_exists($preview['target_path']),'Backup remained after restore');

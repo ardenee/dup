@@ -4,6 +4,8 @@ namespace App\Module\Jobs\Command;
 
 use App\Module\Jobs\Service\JobStore;
 use App\Module\Jobs\Service\JobDebugLog;
+use App\Module\Jobs\Service\WorkerFailureCode;
+use App\Module\Jobs\Service\ScanCancelled;
 use App\Core\Diagnostics\DiagnosticFailure;
 use App\Module\Duplicates\Service\VerificationFailureCode;
 use App\Module\Profiles\Service\ScanScheduleService;
@@ -157,7 +159,7 @@ final class WorkJobsCommand extends Command
                     };
                 } catch(\Throwable $ex) {
                     $errorCode=$ex instanceof DiagnosticFailure?
-                        $ex->errorCode():'DUP-WORKER-003';
+                        $ex->errorCode():WorkerFailureCode::unhandled((string)$job['kind']);
                     $this->debug->write($id,'error','worker.job.exception',[
                         'error_code'=>$errorCode,
                         'operation'=>VerificationFailureCode::explain($errorCode)??'Outer worker exception',
@@ -165,6 +167,30 @@ final class WorkJobsCommand extends Command
                         'file'=>$ex->getFile(),'line'=>$ex->getLine(),
                         'trace'=>$ex->getTraceAsString()
                     ]);
+                    // A worker exception must not strand the lease as running
+                    // on generic Windows/Linux services without a DSM supervisor.
+                    // stop() is guarded by the original worker token, so a
+                    // genuinely recovered/stolen lease is never overwritten.
+                    try {
+                        $this->jobs->stop($id,(string)$job['worker_token'],
+                            $ex instanceof ScanCancelled?'cancelled':'failed',$errorCode,[
+                                'reason'=>mb_substr($ex->getMessage(),0,1800),
+                                'exception_type'=>get_class($ex),
+                                'source_file'=>$ex->getFile(),
+                                'source_line'=>$ex->getLine(),
+                                'original_exception_code'=>$errorCode
+                            ]);
+                    } catch(\Throwable $finishError) {
+                        // Never claim another job after the terminal-state
+                        // write failed: recovery must inspect the old lease.
+                        $this->stopping=true;
+                        $this->debug->write($id,'error','worker.job.finalization_failed',[
+                            'error_code'=>$errorCode,
+                            'exception'=>get_class($finishError),
+                            'message'=>$finishError->getMessage(),
+                            'original_exception'=>get_class($ex)
+                        ]);
+                    }
                     $output->writeln('<error>Job #'.$id.' failed: '.$ex->getMessage().'</error>');
                     $failed=true;
                 }

@@ -63,7 +63,7 @@ final class FileActionHistoryRepository
             '(SELECT MIN(i.source_path) FROM file_action_items i WHERE i.batch_id=b.id) AS source_path,'.
             '(SELECT COUNT(*) FROM file_action_items i WHERE i.batch_id=b.id) AS item_count,'.
             "(SELECT COUNT(*) FROM file_action_items i WHERE i.batch_id=b.id AND ".
-            "i.state IN ('completed','renamed','moved','linked','quarantined','restored')) AS successful_items,".
+            "i.state IN ('completed','renamed','moved','linked','quarantined','restored','deleted')) AS successful_items,".
             "(SELECT COUNT(*) FROM file_action_items i WHERE i.batch_id=b.id AND ".
             "i.state='failed') AS failed_items",
             $where,$params,'b.id',self::SORTS[$sort],strtoupper($direction),

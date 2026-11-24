@@ -79,11 +79,16 @@ try {
     checkMove($details['items'][0]['target_path']===$destination,'Wrong preview target');
     $jobId=$service->confirm($batch,1);
     checkMove($jobId>0,'No move job queued');
+    checkMove((int)$db->fetchOne('SELECT progress_total FROM jobs WHERE id=?',[$jobId])===1,
+        'Queued move must retain its approved file count.');
     try{$service->confirm($batch,1);throw new RuntimeException('Duplicate confirmation');}
     catch(DomainException){}
     $job=$jobs->claimNext($jobId);
     checkMove($job && $job['kind']==='file-move','Move job not claimed');
     (new FileMoveWorker($db,$jobs,$fs,$planner,$actions))->run($job);
+    $moveCounts=$db->fetchAssociative('SELECT progress_current,progress_total FROM jobs WHERE id=?',[$jobId]);
+    checkMove((int)$moveCounts['progress_current']===1 && (int)$moveCounts['progress_total']===1,
+        'Move must finish at 1 / 1 file, not 0 / 0.');
     checkMove(!file_exists($original) && file_exists($destination),'Source was not moved');
     checkMove((string)$db->fetchOne('SELECT error_code FROM file_entries WHERE id=1')==='MOVED',
         'Moved scan record did not change');
@@ -138,6 +143,25 @@ try {
         'Numbered move was not reversible');
     checkMove(file_get_contents($destination)==='KEEP EXISTING',
         'Restore changed the original destination');
+
+    // Missing referenced scan records must never turn an approved move into 0/0.
+    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
+    $missingBatch=$service->plan([1],1);
+    $missingJob=$service->confirm($missingBatch,1);
+    $db->delete('file_entries',['id'=>1]);
+    try {
+        (new FileMoveWorker($db,$jobs,$fs,$planner,$actions))->run($jobs->claimNext($missingJob));
+        throw new RuntimeException('Missing move entry was silently accepted.');
+    } catch(DomainException $ex) {
+        checkMove(str_contains($ex->getMessage(),'item count changed'),
+            'Missing move entry raised the wrong error.');
+    }
+    checkMove(file_exists($original) && file_get_contents($destination)==='KEEP EXISTING',
+        'Missing move record changed source or destination.');
+    checkMove((string)$db->fetchOne('SELECT state FROM file_action_batches WHERE id=?',[$missingBatch])==='needs_review',
+        'Missing move entry did not flag batch for review.');
+    checkMove((string)$db->fetchOne('SELECT state FROM jobs WHERE id=?',[$missingJob])==='failed',
+        'Missing move entry falsely completed the job.');
 
     echo "PASS reversible same-device file move, preview numbering, collisions, SHA-256, restore and audit\n";
 } finally {

@@ -59,7 +59,7 @@ final class JobHistoryRepository
             $where.=' AND j.kind=:kind';
             $params['kind']=$kind;
         }
-        return KeysetPage::fetch(
+        $page=KeysetPage::fetch(
             $this->db,
             'j.id,j.kind,j.phase,j.state,j.progress_current,j.progress_total,'.
             'j.created_at,j.started_at,j.finished_at,j.heartbeat_at,j.error_code,'.
@@ -71,6 +71,42 @@ final class JobHistoryRepository
             $where,$params,'j.id',self::SORTS[$sort],strtoupper($direction),
             self::PAGE_SIZE,$before,$after,in_array($sort,['id','progress'],true)
         );
+        $page['rows']=$this->attachActionOutcomes($page['rows']);
+        return $page;
+    }
+
+    /** Completed-job outcome is immutable in job_events even after a later restore. */
+    public function attachActionOutcomes(array $jobs):array
+    {
+        if(!$jobs) return $jobs;
+        $ids=array_map(static fn(array $j):int=>(int)$j['id'],$jobs);
+        $params=implode(',',array_fill(0,count($ids),'?'));
+        $events=$this->db->fetchAllAssociative(
+            'SELECT job_id,code,context FROM job_events WHERE job_id IN ('.$params.') '.
+            "AND code IN ('DELETE_BATCH_FINISHED','BULK_BATCH_FINISHED',".
+            "'MOVE_BATCH_FINISHED','RENAME_BATCH_COMPLETE') ORDER BY id DESC",$ids
+        );
+        $outcomes=[];
+        foreach($events as $event) {
+            $key=(int)$event['job_id'];
+            if(isset($outcomes[$key])) continue;
+            $context=json_decode((string)$event['context'],true);
+            if(!is_array($context)) continue;
+            $successKey=match((string)$event['code']) {
+                'DELETE_BATCH_FINISHED'=>'deleted',
+                'BULK_BATCH_FINISHED'=>'successful',
+                'MOVE_BATCH_FINISHED'=>'completed',
+                'RENAME_BATCH_COMPLETE'=>'renamed',
+                default=>null
+            };
+            if($successKey!==null && isset($context[$successKey],$context['failed']))
+                $outcomes[$key]=[(int)$context[$successKey],(int)$context['failed']];
+        }
+        foreach($jobs as &$job) {
+            [$job['action_succeeded'],$job['action_failed']]=$outcomes[(int)$job['id']]??[null,null];
+        }
+        unset($job);
+        return $jobs;
     }
 
     public const EVENT_SORTS=[
@@ -99,6 +135,7 @@ final class JobHistoryRepository
             'LEFT JOIN scan_runs r ON r.id=j.run_id WHERE j.id=?',[$id]
         );
         if(!$job) return false;
+        $job=$this->attachActionOutcomes([$job])[0];
         $source=' FROM job_events e WHERE e.job_id=:job';
         $params=['job'=>$id];
         if($severity!=='') {

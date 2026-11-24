@@ -51,13 +51,28 @@ final class BulkDuplicateWorker
         $work=array_values(array_filter($items,static fn(array $i):bool =>
             $i['state']===($restoring?$active:'planned')
         ));
-        if(!$work) throw new \DomainException('No files in this bulk job require processing.');
         $selected=array_fill_keys(array_map(
             static fn(array $i):int=>(int)$i['file_entry_id'],$items
         ),true);
         $succeeded=0;$failed=0;$total=count($work);
         try {
             $this->jobs->assertRunning($jobId,$token);
+            $expected=(int)$this->db->fetchOne(
+                'SELECT COUNT(*) FROM file_action_items WHERE batch_id=? AND state=?',
+                [$batchId,$restoring?$active:'planned']
+            );
+            $all=(int)$this->db->fetchOne(
+                'SELECT COUNT(*) FROM file_action_items WHERE batch_id=?',[$batchId]
+            );
+            if($expected<1 || $expected!==$total ||
+               (!$restoring && $all!==$expected) ||
+               ($job['progress_total']!==null && (int)$job['progress_total']!==$expected)) {
+                $this->db->executeStatement(
+                    "UPDATE file_action_batches SET state='needs_review',error_code='BULK_WORKER_FAILED' WHERE id=?",
+                    [$batchId]
+                );
+                throw new \DomainException('Bulk batch item count changed before processing; no files were modified by this job.');
+            }
             $this->db->executeStatement(
                 'UPDATE file_action_batches SET state=? WHERE id=?',
                 [$restoring?'restore_executing':'executing',$batchId]

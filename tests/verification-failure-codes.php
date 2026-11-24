@@ -96,7 +96,7 @@ try {
     $details=Codes::detail('finding_candidate_files',new PDOException('SQL query failed'),$trace);
     $db=DriverManager::getConnection(['driver'=>'pdo_sqlite','memory'=>true]);
     foreach([
-        'CREATE TABLE jobs(id INTEGER PRIMARY KEY,kind TEXT,state TEXT,phase TEXT,worker_token TEXT,run_id INT,active_profile_id INT,heartbeat_at TEXT,finished_at TEXT,error_code TEXT,last_failure_reason TEXT)',
+        'CREATE TABLE jobs(id INTEGER PRIMARY KEY,kind TEXT,state TEXT,phase TEXT,worker_token TEXT,run_id INT,active_profile_id INT,heartbeat_at TEXT,finished_at TEXT,error_code TEXT,last_failure_reason TEXT,file_action_batch_id INT)',
         'CREATE TABLE job_events(id INTEGER PRIMARY KEY AUTOINCREMENT,job_id INT,severity TEXT,code TEXT,context TEXT,created_at TEXT)',
         'CREATE TABLE scan_runs(id INTEGER PRIMARY KEY,state TEXT,finished_at TEXT,error_count INT DEFAULT 0)'
     ] as $q)$db->executeStatement($q);

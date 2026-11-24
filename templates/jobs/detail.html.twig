@@ -22,7 +22,10 @@
 <div class="stats-grid">
   <div class="stat"><span>Status</span><strong>{{ job.state|capitalize }}</strong></div>
   <div class="stat"><span>Current stage</span><strong>{{ job.phase|replace({'_':' '})|capitalize }}</strong></div>
-  <div class="stat"><span>Progress</span><strong>{{ job.progress_current|number_format }}{% if job.progress_total is not null %} / {{ job.progress_total|number_format }}{% endif %}</strong><small>Completed files / candidate files</small></div>
+  <div class="stat"><span>{{ job.kind == 'rebuild-duplicates' and job.state == 'completed' ? 'Duplicate groups' : 'Progress' }}</span><strong>{% if job.kind == 'rebuild-duplicates' and job.state == 'completed' %}{{ job.progress_current|number_format }}{% else %}{{ job.progress_current|number_format }}{% if job.progress_total is not null %} / {{ job.progress_total|number_format }}{% endif %}{% endif %}</strong><small>{% if job.kind == 'rebuild-duplicates' %}Groups remaining after recalculation{% elseif job.kind in ['file-action','file-restore','file-link','file-unlink'] %}Completed stages / total stages{% elseif job.kind in ['scan','duplicate-verify'] %}Files indexed or verified{% else %}Items processed / items selected (including failures){% endif %}</small></div>
+  {% if job.action_succeeded is defined and job.action_succeeded is not null %}
+    <div class="stat"><span>File action result</span><strong>{{ job.action_succeeded|number_format }} succeeded / {{ job.action_failed|number_format }} failed</strong><small>Recorded at job completion, independent of later restore actions</small></div>
+  {% endif %}
   {% if job.progress_bytes_total is not null %}
     <div class="stat"><span>Bytes read</span><strong>{{ bytes(job.progress_bytes_current|default(0)) }} / {{ bytes(job.progress_bytes_total) }}</strong>
       <small>{{ job.progress_detail|default('') }}</small>

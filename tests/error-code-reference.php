@@ -10,9 +10,9 @@ function checkCatalog(bool $condition,string $message):void {
     if(!$condition)throw new RuntimeException($message);
 }
 $codes=VerificationFailureCode::catalog()+WorkerFailureCode::catalog()+JobFailureCode::catalog();
-checkCatalog(count($codes)===415 &&
+checkCatalog(count($codes)===430 &&
     count($codes)===count(array_unique(array_keys($codes))),
-    'Combined 415-entry error registry must contain no duplicate codes.');
+    'Combined 430-entry error registry must contain no duplicate codes.');
 $twig=new Twig\Environment(
     new Twig\Loader\FilesystemLoader(dirname(__DIR__).'/templates'),
     ['autoescape'=>'html']
@@ -34,7 +34,7 @@ $html=$twig->render('jobs/error-codes.html.twig',[
 checkCatalog(str_contains($html,'Error code reference') &&
     str_contains($html,'DUP-HASH-105') &&
     str_contains($html,'Candidate size changed') &&
-    str_contains($html,'415 registered error conditions') &&
+    str_contains($html,'430 registered error conditions') &&
     str_contains($html,'trace ID'),
     'Error-code reference does not explain the code/trace distinction.');
 $none=$twig->render('jobs/error-codes.html.twig',[
@@ -55,4 +55,4 @@ $jobDetail=file_get_contents(dirname(__DIR__).'/templates/jobs/detail.html.twig'
 checkCatalog(str_contains($jobDetail,'app_job_error_codes') &&
     str_contains($jobDetail,'job.error_code'),
     'Job detail error codes are not clickable to their reference.');
-echo "PASS 415 unique diagnostic codes, searchable admin reference, safe unknown-code view and linked job details\n";
+echo "PASS 430 unique diagnostic codes, searchable admin reference, safe unknown-code view and linked job details\n";

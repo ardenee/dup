@@ -41,6 +41,13 @@ final class RenameWorker
         $total=count($items);$success=0;$errors=0;$anyOverwritten=false;
         try {
             $this->jobs->assertRunning($id,$token);
+            if($total<1 || ($job['progress_total']!==null && (int)$job['progress_total']!==$total)) {
+                $this->db->executeStatement(
+                    "UPDATE file_action_batches SET state='needs_review',error_code='RENAME_WORKER_FAILED' WHERE id=?",
+                    [$batchId]
+                );
+                throw new \DomainException('Approved rename batch contains no items; refusing to complete it as 0/0.');
+            }
             $this->db->executeStatement(
                 "UPDATE file_action_batches SET state='executing' WHERE id=? AND state='queued'",
                 [$batchId]
@@ -185,7 +192,7 @@ final class RenameWorker
                 $now=gmdate('Y-m-d H:i:s');
                 $db->executeStatement(
                     'UPDATE file_action_batches SET state=?,completed_at=?,error_code=? WHERE id=?',
-                    [$errors>0?'partial':'completed',$now,$errors>0?'PARTIAL_FAILURE':null,$batchId]
+                    [$errors>0?($success>0?'partial':'failed'):'completed',$now,$errors>0?'PARTIAL_FAILURE':null,$batchId]
                 );
                 $changed=$db->executeStatement(
                     "UPDATE jobs SET state='completed',phase='completed',progress_current=?,".

@@ -11,8 +11,8 @@ function checkWorkers(bool $yes,string $message):void
 }
 $catalog=WorkerFailureCode::catalog();
 $verification=VerificationFailureCode::catalog();
-checkWorkers(count($catalog)===120,
-    'Each of the 15 job kinds must have 8 distinct failure conditions.');
+checkWorkers(count($catalog)===135,
+    'Each of the 15 job kinds must have 9 distinct failure conditions.');
 checkWorkers(!array_intersect_key($catalog,$verification),
     'Supervisor codes collide with verification, hashing or filesystem codes.');
 $kinds=['scan','rebuild-duplicates','duplicate-verify','file-action','file-restore',
@@ -39,6 +39,11 @@ foreach($kinds as $kind) {
     checkWorkers(isset($catalog[$cancelled]),
         'Stopped cancellation missing a job-kind-specific identifier.');
     $distinct[$cancelled]=true;
+    $uncaught=WorkerFailureCode::unhandled($kind);
+    checkWorkers(isset($catalog[$uncaught]) &&
+        WorkerFailureCode::explain($uncaught)!==null,
+        'Unhandled job exceptions must have a distinct code for each job type.');
+    $distinct[$uncaught]=true;
 }
 checkWorkers(count($distinct)===count($catalog),
     'Distinct worker process conditions or job types reuse the same code.');
@@ -55,4 +60,4 @@ checkWorkers(WorkerFailureCode::exited('duplicate-verify',1)!==
 checkWorkers(WorkerFailureCode::exited('duplicate-verify',1)===
     WorkerFailureCode::exited('duplicate-verify',1),
     'The same recurring condition must keep the same searchable code.');
-echo 'PASS '.count($catalog).' noncolliding worker failure codes; all 15 job processes and 8 failure conditions distinct'.PHP_EOL;
+echo 'PASS '.count($catalog).' noncolliding worker failure codes; all 15 job processes and 9 failure conditions distinct'.PHP_EOL;

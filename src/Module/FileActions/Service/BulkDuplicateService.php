@@ -231,10 +231,20 @@ final class BulkDuplicateService
 
     private function enqueue(Connection $db,string $kind,int $profile,int $run,int $batch):int
     {
+        $requiredState=match($kind) {
+            'bulk-unlink'=>'linked',
+            'bulk-restore'=>'quarantined',
+            default=>'planned'
+        };
+        $total=(int)$db->fetchOne(
+            'SELECT COUNT(*) FROM file_action_items WHERE batch_id=? AND state=?',
+            [$batch,$requiredState]
+        );
+        if($total<1) throw new \DomainException('No approved bulk items remain in this batch.');
         $db->insert('jobs',[
             'kind'=>$kind,'profile_id'=>$profile,'active_profile_id'=>$profile,
             'run_id'=>$run,'file_action_batch_id'=>$batch,'state'=>'queued',
-            'phase'=>'waiting','progress_current'=>0,
+            'phase'=>'waiting','progress_current'=>0,'progress_total'=>$total,
             'created_at'=>gmdate('Y-m-d H:i:s'),'attempts'=>0
         ]);
         return (int)$db->lastInsertId();

@@ -111,7 +111,10 @@
         <a class="text-link" href="{{ path('app_job_detail',{id:job.id}) }}">#{{ job.id }}</a>
       {% else %}#{{ job.id }}{% endif %}</td><td>{{ job.kind }}</td><td>{{ job.phase }}</td>
     <td><span class="status">{{ job.state }}</span></td>
-    <td>{{ job.progress_current }}{% if job.progress_total is not null %} / {{ job.progress_total }}{% endif %}
+    <td>{% if job.kind == 'rebuild-duplicates' and job.state == 'completed' %}{{ job.progress_current|number_format }} duplicate groups{% else %}{{ job.progress_current|number_format }}{% if job.progress_total is not null %} / {{ job.progress_total|number_format }}{% endif %}{% endif %}
+      {% if job.action_succeeded is defined and job.action_succeeded is not null %}
+        <small class="muted">{{ job.action_succeeded|number_format }} succeeded · {{ job.action_failed|number_format }} failed</small>
+      {% endif %}
       {% if job.run_id and job.run_state in ['completed','archived'] %}
         <a class="action-icon-button" href="{{ path('app_duplicates',{run:job.run_id}) }}"
            title="Open scan results" aria-label="Open results for scan {{ job.run_id }}">{{ icon('eye') }}</a>

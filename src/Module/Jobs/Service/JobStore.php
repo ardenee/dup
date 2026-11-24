@@ -489,7 +489,25 @@ final class JobStore
                 [$state,$state,$storedCode,$reason,$now,$now,$id,$token]
             );
             if($changed!==1) return; // Stale worker has already been recovered.
-            if($db->fetchOne('SELECT kind FROM jobs WHERE id=?',[$id])==='scan')
+            $job=$db->fetchAssociative(
+                'SELECT kind,file_action_batch_id FROM jobs WHERE id=?',[$id]
+            );
+            if($job && $job['file_action_batch_id']!==null &&
+               in_array((string)$job['kind'],[
+                   'file-action','file-restore','file-rename','file-move',
+                   'file-move-restore','file-link','file-unlink',
+                   'bulk-link','bulk-quarantine','bulk-restore','bulk-unlink',
+                   'file-delete'
+               ],true)) {
+                // Never replace an existing terminal outcome or a more
+                // specific manual-review diagnostic already set by the worker.
+                $db->executeStatement(
+                    "UPDATE file_action_batches SET state='needs_review',error_code=? ".
+                    "WHERE id=? AND state IN ('queued','executing','restore_queued','restore_executing')",
+                    [$storedCode,(int)$job['file_action_batch_id']]
+                );
+            }
+            if($job && $job['kind']==='scan')
                 $db->executeStatement(
                     "UPDATE scan_runs SET state=?,finished_at=?,error_count=error_count+1 " .
                     "WHERE id=(SELECT run_id FROM jobs WHERE id=?)",[$state,$now,$id]

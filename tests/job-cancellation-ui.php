@@ -83,8 +83,27 @@ checkUi(!str_contains($html,'/app_job_cancel?id=8') &&
     !str_contains($html,'/app_job_remove?id=8'),
     'Running destructive file operation got inappropriate cancel/resolve/delete controls.');
 
+$deleted=$action;
+$deleted['state']='completed';
+$deleted['progress_current']=13;
+$deleted['progress_total']=13;
+$deleted['finished_at']='2026-11-24 21:26:00';
+$html=$twig->render('jobs/index.html.twig',$base+['jobs'=>[$deleted]]);
+checkUi((bool)preg_match('/13\s*\/\s*13/', $html),
+    'Completed 13-file deletion must display 13 / 13 in the Job Monitor.');
+$rebuild=$deleted;
+$rebuild['kind']='rebuild-duplicates';
+$rebuild['file_action_batch_id']=null;
+$rebuild['progress_current']=0;
+$rebuild['progress_total']=0;
+$html=$twig->render('jobs/index.html.twig',$base+['jobs'=>[$rebuild]]);
+checkUi(str_contains($html,'0 duplicate groups') &&
+    !str_contains($html,'0 / 0'),
+    'Completed duplicate rebuild must show group count, not misleading file progress 0 / 0.');
+
 $js=file_get_contents(dirname(__DIR__).'/public/assets/jobs.js');
 checkUi(str_contains($js,'window.location.reload()') &&
-    str_contains($js,'row.dataset.renderedState'),
+    str_contains($js,'row.dataset.renderedState') &&
+    str_contains($js,'`${formatCount(current)} duplicate groups`'),
     'Live job status changes do not refresh newly available action icons.');
 echo "PASS Job Monitor direct cancellation, stalled resolution, retry/delete, live action refresh, active-worker and file-action guards\n";

@@ -46,6 +46,24 @@ final class FileMoveWorker
         $success=0;$failures=0;
         try {
             $this->jobs->assertRunning($jobId,$token);
+            // A JOIN must never shrink an approved move/restore batch into a
+            // misleading successful 0/0 or a partial unreported operation.
+            $expected=(int)$this->db->fetchOne(
+                'SELECT COUNT(*) FROM file_action_items WHERE batch_id=? AND state=?',
+                [$batchId,$restoring?'moved':'planned']
+            );
+            $all=(int)$this->db->fetchOne(
+                'SELECT COUNT(*) FROM file_action_items WHERE batch_id=?',[$batchId]
+            );
+            if($expected<1 || $expected!==count($work) ||
+               (!$restoring && $all!==$expected) ||
+               ($job['progress_total']!==null && (int)$job['progress_total']!==$expected)) {
+                $this->db->executeStatement(
+                    "UPDATE file_action_batches SET state='needs_review',error_code='MOVE_WORKER_FAILED' WHERE id=?",
+                    [$batchId]
+                );
+                throw new \DomainException('Move batch item count changed before processing; no files were moved by this job.');
+            }
             $this->db->executeStatement(
                 'UPDATE file_action_batches SET state=? WHERE id=?',
                 [$restoring?'restore_executing':'executing',$batchId]

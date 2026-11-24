@@ -35,7 +35,8 @@ final class WorkerFailureCode
         5=>'CLI process exited with status 0 while a job remained running',
         21=>'The process exited while cancellation was pending',
         22=>'An unresponsive cancellation was resolved administratively',
-        23=>'A running job was resolved after its heartbeat expired'
+        23=>'A running job was resolved after its heartbeat expired',
+        24=>'An exception escaped the job handler; the outer worker recorded a terminal failure'
     ];
 
     public static function exited(string $kind,int $status,bool $cancelling=false):string
@@ -49,6 +50,11 @@ final class WorkerFailureCode
     public static function stalled(string $kind,bool $cancelling):string
     {
         return self::code($kind,$cancelling?22:23);
+    }
+
+    public static function unhandled(string $kind):string
+    {
+        return self::code($kind,24);
     }
 
     private static function code(string $kind,int $condition):string

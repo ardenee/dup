@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace App\Module\Dashboard\Controller;
 
 use Doctrine\DBAL\Connection;
+use App\Module\Jobs\Repository\JobHistoryRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -10,7 +11,7 @@ use Symfony\Component\Routing\Attribute\Route;
 final class DashboardController extends AbstractController
 {
     #[Route('/',name:'app_dashboard',methods:['GET'])]
-    public function index(Connection $connection): Response
+    public function index(Connection $connection,JobHistoryRepository $history): Response
     {
         $metrics=[
             'profiles'=>(int)$connection->fetchOne('SELECT COUNT(*) FROM scan_profiles'),
@@ -27,11 +28,11 @@ final class DashboardController extends AbstractController
             ),
             'active_jobs'=>(int)$connection->fetchOne("SELECT COUNT(*) FROM jobs WHERE state IN ('queued','running','cancelling')")
         ];
-        $jobs=$connection->fetchAllAssociative(
+        $jobs=$history->attachActionOutcomes($connection->fetchAllAssociative(
             'SELECT j.id,j.kind,j.phase,j.state,j.progress_current,j.progress_total,'.
             'j.created_at,j.run_id,r.state AS run_state '.
             'FROM jobs j LEFT JOIN scan_runs r ON r.id=j.run_id ORDER BY j.id DESC LIMIT 8'
-        );
+        ));
         $scans=$connection->fetchAllAssociative(
             'SELECT r.id,r.profile_id,r.state,r.finished_at,r.started_at,'.
             'r.files_indexed,r.duplicate_groups,p.name AS profile_name '.

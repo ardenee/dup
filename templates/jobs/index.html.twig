@@ -91,8 +91,10 @@
             <td>{{ job.kind|replace({'_':' ','-':' '}) }}</td>
             <td data-field="phase">{{ job.phase|replace({'_':' '}) }}</td>
             <td><span class="status" data-field="state">{{ job.state }}</span></td>
-            <td><div data-field="progress-text" class="muted">{{ job.progress_current|number_format }}
-                {% if job.progress_total is not null %}/ {{ job.progress_total|number_format }}{% endif %}</div>
+            <td><div data-field="progress-text" class="muted">{% if job.kind == 'rebuild-duplicates' and job.state == 'completed' %}{{ job.progress_current|number_format }} duplicate groups{% else %}{{ job.progress_current|number_format }}{% if job.progress_total is not null %} / {{ job.progress_total|number_format }}{% endif %}{% endif %}</div>
+              {% if job.action_succeeded is defined and job.action_succeeded is not null %}
+                <small class="muted" data-field="action-outcome">{{ job.action_succeeded|number_format }} succeeded · {{ job.action_failed|number_format }} failed</small>
+              {% endif %}
               {% if job.progress_bytes_total is not null %}
                 <div class="job-byte-progress" data-field="bytes-text">
                   {{ bytes(job.progress_bytes_current|default(0)) }} / {{ bytes(job.progress_bytes_total) }} read
@@ -279,5 +281,5 @@
     {% endif %}
   </div>
 </section>
-<script type="module" src="{{ asset('assets/jobs.js') }}?v=0.7.19"></script>
+<script type="module" src="{{ asset('assets/jobs.js') }}?v=0.7.20"></script>
 {% endblock %}

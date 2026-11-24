@@ -165,9 +165,9 @@ final class FileLinkWorker
                 );
                 $finished=$db->executeStatement(
                     "UPDATE jobs SET state='completed',phase='completed',active_profile_id=NULL,".
-                    "progress_current=3,progress_total=3,finished_at=?,heartbeat_at=? ".
+                    "progress_current=?,progress_total=?,finished_at=?,heartbeat_at=? ".
                     "WHERE id=? AND worker_token=? AND state='running'",
-                    [gmdate('Y-m-d H:i:s'),gmdate('Y-m-d H:i:s'),$id,$token]
+                    [$restoring?3:4,$restoring?3:4,gmdate('Y-m-d H:i:s'),gmdate('Y-m-d H:i:s'),$id,$token]
                 );
                 if($finished!==1) throw new LostLease('Link job lease was lost.','DUP-LINK-LEASE-101');
                 $db->insert('jobs',[

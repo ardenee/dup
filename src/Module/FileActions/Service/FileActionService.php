@@ -163,6 +163,7 @@ final class FileActionService
             'kind'=>$kind,'profile_id'=>$profileId,'active_profile_id'=>$profileId,
             'run_id'=>$runId,'file_action_batch_id'=>$batchId,
             'state'=>'queued','phase'=>'waiting','progress_current'=>'0',
+            'progress_total'=>$kind==='file-link'?4:3,
             'created_at'=>gmdate('Y-m-d H:i:s'),'attempts'=>0
         ]);
         return (int)$db->lastInsertId();

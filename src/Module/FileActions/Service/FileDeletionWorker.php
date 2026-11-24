@@ -35,6 +35,19 @@ final class FileDeletionWorker
             'JOIN directories d ON d.id=f.directory_id '.
             'WHERE i.batch_id=? ORDER BY i.id',[$batchId]
         );
+        // JOINs must not silently discard missing approved entries. Otherwise
+        // a valid 13-file batch could incorrectly complete as 0/0.
+        $approved=(int)$this->db->fetchOne(
+            'SELECT COUNT(*) FROM file_action_items WHERE batch_id=?',[$batchId]
+        );
+        if($approved<1 || count($items)!==$approved ||
+           ($job['progress_total']!==null && (int)$job['progress_total']!==$approved)) {
+            $this->db->executeStatement(
+                "UPDATE file_action_batches SET state='needs_review',error_code='DELETE_REVIEW' WHERE id=?",
+                [$batchId]
+            );
+            throw new \DomainException('Delete batch item count changed before processing. Review the batch; no files were deleted by this job.');
+        }
         $done=0;$failed=0;
         $this->jobs->assertRunning($jobId,$token);
         $this->db->executeStatement(

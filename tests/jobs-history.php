@@ -45,12 +45,25 @@ for($event=1;$event<=125;$event++) {
         'created_at'=>'2026-11-24 02:00:00'
     ]);
 }
+// Completion outcomes must survive later batch restores and be distinguishable
+// from a job's processed-item progress (which includes failed attempts).
+$db->insert('job_events',[
+    'id'=>126,'job_id'=>124,'severity'=>'info','code'=>'MOVE_BATCH_FINISHED',
+    'context'=>json_encode(['completed'=>11,'failed'=>2]),
+    'created_at'=>'2026-11-24 03:00:00'
+]);
 $repo=new JobHistoryRepository($db);
 $page=$repo->page(null,null,null,null);
 assertJobs($page['total']===125 && count($page['rows'])===50,'First job page size/total incorrect');
 assertJobs((int)$page['rows'][0]['id']===125 && (int)$page['rows'][49]['id']===76,
     'Jobs are not newest first');
 assertJobs($page['previous']===null && $page['next']===76,'Job paging buttons incorrect');
+assertJobs((int)$page['rows'][1]['id']===124 &&
+    $page['rows'][1]['action_succeeded']===11 &&
+    $page['rows'][1]['action_failed']===2,
+    'Job history lost the immutable partial-completion outcome.');
+assertJobs($repo->detail(124)['job']['action_succeeded']===11,
+    'Job detail did not retain the original action outcome.');
 $older=$repo->page(null,null,76,null);
 assertJobs((int)$older['rows'][0]['id']===75 && (int)$older['rows'][49]['id']===26,
     'Older job page incorrect');
@@ -99,6 +112,11 @@ foreach(['Job history','job-profile','job-state','Older jobs','Job details and e
     'Delete job #','Clean old history'] as $needle)
     assertJobs(str_contains($html,$needle),'Job monitor UI missing '.$needle);
 assertJobs(!str_contains($html,'/app_job_events'),'Raw events JSON remains primary workflow');
+assertJobs(str_contains($html,'11 succeeded') && str_contains($html,'2 failed'),
+    'Job Monitor hides partially failed file-action outcomes.');
+$partialHtml=$twig->render('jobs/detail.html.twig',$app+$repo->detail(124));
+assertJobs(str_contains($partialHtml,'11 succeeded') && str_contains($partialHtml,'2 failed'),
+    'Job detail hides partially failed action results.');
 $detailHtml=$twig->render('jobs/detail.html.twig',$app+$details);
 assertJobs(str_contains($detailHtml,'Job events and errors'),
     'Event log missing in job details.');
