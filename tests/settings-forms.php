@@ -42,6 +42,6 @@ $frag=$twigReadOnly->render('duplicates/_members.html.twig',[
  'start_number'=>2,'previous'=>null,'next'=>null
 ]);
 if(str_contains($frag,'data-dup-select') || str_contains($frag,'>Rename<') ||
-   str_contains($frag,'preview_file_') || !str_contains($frag,'>View<'))
+   str_contains($frag,'preview_file_') || !str_contains($frag,'aria-label="View file"'))
     throw new RuntimeException('Read-only view includes dangerous controls.');
 echo "PASS account/viewer forms and read-only duplicate rows render without mutation controls\n";

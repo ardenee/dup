@@ -12,7 +12,7 @@ $db=DriverManager::getConnection(['driver'=>'pdo_sqlite','memory'=>true]);
 $db->executeStatement('CREATE TABLE scan_profiles (id INT PRIMARY KEY,name TEXT)');
 $db->executeStatement('CREATE TABLE scan_runs ('.
     'id INT PRIMARY KEY,profile_id INT,state TEXT,started_at TEXT,'.
-    'finished_at TEXT,duplicate_groups INT,files_indexed INT)');
+    'finished_at TEXT,duplicate_groups INT,files_indexed INT,verification_method TEXT,verified_at TEXT)');
 $db->insert('scan_profiles',['id'=>1,'name'=>'Audio']);
 $db->insert('scan_profiles',['id'=>2,'name'=>'Archives']);
 for($id=1;$id<=84;$id++) {

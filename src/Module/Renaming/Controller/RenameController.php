@@ -47,14 +47,14 @@ final class RenameController extends AbstractController
         if(strlen($find)>255 || strlen($replace)>255)
             throw $this->createNotFoundException('Find/replace text too long.');
         $collision=(string)$request->query->get('collision',
-            $settings->policy()===ActionSettings::NUMBER?'number':'reject');
-        if(!in_array($collision,['reject','number'],true))
+            $settings->policy());
+        if(!in_array($collision,['fail','number','overwrite'],true))
             throw $this->createNotFoundException('Invalid collision policy.');
         $after=$this->number($request->query->get('after'),0);
         if(!in_array($dots,[0,1,2],true) || !in_array($unders,[0,1,2],true))
             throw $this->createNotFoundException('Invalid cleanup options.');
         $candidates=$profile>0?$renames->candidates(
-            $profile,$filters,$dots,$unders,$collapse,$dups,$after>0?$after:null,$collision==='number',$find,$replace
+            $profile,$filters,$dots,$unders,$collapse,$dups,$after>0?$after:null,$collision==='number',$find,$replace,$collision==='overwrite'
         ):['rows'=>[],'next'=>null,'scanned'=>0];
         return $this->render('rename/index.html.twig',[
             'profiles'=>$profiles,'profile'=>$profile,'filters'=>$filters,
@@ -82,6 +82,9 @@ final class RenameController extends AbstractController
         $collapse=$request->request->get('collapse')==='1';
         $find=(string)$request->request->get('find','');
         $replace=(string)$request->request->get('replace','');
+        $collision=(string)$request->request->get('collision','fail');
+        if(!in_array($collision,['fail','number','overwrite'],true))
+            throw $this->createNotFoundException('Invalid collision policy.');
         $ids=$request->request->all('files');
         $planned=$request->request->all('planned_names');
         $selected=[];
@@ -99,8 +102,8 @@ final class RenameController extends AbstractController
             }
         }
         try {
-            $job=$renames->queue($profile,$this->actor(),$selected,$filters,$dots,$unders,$collapse,$overrides,$find,$replace);
-            $this->addFlash('success','Filename changes queued as job #'.$job.'. No existing files will be overwritten.');
+            $job=$renames->queue($profile,$this->actor(),$selected,$filters,$dots,$unders,$collapse,$overrides,$find,$replace,$collision);
+            $this->addFlash('success','Filename changes queued as job #'.$job.'. The approved file-exists policy will be applied.');
             return $this->redirectToRoute('app_jobs');
         } catch(\DomainException $ex) {
             $this->addFlash('warning',$ex->getMessage());
@@ -113,7 +116,7 @@ final class RenameController extends AbstractController
      * every target name is explicitly confirmed before queueing.
      */
     #[Route('/rename/selected',name:'app_rename_selected',methods:['POST'])]
-    public function selected(Request $request,RenameService $renames): Response
+    public function selected(Request $request,RenameService $renames,ActionSettings $settings): Response
     {
         if(!$this->isCsrfTokenValid('rename_selected',
             (string)$request->request->get('_token','')))
@@ -135,7 +138,8 @@ final class RenameController extends AbstractController
             $files[$id]=$file;
         }
         return $this->render('rename/selected.html.twig',[
-            'files'=>$files,'profile'=>$profile
+            'files'=>$files,'profile'=>$profile,
+            'collision'=>$settings->policy()===ActionSettings::OVERWRITE?'overwrite':'fail'
         ]);
     }
 
@@ -147,6 +151,9 @@ final class RenameController extends AbstractController
             throw $this->createAccessDeniedException('Invalid form token.');
         $profile=$this->number($request->request->get('profile'));
         $names=$request->request->all('names');
+        $collision=(string)$request->request->get('collision','fail');
+        if(!in_array($collision,['fail','overwrite'],true))
+            throw $this->createNotFoundException('Invalid manual rename conflict policy.');
         if(!$names || count($names)>50 || $profile<1)
             throw $this->createNotFoundException('Invalid selection.');
         $ids=[];$overrides=[];
@@ -163,8 +170,8 @@ final class RenameController extends AbstractController
             $overrides[$id]=$value;
         }
         try {
-            $job=$renames->queue($profile,$this->actor(),$ids,'',0,0,false,$overrides);
-            $this->addFlash('success','Queued file rename job #'.$job.'. Existing files cannot be overwritten.');
+            $job=$renames->queue($profile,$this->actor(),$ids,'',0,0,false,$overrides,'','',$collision);
+            $this->addFlash('success','Queued file rename job #'.$job.'.');
             return $this->redirectToRoute('app_jobs');
         } catch(\DomainException $ex) {
             $this->addFlash('warning',$ex->getMessage());
@@ -173,12 +180,16 @@ final class RenameController extends AbstractController
     }
 
     #[Route('/rename/file/{id<\\d+>}',name:'app_rename_file',methods:['GET','POST'])]
-    public function renameFile(int $id,Request $request,RenameService $renames): Response
+    public function renameFile(int $id,Request $request,RenameService $renames,ActionSettings $settings): Response
     {
         $file=$renames->file($id);
         if(!$file || $file['error_code']!==null)
             throw $this->createNotFoundException('The indexed file is unavailable.');
         $error=null;
+        $default=$settings->policy()===ActionSettings::OVERWRITE?'overwrite':'fail';
+        $collision=(string)$request->request->get('collision',$default);
+        if(!in_array($collision,['fail','overwrite'],true))
+            throw $this->createNotFoundException('Unknown rename collision policy.');
         if($request->isMethod('POST')) {
             if(!$this->isCsrfTokenValid('rename_file_'.$id,
                 (string)$request->request->get('_token','')))
@@ -187,7 +198,7 @@ final class RenameController extends AbstractController
                 $newName=trim((string)$request->request->get('new_filename',''));
                 RenameRules::validateName($newName);
                 $job=$renames->queue((int)$file['profile_id'],$this->actor(),[$id],
-                    '',0,0,false,[$id=>$newName]);
+                    '',0,0,false,[$id=>$newName],'','',$collision);
                 $this->addFlash('success','File rename queued as job #'.$job.'.');
                 return $this->redirectToRoute('app_jobs');
             } catch(\DomainException $ex) {
@@ -195,7 +206,7 @@ final class RenameController extends AbstractController
             }
         }
         return $this->render('rename/file.html.twig',[
-            'file'=>$file,'error'=>$error
+            'file'=>$file,'error'=>$error,'collision'=>$collision
         ]);
     }
 }

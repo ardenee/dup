@@ -38,7 +38,7 @@ final class RenameWorker
         $items=$this->db->fetchAllAssociative(
             'SELECT * FROM file_action_items WHERE batch_id=? ORDER BY id',[$batchId]
         );
-        $total=count($items);$success=0;$errors=0;
+        $total=count($items);$success=0;$errors=0;$anyOverwritten=false;
         try {
             $this->jobs->assertRunning($id,$token);
             $this->db->executeStatement(
@@ -47,7 +47,8 @@ final class RenameWorker
             );
             $this->jobs->progress($id,$token,'renaming',0,$total);
             foreach($items as $item) {
-                $moved=false;
+                $moved=false;$overwriteStaged=false;$published=false;
+                $overwriteBackup=(string)($item['overwrite_backup_path']??'');
                 $source=(string)$item['source_path'];
                 $target=(string)$item['target_path'];
                 try {
@@ -74,6 +75,15 @@ final class RenameWorker
                         throw new \DomainException('Source and destination names match.');
                     $size=(int)$item['expected_size'];
                     $mtime=(int)$item['expected_mtime'];
+                    if($overwriteBackup!=='') {
+                        if($item['overwrite_target_size']===null ||
+                           $item['overwrite_target_mtime']===null)
+                            throw new \DomainException('Approved destination evidence is unavailable.');
+                        $this->fs->stageReplacement($target,$overwriteBackup,
+                            (int)$item['overwrite_target_size'],
+                            (int)$item['overwrite_target_mtime']);
+                        $overwriteStaged=true;
+                    }
                     $this->fs->renameExactly($source,$target,$size,$mtime);
                     $moved=true;
                     $this->fs->checkedStat($target,$size,$mtime);
@@ -87,6 +97,17 @@ final class RenameWorker
                             [basename($target),(int)$item['file_entry_id'],(string)$file['filename']]
                         );
                         if($updated!==1) throw new \RuntimeException('Scan index changed during rename.');
+                        if(($item['overwrite_backup_path']??null)!==null) {
+                            $db->executeStatement(
+                                "UPDATE file_entries SET error_code='OVERWRITTEN' ".
+                                "WHERE run_id=? AND directory_id=(".
+                                "SELECT id FROM directories WHERE run_id=? AND path=?) ".
+                                "AND filename=? AND id<>? AND error_code IS NULL",
+                                [(int)$file['run_id'],(int)$file['run_id'],
+                                 (string)$file['directory'],basename($target),
+                                 (int)$item['file_entry_id']]
+                            );
+                        }
                         $db->executeStatement(
                             "UPDATE file_action_items SET state='renamed',result_code=NULL ".
                             'WHERE id=? AND batch_id=?',
@@ -100,8 +121,24 @@ final class RenameWorker
                         ]);
                     });
                     $moved=false;
+                    $published=true;
+                    if($overwriteStaged) {
+                        try {
+                            $this->fs->finishReplacement($overwriteBackup,
+                                (int)$item['overwrite_target_size'],
+                                (int)$item['overwrite_target_mtime']);
+                        } catch(\Throwable $ex) {
+                            $this->db->executeStatement(
+                                "UPDATE file_action_batches SET state='needs_review',".
+                                "error_code='OVERWRITE_BACKUP_REVIEW' WHERE id=?",[$batchId]
+                            );
+                            throw $ex;
+                        }
+                    }
+                    if($overwriteStaged) $anyOverwritten=true;
                     $success++;
                 } catch(\Throwable $ex) {
+                    if($published) throw $ex;
                     if($moved) {
                         if(file_exists($source) || is_link($source) || !@rename($target,$source)) {
                             $this->db->executeStatement(
@@ -112,6 +149,21 @@ final class RenameWorker
                                 'file_entry_id'=>(int)$item['file_entry_id']
                             ]);
                             throw new \RuntimeException('Rename could not be rolled back; manual review required.',0,$ex);
+                        }
+                    }
+                    if($overwriteStaged) {
+                        try {
+                            $this->fs->restoreReplacement($target,$overwriteBackup,
+                                (int)$item['overwrite_target_size'],
+                                (int)$item['overwrite_target_mtime']);
+                        } catch(\Throwable $restoreError) {
+                            $this->db->executeStatement(
+                                "UPDATE file_action_batches SET state='needs_review',".
+                                "error_code='MANUAL_RECOVERY_REQUIRED' WHERE id=?",[$batchId]
+                            );
+                            throw new \RuntimeException(
+                                'Overwrite backup restoration failed; manual review is required.',0,$restoreError
+                            );
                         }
                     }
                     $this->db->executeStatement(
@@ -127,7 +179,7 @@ final class RenameWorker
                 $this->jobs->progress($id,$token,'renaming',$success+$errors,$total);
             }
             $this->db->transactional(function(Connection $db) use (
-                $id,$token,$batchId,$success,$errors,$total
+                $id,$token,$batchId,$success,$errors,$total,$anyOverwritten
             ):void {
                 $this->jobs->assertRunning($id,$token);
                 $now=gmdate('Y-m-d H:i:s');
@@ -142,6 +194,15 @@ final class RenameWorker
                     [$total,$total,$now,$now,$id,$token]
                 );
                 if($changed!==1) throw new LostLease('Rename worker job lease changed.');
+                if($anyOverwritten) {
+                    $profile=$db->fetchAssociative('SELECT profile_id,run_id FROM jobs WHERE id=?',[$id]);
+                    $db->insert('jobs',[
+                        'kind'=>'rebuild-duplicates','profile_id'=>$profile['profile_id'],
+                        'active_profile_id'=>$profile['profile_id'],'run_id'=>$profile['run_id'],
+                        'state'=>'queued','phase'=>'waiting','progress_current'=>0,
+                        'created_at'=>$now,'attempts'=>0
+                    ]);
+                }
                 $this->jobs->event($id,'info','RENAME_BATCH_COMPLETE',[
                     'batch_id'=>$batchId,'renamed'=>$success,'failed'=>$errors
                 ]);

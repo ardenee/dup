@@ -12,6 +12,12 @@
  <form method="post" action="{{ path('app_rename_selected_queue') }}">
   <input type="hidden" name="_token" value="{{ csrf_token('queue_selected_renames') }}">
   <input type="hidden" name="profile" value="{{ profile }}">
+  <div class="rename-selected-options"><label for="rename-selected-conflicts">If a target filename already exists</label>
+    <select id="rename-selected-conflicts" name="collision">
+      <option value="fail" {{ collision == 'fail' ? 'selected' : '' }}>Fail — do not overwrite existing files</option>
+      <option value="overwrite" {{ collision == 'overwrite' ? 'selected' : '' }}>Overwrite — permanently replace matching destination filenames</option>
+    </select>
+  </div>
   <div class="table-wrap"><table>
    <thead><tr><th>Current path</th><th>New filename</th><th>Size</th></tr></thead>
    <tbody>{% for file in files %}

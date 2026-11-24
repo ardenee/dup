@@ -4,6 +4,7 @@ require dirname(__DIR__).'/vendor/autoload.php';
 
 $controllers = [
     \App\Module\Duplicates\Controller\DuplicatesController::class,
+    \App\Module\Duplicates\Controller\DuplicateVerificationController::class,
     \App\Module\Duplicates\Controller\DuplicateMembersController::class,
     \App\Module\Renaming\Controller\RenameController::class,
     \App\Module\Profiles\Controller\ProfilesController::class,
@@ -15,6 +16,7 @@ $controllers = [
     \App\Module\FileActions\Controller\FileMoveController::class,
     \App\Module\FileActions\Controller\ActionSettingsController::class,
     \App\Module\FileActions\Controller\BulkDuplicateController::class,
+    \App\Module\FileActions\Controller\FileDeletionController::class,
     \App\Module\FileActions\Controller\FileActionController::class,
 ];
 foreach($controllers as $controller) {

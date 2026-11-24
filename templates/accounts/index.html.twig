@@ -31,6 +31,14 @@
           <input type="hidden" name="enabled" value="0"><button class="secondary" type="submit">Disable</button>
          </form>
          {% endif %}
+         {% if account.id != self_id %}
+           <form action="{{ path('app_accounts_delete',{id:account.id}) }}" method="post"
+                 onsubmit="return confirm('Permanently delete the account {{ account.username|e('js') }}? Its login will be removed; existing audit events remain.')">
+             <input type="hidden" name="_token" value="{{ csrf_token('account_delete_' ~ account.id) }}">
+             <input type="hidden" name="confirm" value="DELETE">
+             <button class="secondary delete-action" type="submit">Delete</button>
+           </form>
+         {% endif %}
       </div></td>
     </tr>
    {% else %}

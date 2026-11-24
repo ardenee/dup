@@ -1,4 +1,5 @@
-{% from 'duplicates/_format.html.twig' import bytes, hash %}
+ {% from 'duplicates/_format.html.twig' import bytes, hash %}
+{% from 'duplicates/_actions.html.twig' import actions %}
 {% for file in members %}
   <tr class="dup-child" data-dup-child>
     <td class="dup-num dup-child-num">{{ start_number + loop.index0 }}</td>
@@ -19,23 +20,9 @@
     <td class="dup-file-hash">{{ hash(file.hash_value) }}</td>
     <td class="dup-file-actions">
       {% if historical|default(false) %}
-        <span class="muted">Historical record</span>
+        <span class="muted">Historical</span>
       {% elseif file.error_code is null %}
-        <a class="dup-action-link" href="{{ path('app_file_view',{id:file.file_entry_id}) }}">View</a>
-        <a class="dup-action-link" href="{{ path('app_file_download',{id:file.file_entry_id}) }}">Download</a>
-        {% if is_granted('ROLE_ADMIN') %}
-        <a class="dup-action-link" href="{{ path('app_rename_file',{id:file.file_entry_id}) }}">Rename</a>
-        {% if group.rules_version == 1 and group.file_count > 1 %}
-          <form method="post" action="{{ path('app_link_preview',{id:file.file_entry_id}) }}">
-            <input type="hidden" name="_token" value="{{ csrf_token('preview_link_' ~ file.file_entry_id) }}">
-            <button class="dup-action-link" type="submit">Link</button>
-          </form>
-          <form method="post" action="{{ path('app_action_preview',{id:file.file_entry_id}) }}">
-            <input type="hidden" name="_token" value="{{ csrf_token('preview_file_' ~ file.file_entry_id) }}">
-            <button class="dup-action-link" type="submit">Quarantine</button>
-          </form>
-        {% endif %}
-        {% endif %}
+        {{ actions(file.file_entry_id,group.rules_version == 1,group.file_count,false) }}
       {% else %}
         <span class="muted">{{ file.error_code }}</span>
       {% endif %}

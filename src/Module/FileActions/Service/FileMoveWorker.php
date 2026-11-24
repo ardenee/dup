@@ -53,7 +53,8 @@ final class FileMoveWorker
             $this->jobs->progress($jobId,$token,
                 $restoring?'restoring_files':'moving_files',0,count($work));
             foreach($work as $item) {
-                $from='';$to='';$moved=false;
+                $from='';$to='';$moved=false;$overwriteStaged=false;$published=false;
+                $overwriteBackup=(string)($item['overwrite_backup_path']??'');
                 try {
                     $this->jobs->assertRunning($jobId,$token);
                     $size=(int)$item['expected_size'];
@@ -87,6 +88,16 @@ final class FileMoveWorker
                         $digest=$this->digest($current,$size,$mtime,$jobId,$token);
                         $this->paths->ensureParent($moveRoot,$target);
                         $from=$current;$to=$target;
+                        if($overwriteBackup!=='') {
+                            if($item['overwrite_target_size']===null ||
+                               $item['overwrite_target_mtime']===null)
+                                throw new \DomainException('Overwritten file evidence missing.');
+                            $this->jobs->assertRunning($jobId,$token);
+                            $this->fs->stageReplacement($target,$overwriteBackup,
+                                (int)$item['overwrite_target_size'],
+                                (int)$item['overwrite_target_mtime']);
+                            $overwriteStaged=true;
+                        }
                     } else {
                         if($item['file_error']!=='MOVED')
                             throw new \DomainException('The file is no longer recorded as moved.');
@@ -129,8 +140,27 @@ final class FileMoveWorker
                             $batchId,'completed',['file_entry_id'=>(int)$item['file_entry_id']]);
                     });
                     $moved=false;
+                    $published=true;
+                    if($overwriteStaged) {
+                        try {
+                            $this->fs->finishReplacement($overwriteBackup,
+                                (int)$item['overwrite_target_size'],
+                                (int)$item['overwrite_target_mtime']);
+                        } catch(\Throwable $ex) {
+                            $this->db->executeStatement(
+                                "UPDATE file_action_batches SET state='needs_review',".
+                                "error_code='OVERWRITE_BACKUP_REVIEW' WHERE id=?",[$batchId]
+                            );
+                            $this->jobs->event($jobId,'error','OVERWRITE_BACKUP_REVIEW',[
+                                'file_entry_id'=>(int)$item['file_entry_id'],
+                                'backup_path'=>$overwriteBackup
+                            ]);
+                            throw $ex;
+                        }
+                    }
                     $success++;
                 } catch(\Throwable $ex) {
+                    if($published) throw $ex;
                     if($moved) {
                         clearstatcache(true,$from);
                         if(file_exists($from) || is_link($from) || !@rename($to,$from)) {
@@ -143,6 +173,23 @@ final class FileMoveWorker
                             ]);
                             throw new \RuntimeException(
                                 'Move rollback could not be completed. Manual recovery is required.',0,$ex
+                            );
+                        }
+                    }
+                    if($overwriteStaged) {
+                        try {
+                            $this->fs->restoreReplacement(
+                                (string)$item['target_path'],$overwriteBackup,
+                                (int)$item['overwrite_target_size'],
+                                (int)$item['overwrite_target_mtime']
+                            );
+                        } catch(\Throwable $restoreError) {
+                            $this->db->executeStatement(
+                                "UPDATE file_action_batches SET state='needs_review',".
+                                "error_code='MANUAL_RECOVERY_REQUIRED' WHERE id=?",[$batchId]
+                            );
+                            throw new \RuntimeException(
+                                'Approved destination backup could not be restored.',0,$restoreError
                             );
                         }
                     }

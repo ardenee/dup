@@ -13,7 +13,7 @@ use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
  */
 final class JobHistoryCleanup
 {
-    private const KINDS=['scan','rebuild-duplicates'];
+    private const KINDS=['scan','rebuild-duplicates','duplicate-verify'];
     private const STATES=['completed','failed','cancelled'];
     public const DAYS=[30,90,180,365];
 

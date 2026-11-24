@@ -1,0 +1,39 @@
+{% macro icon(name) %}
+  <svg class="dup-action-icon" width="17" height="17" viewBox="0 0 24 24"
+       aria-hidden="true" focusable="false"><use href="#dup-icon-{{ name }}"></use></svg>
+{% endmacro %}
+{% macro actions(id,verified,count,first=false) %}
+  {% from 'duplicates/_actions.html.twig' import icon %}
+  <div class="dup-action-icons" role="group" aria-label="Actions for file {{ id }}">
+    <a href="{{ path('app_file_view',{id:id}) }}" class="dup-icon-action"
+       aria-label="View file" title="View file">{{ icon('eye') }}</a>
+    <a href="{{ path('app_file_download',{id:id}) }}" class="dup-icon-action"
+       aria-label="Download file" title="Download file">{{ icon('download') }}</a>
+    {% if is_granted('ROLE_ADMIN') %}
+      {% if first and count <= 51 %}
+        <button class="dup-icon-action" type="button" data-dup-select-group
+          aria-label="Select matching files, keeping the first file" title="Select matching files, keeping the first file">{{ icon('check') }}</button>
+      {% endif %}
+      <a href="{{ path('app_rename_file',{id:id}) }}" class="dup-icon-action"
+        aria-label="Rename file" title="Rename file">{{ icon('pencil') }}</a>
+      <form method="post" action="{{ path('app_move_preview') }}">
+        <input type="hidden" name="_token" value="{{ csrf_token('move_selected') }}">
+        <input type="hidden" name="files[]" value="{{ id }}">
+        <button class="dup-icon-action" type="submit" aria-label="Move file" title="Move file">{{ icon('move') }}</button>
+      </form>
+      {% if verified and count > 1 %}
+        <form method="post" action="{{ path('app_link_preview',{id:id}) }}">
+          <input type="hidden" name="_token" value="{{ csrf_token('preview_link_' ~ id) }}">
+          <button class="dup-icon-action" type="submit"
+            aria-label="Link to verified duplicate" title="Link to verified duplicate">{{ icon('link') }}</button>
+        </form>
+      {% endif %}
+      <form method="post" action="{{ path('app_delete_preview') }}">
+        <input type="hidden" name="_token" value="{{ csrf_token('delete_selected') }}">
+        <input type="hidden" name="files[]" value="{{ id }}">
+        <button class="dup-icon-action dup-icon-danger" type="submit"
+          aria-label="Delete file permanently" title="Delete file permanently (confirmation required)">{{ icon('trash') }}</button>
+      </form>
+    {% endif %}
+  </div>
+{% endmacro %}

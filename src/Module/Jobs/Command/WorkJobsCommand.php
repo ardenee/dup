@@ -7,10 +7,12 @@ use App\Module\Profiles\Service\ScanScheduleService;
 use App\Module\Jobs\Service\WorkerHeartbeat;
 use App\Module\Scans\Service\ScanEngine;
 use App\Module\Duplicates\Service\IgnoreRebuildWorker;
+use App\Module\Duplicates\Service\DuplicateVerificationWorker;
 use App\Module\FileActions\Service\FileActionWorker;
 use App\Module\FileActions\Service\FileMoveWorker;
 use App\Module\FileActions\Service\FileLinkWorker;
 use App\Module\FileActions\Service\BulkDuplicateWorker;
+use App\Module\FileActions\Service\FileDeletionWorker;
 use App\Module\Renaming\Service\RenameWorker;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -29,10 +31,12 @@ final class WorkJobsCommand extends Command
         private readonly ScanScheduleService $schedules,
         private readonly ScanEngine $scanner,
         private readonly IgnoreRebuildWorker $rebuild,
+        private readonly DuplicateVerificationWorker $verification,
         private readonly FileActionWorker $fileActions,
         private readonly FileMoveWorker $moves,
         private readonly FileLinkWorker $links,
         private readonly BulkDuplicateWorker $bulkDuplicates,
+        private readonly FileDeletionWorker $deletions,
         private readonly RenameWorker $renames,
         private readonly Connection $db,
         private readonly WorkerHeartbeat $heartbeat
@@ -94,11 +98,13 @@ final class WorkJobsCommand extends Command
                     match($job['kind']) {
                         'scan' => $this->scanner->run($job),
                         'rebuild-duplicates' => $this->rebuild->run($job),
+                        'duplicate-verify' => $this->verification->run($job),
                         'file-action', 'file-restore' => $this->fileActions->run($job),
                         'file-rename' => $this->renames->run($job),
                         'file-move','file-move-restore' => $this->moves->run($job),
                         'file-link','file-unlink' => $this->links->run($job),
                         'bulk-link','bulk-quarantine','bulk-restore','bulk-unlink' => $this->bulkDuplicates->run($job),
+                        'file-delete' => $this->deletions->run($job),
                         default => throw new \LogicException('Unknown job type.')
                     };
                 } catch(\Throwable $ex) {

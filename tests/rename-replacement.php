@@ -46,6 +46,6 @@ $html=$twig->render('rename/index.html.twig',[
     'batches'=>[],'paging'=>[]
 ]);
 foreach(['name="find"','name="replace"','value="Show"','value="Book"',
-    'Applied after all other filename cleanup rules'] as $needle)
+    'Applied after all other cleanup changes'] as $needle)
     verifyReplace(str_contains($html,$needle),'Find/Replace UI missing '.$needle);
 echo "PASS rename what/with after cleanup, extension safety, literal matching, collision rules and UI\n";

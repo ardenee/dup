@@ -101,6 +101,31 @@ final class AccountManager
         }
     }
 
+    /** Permanently delete a login, retaining detached action/audit events. */
+    public function delete(int $id,int $actorId):void
+    {
+        $this->db->transactional(function(Connection $db) use ($id,$actorId):void {
+            $account=$this->find($id);
+            if(!$account) throw new \DomainException('Account no longer exists.');
+            if($id===$actorId)
+                throw new \DomainException('You cannot delete the account currently signed in.');
+            $roles=json_decode((string)$account['roles'],true)?:[];
+            if(in_array('ROLE_ADMIN',$roles,true) &&
+               $account['disabled_at']===null && $this->activeAdminCount()<=1)
+                throw new \DomainException('At least one active administrator must remain.');
+            // Preserve the audit/event rows but remove references to the deleted
+            // login; foreign keys still protect against orphaned database records.
+            $db->executeStatement('UPDATE file_action_batches SET actor_id=NULL WHERE actor_id=?',[$id]);
+            $db->executeStatement('UPDATE audit_events SET actor_id=NULL WHERE actor_id=?',[$id]);
+            $deleted=$db->delete('users',['id'=>$id]);
+            if($deleted!==1) throw new \DomainException('The account was not removed.');
+            $this->audit($actorId,$id,'ACCOUNT_DELETED',[
+                'username'=>$account['username'],
+                'access_removed'=>true
+            ]);
+        });
+    }
+
     public function enabled(int $id,bool $enable,int $actorId):void
     {
         $this->db->transactional(function(Connection $db) use ($id,$enable,$actorId):void {

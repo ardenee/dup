@@ -6,7 +6,7 @@
   <div>
     <div class="eyebrow">AUDITED FILE OPERATIONS</div>
     <h1>File action history</h1>
-    <p class="muted">All recorded quarantine, link, move, restore and rename batches, including failures. Permanent deletion is disabled.</p>
+    <p class="muted">All recorded quarantine, link, move, restore and rename batches, including failures. Permanent deletion is available with explicit confirmation.</p>
   </div>
   <div class="profile-page-actions">
     <a href="{{ path('app_actions_cleanup') }}" class="secondary link-button">Clean old history</a>
@@ -28,7 +28,7 @@
       <label for="action-kind">Operation</label>
       <select id="action-kind" name="kind">
         <option value="">All operations</option>
-        {% for option,label in {'quarantine':'Quarantine','link':'Link','move':'Move','rename':'Rename','bulk_quarantine':'Bulk quarantine','bulk_link':'Bulk link'} %}
+        {% for option,label in {'quarantine':'Quarantine','link':'Link','move':'Move','rename':'Rename','bulk_quarantine':'Bulk quarantine','bulk_link':'Bulk link','delete':'Delete'} %}
           <option value="{{ option }}" {{ kind == option ? 'selected' : '' }}>{{ label }}</option>
         {% endfor %}
       </select>

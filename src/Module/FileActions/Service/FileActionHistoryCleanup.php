@@ -28,14 +28,14 @@ final class FileActionHistoryCleanup
         );
         $batch['unresolved']=(int)$this->db->fetchOne(
             'SELECT COUNT(*) FROM file_action_items WHERE batch_id=? AND state<>?',
-            [$id,$batch['action_kind']==='rename'?'renamed':'restored']
+            [$id,match($batch['action_kind']) {'rename'=>'renamed','delete'=>'deleted',default=>'restored'}]
         );
         $batch['active_jobs']=(int)$this->db->fetchOne(
             "SELECT COUNT(*) FROM jobs WHERE file_action_batch_id=? ".
             "AND state NOT IN ('completed','failed','cancelled')",[$id]
         );
         $kind=(string)$batch['action_kind'];
-        $terminal=($kind==='rename' && $batch['state']==='completed') ||
+        $terminal=(in_array($kind,['rename','delete'],true) && $batch['state']==='completed') ||
             (in_array($kind,self::RECOVERABLE,true) && $batch['state']==='restored');
         $batch['can_remove']=$terminal && $batch['items']>0 &&
             $batch['unresolved']===0 && $batch['active_jobs']===0;
@@ -76,12 +76,12 @@ final class FileActionHistoryCleanup
         if(!in_array($days,self::DAYS,true))
             throw new \DomainException('Choose a supported retention period.');
         $sql=" FROM file_action_batches b WHERE b.completed_at<? ".
-            "AND ((b.action_kind='rename' AND b.state='completed') OR ".
+            "AND ((b.action_kind IN ('rename','delete') AND b.state='completed') OR ".
             "(b.action_kind IN ('quarantine','link','move','bulk_link','bulk_quarantine') ".
             "AND b.state='restored')) ".
             'AND EXISTS (SELECT 1 FROM file_action_items i WHERE i.batch_id=b.id) '.
             'AND NOT EXISTS (SELECT 1 FROM file_action_items i WHERE i.batch_id=b.id '.
-            "AND i.state<>CASE WHEN b.action_kind='rename' THEN 'renamed' ELSE 'restored' END) ".
+            "AND i.state<>CASE WHEN b.action_kind='rename' THEN 'renamed' WHEN b.action_kind='delete' THEN 'deleted' ELSE 'restored' END) ".
             'AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.file_action_batch_id=b.id '.
             "AND j.state NOT IN ('completed','failed','cancelled')) ";
         $params=[gmdate('Y-m-d H:i:s',time()-$days*86400)];

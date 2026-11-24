@@ -9,8 +9,10 @@ function verifyAccount(bool $ok,string $message):void {
     if(!$ok) throw new RuntimeException($message);
 }
 $db=DriverManager::getConnection(['driver'=>'pdo_sqlite','memory'=>true]);
+$db->executeStatement('PRAGMA foreign_keys=ON');
 $db->executeStatement('CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT UNIQUE,password_hash TEXT,roles TEXT,created_at TEXT,disabled_at TEXT DEFAULT NULL)');
-$db->executeStatement('CREATE TABLE audit_events (id INTEGER PRIMARY KEY AUTOINCREMENT,actor_id INT,action TEXT,entity_type TEXT,entity_id TEXT,correlation_id TEXT,outcome TEXT,context TEXT,created_at TEXT)');
+$db->executeStatement('CREATE TABLE audit_events (id INTEGER PRIMARY KEY AUTOINCREMENT,actor_id INT,action TEXT,entity_type TEXT,entity_id TEXT,correlation_id TEXT,outcome TEXT,context TEXT,created_at TEXT,FOREIGN KEY(actor_id) REFERENCES users(id))');
+$db->executeStatement('CREATE TABLE file_action_batches(id INTEGER PRIMARY KEY,actor_id INT,FOREIGN KEY(actor_id) REFERENCES users(id))');
 $db->insert('users',['username'=>'admin','password_hash'=>password_hash('long-secret-1234',PASSWORD_DEFAULT),'roles'=>'["ROLE_ADMIN"]','created_at'=>gmdate('Y-m-d H:i:s')]);
 $users=new AccountManager($db);
 $provider=new DbalUserProvider($db);
@@ -42,4 +44,23 @@ try{$users->save(1,'renamed','ROLE_ADMIN','',1);throw new RuntimeException('Orig
 catch(DomainException){}
 verifyAccount((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action='ACCOUNT_DISABLED'")===1,'Account audit missing');
 verifyAccount(count($users->list())===3,'Account listing failed');
-echo "PASS user/admin creation, edit, role rules, password validation, disable/enable, provider denial, audit\n";
+try {$users->delete(1,1);throw new RuntimeException('Allowed account self-deletion');}
+catch(DomainException) {}
+$db->insert('file_action_batches',['id'=>1,'actor_id'=>$id]);
+$db->insert('audit_events',[
+    'actor_id'=>$id,'action'=>'ACCOUNT_TEST','entity_type'=>'account','entity_id'=>(string)$id,
+    'correlation_id'=>'test','outcome'=>'completed','context'=>'{}',
+    'created_at'=>gmdate('Y-m-d H:i:s')
+]);
+$users->delete($id,1);
+verifyAccount(!$users->find($id),'Deleted user login remains in the database.');
+verifyAccount($db->fetchOne('SELECT actor_id FROM file_action_batches WHERE id=1')===null,
+    'Account deletion left an action foreign key.');
+verifyAccount((int)$db->fetchOne('SELECT COUNT(*) FROM audit_events WHERE action=\'ACCOUNT_TEST\'')===1,
+    'Account removal erased an audit record.');
+try {$provider->loadUserByIdentifier('reader');throw new RuntimeException('Deleted account can log in');}
+catch(UserNotFoundException) {}
+verifyAccount((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action='ACCOUNT_DELETED'")===1,
+    'Account deletion was not audited.');
+verifyAccount(count($users->list())===2,'Deleted account still appears in list.');
+echo "PASS account CRUD including permanent deletion, self-protection, preserved audit and detached foreign keys\n";

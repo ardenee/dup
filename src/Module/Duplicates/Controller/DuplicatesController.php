@@ -4,6 +4,7 @@ namespace App\Module\Duplicates\Controller;
 
 use Doctrine\DBAL\Connection;
 use App\Module\Duplicates\Repository\ScanSelectionRepository;
+use App\Module\Duplicates\Service\DuplicateVerificationService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,7 +25,8 @@ final class DuplicatesController extends AbstractController
     }
 
     #[Route('/duplicates',name:'app_duplicates',methods:['GET'])]
-    public function index(Request $request,Connection $db,ScanSelectionRepository $selector): Response
+    public function index(Request $request,Connection $db,ScanSelectionRepository $selector,
+        DuplicateVerificationService $verificationService): Response
     {
         $profiles=$selector->profiles();
         $profile=$this->cursor($request,'profile');
@@ -66,6 +68,8 @@ final class DuplicatesController extends AbstractController
             static fn(array $run):bool=>(int)$run['id']===$selectedRun)) {
             array_unshift($history['rows'],$runInfo);
         }
+        $verification=$profile!==null && !$historical
+            ?$verificationService->eligibility($profile):null;
         $after=$this->cursor($request,'after');
         $before=$this->cursor($request,'before');
         $where=" FROM duplicate_groups g " .
@@ -151,7 +155,7 @@ final class DuplicatesController extends AbstractController
         return $this->render('duplicates/index.html.twig',[
             'groups'=>$rows,'profiles'=>$profiles,'selected_profile'=>$profile,
             'selected_run'=>$selectedRun,'run_info'=>$runInfo,'historical'=>$historical,
-            'latest_run_id'=>$latestRunId,
+            'latest_run_id'=>$latestRunId,'verification'=>$verification,
             'scan_choices'=>$history['rows'],'scan_choices_more'=>$history['more'],
             'scan_before'=>$scanBefore,'scan_choices_last'=>$scanChoicesLast,
             'previous'=>$prior?$first:null,'next'=>$later?$last:null,

@@ -47,7 +47,7 @@ final class RenameService
     public function candidates(
         int $profileId,string $filters,int $dots,int $unders,bool $collapse,
         bool $duplicatesOnly=false,?int $after=null,bool $numberCollisions=false,
-        string $find='',string $replace=''
+        string $find='',string $replace='',bool $overwriteCollisions=false
     ): array {
         $latest=(int)$this->db->fetchOne(
             "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=? AND state='completed'",
@@ -82,6 +82,9 @@ final class RenameService
                 } catch(\DomainException) {continue;}
                 $row['new_name']=$planned;
                 $row['collision_numbered']=$planned!==$target;
+                $row['overwrite_existing']=$overwriteCollisions &&
+                    (file_exists((string)$row['directory'].DIRECTORY_SEPARATOR.$planned) ||
+                     is_link((string)$row['directory'].DIRECTORY_SEPARATOR.$planned));
                 if($numberCollisions) {
                     $full=rtrim((string)$row['directory'],'/\\').DIRECTORY_SEPARATOR.$planned;
                     $reserved[PHP_OS_FAMILY==='Windows'?mb_strtolower($full):$full]=true;
@@ -104,8 +107,10 @@ final class RenameService
     public function queue(
         int $profileId,int $actorId,array $entryIds,string $filters,
         int $dots,int $unders,bool $collapse,array $names=[],
-        string $find='',string $replace=''
+        string $find='',string $replace='',string $collision='fail'
     ): int {
+        if(!in_array($collision,['fail','number','overwrite'],true))
+            throw new \DomainException('Unknown filename conflict handling.');
         $entryIds=array_values(array_unique($entryIds));
         if(count($entryIds)<1 || count($entryIds)>50 || $profileId<1)
             throw new \DomainException('Select between 1 and 50 files from one profile.');
@@ -135,12 +140,21 @@ final class RenameService
                 throw new \DomainException('A selected filename would not change.');
             $target=(string)$file['directory'].DIRECTORY_SEPARATOR.$targetName;
             $key=PHP_OS_FAMILY==='Windows'?mb_strtolower($target):$target;
-            if(isset($targets[$key]) || file_exists($target) || is_link($target))
+            $overwrite=null;
+            if($collision==='overwrite' && (file_exists($target) || is_link($target))) {
+                if(is_link($target) || !is_file($target))
+                    throw new \DomainException('Cannot overwrite a link or non-file target.');
+                $stat=$this->fs->checkedStat($target,(int)filesize($target),(int)filemtime($target));
+                $overwrite=['size'=>(int)$stat['size'],'mtime'=>(int)$stat['mtime']];
+            }
+            if(isset($targets[$key]) ||
+                ($overwrite===null && (file_exists($target) || is_link($target))))
                 throw new \DomainException('Rename destination already exists or conflicts with another selection: '.$targetName);
             $targets[$key]=true;
             $items[]=[
                 'id'=>$id,'source'=>$source,'target'=>$target,
-                'size'=>(int)$file['size_bytes'],'mtime'=>(int)$file['mtime_epoch']
+                'size'=>(int)$file['size_bytes'],'mtime'=>(int)$file['mtime_epoch'],
+                'overwrite'=>$overwrite
             ];
         }
         try {
@@ -160,11 +174,19 @@ final class RenameService
                 ]);
                 $batchId=(int)$db->lastInsertId();
                 foreach($items as $item) {
+                    $backup=$item['overwrite']===null?null:
+                        dirname($item['target']).DIRECTORY_SEPARATOR.
+                        '.dup-replaced-'.$batchId.'-'.$item['id'];
                     $db->insert('file_action_items',[
                         'batch_id'=>$batchId,'file_entry_id'=>$item['id'],
                         'source_path'=>$item['source'],'target_path'=>$item['target'],
                         'state'=>'planned','expected_size'=>$item['size'],
-                        'expected_mtime'=>$item['mtime']
+                        'expected_mtime'=>$item['mtime'],
+                        ...($item['overwrite']!==null?[
+                            'overwrite_target_size'=>$item['overwrite']['size'],
+                            'overwrite_target_mtime'=>$item['overwrite']['mtime'],
+                            'overwrite_backup_path'=>$backup
+                        ]:[])
                     ]);
                 }
                 $db->insert('jobs',[

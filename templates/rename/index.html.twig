@@ -5,7 +5,7 @@
 <div class="page-heading"><div>
   <div class="eyebrow">FILE MANAGEMENT</div>
   <h1>Rename files</h1>
-  <p class="muted">Preview filename cleanup without rescanning. Select the files you want to rename; the background worker validates the files and never overwrites an existing name.</p>
+  <p class="muted">Preview filename cleanup without rescanning. Select the files you want to rename; the background worker validates the files and follows the selected File Exists policy.</p>
 </div><a class="secondary link-button" href="{{ path('app_search') }}">Search files</a></div>
 <section class="panel">
   <div class="panel-heading"><h2>Cleanup rules</h2><span class="muted">Extensions are preserved</span></div>
@@ -20,15 +20,20 @@
       <select id="dots" name="dots"><option value="0" {{ dots == 0 ? 'selected' : '' }}>Keep</option><option value="1" {{ dots == 1 ? 'selected' : '' }}>Change to spaces</option><option value="2" {{ dots == 2 ? 'selected' : '' }}>Change to underscores</option></select></div>
     <div class="field"><label for="unders">Underscores in filename</label>
       <select id="unders" name="unders"><option value="0" {{ unders == 0 ? 'selected' : '' }}>Keep</option><option value="1" {{ unders == 1 ? 'selected' : '' }}>Change to spaces</option><option value="2" {{ unders == 2 ? 'selected' : '' }}>Change to dots</option></select></div>
-    <div class="field"><label for="find">Find text (literal)</label>
+    <fieldset class="rename-replace-fields">
+      <legend>After cleanup: find and replace</legend>
+      <div class="field"><label for="find">Find text (literal)</label>
       <input id="find" name="find" maxlength="255" value="{{ find }}" placeholder="Text to replace"></div>
     <div class="field"><label for="replace">Replace with</label>
       <input id="replace" name="replace" maxlength="255" value="{{ replace }}" placeholder="Replacement text">
-      <p class="muted">Applied after all other filename cleanup rules; file extensions are preserved. Leave replacement empty to remove matched text.</p></div>
+      </div>
+      <p class="muted rename-replace-help">Applied after all other cleanup changes. Extensions stay unchanged. Leave the replacement blank to remove the matching text.</p>
+    </fieldset>
     <div class="field"><label for="collision">Existing filename conflicts (<a href="{{ path('app_action_settings') }}">global default</a>)</label>
       <select id="collision" name="collision">
-        <option value="reject" {{ collision == 'reject' ? 'selected' : '' }}>Stop and report conflict (default)</option>
-        <option value="number" {{ collision == 'number' ? 'selected' : '' }}>Use next available numbered name</option>
+        <option value="fail" {{ collision == 'fail' ? 'selected' : '' }}>Fail - leave existing destination unchanged</option>
+        <option value="number" {{ collision == 'number' ? 'selected' : '' }}>Append Number - use next available filename</option>
+        <option value="overwrite" {{ collision == 'overwrite' ? 'selected' : '' }}>Overwrite - replace existing destination file</option>
       </select>
     </div>
     <div class="rename-options-actions">
@@ -52,10 +57,11 @@
     <input type="hidden" name="filters" value="{{ filters }}">
     <input type="hidden" name="find" value="{{ find }}">
     <input type="hidden" name="replace" value="{{ replace }}">
+    <input type="hidden" name="collision" value="{{ collision }}">
     <input type="hidden" name="dots" value="{{ dots }}">
     <input type="hidden" name="unders" value="{{ unders }}">
     <input type="hidden" name="collapse" value="{{ collapse ? '1' : '0' }}">
-    <p class="muted">Numbering, if enabled, is fixed in this preview. A new collision before queueing will stop the rename rather than silently select another filename.</p>
+    <p class="muted">Destinations are fixed in this preview. Overwrite applies only to existing destinations explicitly approved here. Files appearing after the preview are never replaced.</p>
     <div class="table-wrap"><table>
       <thead><tr><th><label><input type="checkbox" id="rename-select-all" aria-label="Select all shown"> Select</label></th><th>Folder</th><th>Current filename</th><th>Proposed filename</th><th>Size</th><th>Manual</th></tr></thead>
       <tbody>{% for file in candidates.rows %}
@@ -63,7 +69,7 @@
           <td><input type="checkbox" name="files[]" value="{{ file.id }}" class="rename-selection" aria-label="Select {{ file.filename }}"></td>
           <td><code>{{ file.directory }}</code></td>
           <td><code>{{ file.filename }}</code></td>
-          <td><strong>{{ file.new_name }}</strong>{% if file.collision_numbered %}<small class="muted">Numbered to avoid conflict</small>{% endif %}
+          <td><strong>{{ file.new_name }}</strong>{% if file.collision_numbered %}<small class="muted">Numbered to avoid conflict</small>{% endif %}{% if file.overwrite_existing|default(false) %}<small class="report-error">Overwrite existing file</small>{% endif %}
             <input type="hidden" name="planned_names[{{ file.id }}]" value="{{ file.new_name }}"></td>
           <td class="group-size">{{ file.size_bytes|number_format }}</td>
           <td><a class="text-link" href="{{ path('app_rename_file',{id:file.id}) }}">Edit</a></td>

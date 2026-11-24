@@ -12,14 +12,14 @@
  <div class="panel-content">
   <p><strong>Scan folder:</strong> <code>{{ batch.source_root }}</code></p>
   <p><strong>Destination folder:</strong> <code>{{ batch.move_root }}</code></p>
-  <p class="muted">The original relative folder structure is preserved. If Append Number is enabled in action settings, the preview includes the chosen numbered destination. No existing file may be overwritten, and moves across filesystems are rejected.</p>
+  <p class="muted">The original relative folder structure is preserved. If Append Number is enabled in action settings, the preview includes the chosen numbered destination. An existing destination is overwritten only when that exact target is approved under File exists settings. Moves across filesystems are rejected.</p>
  </div>
  <div class="table-wrap"><table>
   <thead><tr><th>#</th><th>Original file</th><th>New location</th><th>Size</th><th>Status</th></tr></thead>
   <tbody>{% for file in batch.items %}
    <tr><td>{{ loop.index }}</td>
     <td><code>{{ file.source_path }}</code></td>
-    <td><code>{{ file.target_path }}</code></td>
+    <td><code>{{ file.target_path }}</code>{% if file.overwrite_backup_path|default(null) %}<div class="report-error">Overwrite approved existing destination ({{ file.overwrite_target_size|number_format }} bytes)</div>{% endif %}</td>
     <td>{{ file.expected_size|number_format }} bytes</td>
     <td><span class="status">{{ file.state|replace({'_':' '}) }}</span></td></tr>
   {% endfor %}</tbody>
@@ -28,7 +28,7 @@
 {% if batch.state == 'planned' %}
 <section class="panel panel-content">
  <h2>Confirm move</h2>
- <div class="notice notice-warning">The background worker checks the file size and modified date, calculates a full SHA-256 digest, verifies the configured destination, and performs a same-device rename. It refuses symbolic links and existing destinations. The action is recorded for restoration.</div>
+ <div class="notice notice-warning">The background worker checks the file size and modified date, calculates a full SHA-256 digest, verifies the configured destination, and performs a same-device rename. It refuses symbolic links and unexpected destination files. Approved existing destinations are temporarily backed up for rollback and permanently replaced on success. The moved source can be returned later, but an overwritten destination cannot be restored.</div>
  <form method="post" action="{{ path('app_move_confirm',{id:batch.id}) }}">
   <input type="hidden" name="_token" value="{{ csrf_token('confirm_move_' ~ batch.id) }}">
   <div class="field"><label for="move-confirm">Type MOVE to authorize the file changes</label>
@@ -40,7 +40,7 @@
 {% elseif batch.state in ['completed','partial'] %}
 <section class="panel panel-content">
  <h2>Restore files</h2>
- <p>Restore files moved successfully in this batch. Each file is verified against the recorded SHA-256 digest before it is returned; existing original paths cannot be overwritten.</p>
+ <p>Restore files moved successfully in this batch. Each file is verified against its recorded SHA-256 digest before it is returned; occupied source paths are never overwritten. This restores the moved source only — any destination overwritten during the original move is not recovered.</p>
  <form method="post" action="{{ path('app_move_restore',{id:batch.id}) }}">
   <input type="hidden" name="_token" value="{{ csrf_token('restore_move_' ~ batch.id) }}">
   <div class="field"><label for="restore-confirm">Type RESTORE to return moved files</label>

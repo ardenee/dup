@@ -159,6 +159,8 @@ final class FileActionController extends AbstractController
             if(!$rename) throw $this->createNotFoundException();
             return $this->render('actions/rename-detail.html.twig',['batch'=>$rename]);
         }
+        if($batch['action_kind']==='delete')
+            return $this->redirectToRoute('app_delete_detail',['id'=>$id]);
         if($batch['action_kind']==='move')
             return $this->redirectToRoute('app_move_detail',['id'=>$id]);
         if(in_array($batch['action_kind'],['bulk_quarantine','bulk_link'],true))

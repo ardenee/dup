@@ -298,3 +298,19 @@ textarea{font:inherit;color:var(--ink)}
 .job-cleanup-form .field{margin:0}
 .job-cleanup-form select{min-width:160px;padding:8px 10px;border:1px solid var(--line);border-radius:7px}
 @media(max-width:650px){.health-extensions{padding:12px 15px;grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Consistent labels and paired "Find / Replace" controls. */
+.rename-replace-fields{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:11px 18px;margin:0;padding:14px 16px 12px;border:1px solid var(--line);border-radius:9px;background:#f9fcfd;min-width:0}
+.rename-replace-fields legend{padding:0 7px;font-size:13px;color:#23566a;font-weight:750}
+.rename-replace-fields .field{min-width:0}
+.rename-replace-help{grid-column:1/-1;margin:0;font-size:12px;line-height:1.45}
+.rename-options .field label{display:block;margin-bottom:6px;line-height:1.35}
+.rename-options .field input,.rename-options .field select{width:100%;min-width:0}
+@media(max-width:650px){.rename-replace-fields{grid-template-columns:minmax(0,1fr);padding:13px}.rename-replace-help{grid-column:auto}}
+.delete-action,.dup-delete-button{color:#a82b32}
+.accounts-actions form{display:inline-flex;gap:7px;align-items:center}
+
+.rename-selected-options{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;background:#f5f9fb;border-bottom:1px solid var(--line)}
+.rename-selected-options label{font-size:12px;font-weight:700;color:#355a6b}
+.rename-selected-options select{min-width:240px;max-width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px}

@@ -65,7 +65,7 @@ final class JobStore
     {
         for($attempt=0;$attempt<5;$attempt++) {
             $id=$this->db->fetchOne(
-                "SELECT id FROM jobs WHERE state='queued' AND kind IN ('scan','rebuild-duplicates','file-action','file-restore','file-rename','file-move','file-move-restore','file-link','file-unlink','bulk-link','bulk-quarantine','bulk-restore','bulk-unlink')" .
+                "SELECT id FROM jobs WHERE state='queued' AND kind IN ('scan','rebuild-duplicates','file-action','file-restore','file-rename','file-move','file-move-restore','file-link','file-unlink','bulk-link','bulk-quarantine','bulk-restore','bulk-unlink','file-delete','duplicate-verify')" .
                 ($onlyId===null?' ORDER BY id LIMIT 1':' AND id=? LIMIT 1'),
                 $onlyId===null?[]:[$onlyId]
             );
@@ -139,6 +139,11 @@ final class JobStore
                     $db->executeStatement("UPDATE file_action_batches SET state='cancelled' WHERE id=? AND action_kind='move' AND state='queued'",[$job['file_action_batch_id']]);
                 if($job['kind']==='file-move-restore')
                     $db->executeStatement("UPDATE file_action_batches SET state='completed' WHERE id=? AND action_kind='move' AND state='restore_queued'",[$job['file_action_batch_id']]);
+                if($job['kind']==='file-delete')
+                    $db->executeStatement(
+                        "UPDATE file_action_batches SET state='cancelled' WHERE id=? AND state='queued'",
+                        [$job['file_action_batch_id']]
+                    );
                 if($job['kind']==='file-link')
                     $db->executeStatement("UPDATE file_action_batches SET state='cancelled' WHERE id=? AND action_kind='link' AND state='queued'",[$job['file_action_batch_id']]);
                 if($job['kind']==='file-unlink')
@@ -159,7 +164,7 @@ final class JobStore
                 return true;
             }
             $kind=$db->fetchOne('SELECT kind FROM jobs WHERE id=?',[$id]);
-            if(in_array($kind,['file-action','file-restore','file-rename','file-move','file-move-restore','file-link','file-unlink','bulk-link','bulk-quarantine','bulk-restore','bulk-unlink'],true))
+            if(in_array($kind,['file-action','file-restore','file-rename','file-move','file-move-restore','file-link','file-unlink','bulk-link','bulk-quarantine','bulk-restore','bulk-unlink','file-delete'],true))
                 return false; // Once claimed, irreversible filesystem stages cannot be cancelled.
             $running=$db->executeStatement(
                 "UPDATE jobs SET state='cancelling' WHERE id=? AND state='running'",[$id]
@@ -258,12 +263,14 @@ final class JobStore
                 [gmdate('Y-m-d H:i:s'),$id,$cutoff]
             );
             if($changed!==1) continue;
+            if($row['kind']==='duplicate-verify')
+                $this->db->delete('duplicate_verification_hashes',['job_id'=>$id]);
             if($row['kind']==='scan')
                 $this->db->executeStatement(
                     "UPDATE scan_runs SET state='failed',finished_at=?,error_count=error_count+1 WHERE id=?",
                     [gmdate('Y-m-d H:i:s'),(int)$row['run_id']]
                 );
-            if(in_array($row['kind'],['file-action','file-restore','file-rename','file-move','file-move-restore','file-link','file-unlink','bulk-link','bulk-quarantine','bulk-restore','bulk-unlink'],true))
+            if(in_array($row['kind'],['file-action','file-restore','file-rename','file-move','file-move-restore','file-link','file-unlink','bulk-link','bulk-quarantine','bulk-restore','bulk-unlink','file-delete'],true))
                 $this->db->executeStatement(
                     "UPDATE file_action_batches SET state='needs_review',error_code='WORKER_STALLED' " .
                     "WHERE id=? AND state IN ('queued','executing','restore_queued','restore_executing')",

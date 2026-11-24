@@ -21,13 +21,15 @@ $service->save(ActionSettings::NUMBER,8);
 checkPolicy($service->policy()===ActionSettings::NUMBER,'Append Number policy not persisted');
 $service->save(ActionSettings::FAIL,8);
 checkPolicy($service->policy()===ActionSettings::FAIL,'Fail policy not persisted');
+$service->save(ActionSettings::OVERWRITE,8);
+checkPolicy($service->policy()===ActionSettings::OVERWRITE,'Overwrite policy not persisted');
 checkPolicy((int)$db->fetchOne('SELECT COUNT(*) FROM action_settings')===1,'Duplicate settings keys created');
-checkPolicy((int)$db->fetchOne('SELECT COUNT(*) FROM audit_events')===2,'Policy change audit missing');
-foreach(['overwrite','delete','skip',''] as $unsafe) {
+checkPolicy((int)$db->fetchOne('SELECT COUNT(*) FROM audit_events')===3,'Policy change audit missing');
+foreach(['delete','skip',''] as $unsafe) {
     try {$service->save($unsafe,8);throw new RuntimeException('Unsafe policy accepted: '.$unsafe);}
     catch(DomainException) {}
 }
-checkPolicy($service->policy()===ActionSettings::FAIL,'Invalid policy mutated defaults');
+checkPolicy($service->policy()===ActionSettings::OVERWRITE,'Invalid policy mutated defaults');
 checkPolicy(RenameRules::isNumberedVariant('music.m4b','music (3).m4b'),'Numbered variant rejected');
 checkPolicy(!RenameRules::isNumberedVariant('music.m4b','music2.m4b'),'Unexpected filename accepted');
 checkPolicy(!RenameRules::isNumberedVariant('music.m4b','music (0).m4b'),'Invalid suffix accepted');
@@ -42,6 +44,6 @@ $html=$twig->render('actions/settings.html.twig',[
     'app'=>['user'=>null,'environment'=>'test','flashes'=>[]],
     'policy'=>ActionSettings::FAIL
 ]);
-foreach(['Fail','Append Number','Overwrite','disabled','csrf-action_settings'] as $needle)
+foreach(['Fail','Append Number','Overwrite','value="overwrite"','csrf-action_settings'] as $needle)
     checkPolicy(str_contains($html,$needle),'Missing settings UI: '.$needle);
-echo "PASS saved file-exists preferences, audit, disallowed overwrite, numbered variant validation and UI\n";
+echo "PASS saved Fail/Append Number/Overwrite settings, audit, numbered variant validation and UI\n";

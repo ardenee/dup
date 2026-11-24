@@ -38,7 +38,7 @@
       {% if job.file_action_batch_id %}
         <a class="secondary link-button" href="{{ path('app_action_detail',{id:job.file_action_batch_id}) }}">Review file action / restore</a>
       {% endif %}
-      {% set cancellable = job.state == 'queued' or (job.state == 'running' and job.kind in ['scan','rebuild-duplicates']) %}
+      {% set cancellable = job.state == 'queued' or (job.state == 'running' and job.kind in ['scan','rebuild-duplicates','duplicate-verify']) %}
       {% if cancellable %}
         <form method="post" action="{{ path('app_job_cancel',{id:job.id}) }}">
           <input type="hidden" name="_token" value="{{ csrf_token('cancel_job_' ~ job.id) }}">

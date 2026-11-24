@@ -65,6 +65,23 @@ final class AccountsController extends AbstractController
         }
     }
 
+    #[Route('/accounts/{id<\d+>}/delete',name:'app_accounts_delete',methods:['POST'])]
+    public function delete(int $id,Request $request,AccountManager $users):Response
+    {
+        if(!$this->isCsrfTokenValid('account_delete_'.$id,
+            (string)$request->request->get('_token','')))
+            throw $this->createAccessDeniedException('Invalid account deletion token.');
+        if($request->request->get('confirm')!=='DELETE')
+            throw $this->createAccessDeniedException('Confirm account deletion first.');
+        try {
+            $users->delete($id,$this->actor());
+            $this->addFlash('success','Account deleted. Existing audit records were retained.');
+        } catch(\DomainException $ex) {
+            $this->addFlash('warning',$ex->getMessage());
+        }
+        return $this->redirectToRoute('app_accounts');
+    }
+
     #[Route('/accounts/{id<\d+>}/enabled',name:'app_accounts_enabled',methods:['POST'])]
     public function enabled(int $id,Request $request,AccountManager $users):Response
     {

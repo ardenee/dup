@@ -18,7 +18,13 @@
   <input type="hidden" name="_token" value="{{ csrf_token('rename_file_' ~ file.id) }}">
   <div class="field"><label for="new-filename">New filename</label>
     <input type="text" name="new_filename" id="new-filename" maxlength="255" required value="{{ app.request.request.get('new_filename',file.filename) }}"></div>
-  <p class="muted">This queues a background rename with file-change and collision checks. Existing files will not be overwritten.</p>
+  <div class="field"><label for="rename-exists">If the destination filename exists</label>
+    <select name="collision" id="rename-exists">
+      <option value="fail" {{ collision == 'fail' ? 'selected' : '' }}>Fail — leave existing file unchanged</option>
+      <option value="overwrite" {{ collision == 'overwrite' ? 'selected' : '' }}>Overwrite — replace that file permanently</option>
+    </select>
+  </div>
+  <p class="muted">File replacement is explicit. An existing destination must be approved in this form; it is staged temporarily before the worker replaces it.</p>
   <div class="form-actions"><button class="primary" type="submit">Queue rename</button>
   <a class="secondary link-button" href="{{ path('app_search',{q:file.filename}) }}">Cancel</a></div>
 </form>

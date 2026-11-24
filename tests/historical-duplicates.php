@@ -32,9 +32,9 @@ $view=$twig->render('duplicates/index.html.twig',$app+[
     'totals'=>['total_groups'=>1,'total_members'=>2,'reclaimable_bytes'=>256],
     'page_start'=>1,'page_end'=>1,'page_rows'=>2,'page_listed_bytes'=>512,'page_reclaimable'=>256
 ]);
-foreach(['Historical snapshot','read-only','Track.mp3','run=31','Historical record','data-scan-run'] as $needle)
+foreach(['Historical snapshot','read-only','Track.mp3','run=31','Historical','data-scan-run'] as $needle)
     ensureHistory(str_contains($view,$needle),'Historical browser missing '.$needle);
-foreach(['data-dup-rename','data-dup-move','data-dup-select','preview_link_','preview_file_','app_file_download'] as $forbidden)
+foreach(['data-dup-rename','data-dup-move','data-dup-delete','data-dup-select','preview_link_','preview_file_','app_file_download'] as $forbidden)
     ensureHistory(!str_contains($view,$forbidden),'Historical browser exposed mutation: '.$forbidden);
 $members=$twig->render('duplicates/_members.html.twig',$app+[
     'group'=>$group,'historical'=>true,

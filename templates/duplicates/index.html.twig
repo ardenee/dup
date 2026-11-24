@@ -1,9 +1,11 @@
 {% extends 'base.html.twig' %}
 {% from 'duplicates/_format.html.twig' import bytes, hash, method %}
+{% from 'duplicates/_actions.html.twig' import actions %}
 {% block title %}Duplicates{% endblock %}
 {% block section %}Duplicates{% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ asset('assets/duplicates.css') }}?v=2">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ asset('assets/duplicates.css') }}?v=3">{% endblock %}
 {% block body %}
+{% include 'duplicates/_icons.html.twig' %}
 <div class="page-heading dup-heading">
   <div>
     <div class="eyebrow">FIND & MANAGE DUPLICATES</div>
@@ -33,6 +35,7 @@
           </option>
         {% endfor %}
       </select>
+      <small class="muted">Select a profile to display its saved scans.</small>
     </div>
     <div class="field">
       <label for="dup-run">Scan</label>
@@ -94,7 +97,33 @@
   {% endif %}
 </section>
 
+{% if selected_profile is not null and not historical|default(false) and is_granted('ROLE_ADMIN') and verification|default(null) and verification.can_verify %}
+  <section class="panel dup-verification-bar">
+    <div>
+      <strong>Second-stage verification available</strong>
+      <p class="muted">{{ verification.files|number_format }} candidate files in
+        {{ verification.groups|number_format }} duplicate groups can be verified
+        using full-file SHA-256. This reads only files already identified as
+        duplicates, then updates the verified result groups. No full rescan.</p>
+    </div>
+    <form method="post" action="{{ path('app_duplicates_verify') }}"
+      onsubmit="return confirm('Verify {{ verification.files }} candidate files with full SHA-256?')">
+      <input type="hidden" name="_token" value="{{ csrf_token('verify_duplicate_candidates') }}">
+      <input type="hidden" name="profile" value="{{ selected_profile }}">
+      <input type="hidden" name="confirm" value="VERIFY">
+      <button class="primary" type="submit">Verify duplicates (SHA-256)</button>
+    </form>
+  </section>
+{% elseif selected_run is not null and run_info and run_info.verification_method|default(null) %}
+  <div class="dup-verification-done">
+    <strong>Second-stage verified:</strong> {{ run_info.verification_method|upper }}
+    · {{ run_info.verified_at ?? 'Date unavailable' }} UTC
+  </div>
+{% endif %}
+
 <section class="panel dup-browser" id="duplicate-groups"
+  data-bulk-delete-url="{{ path('app_delete_preview') }}"
+  data-bulk-delete-token="{{ csrf_token('delete_selected') }}"
   data-bulk-move-url="{{ path('app_move_preview') }}"
   data-bulk-move-token="{{ csrf_token('move_selected') }}"
   data-bulk-rename-url="{{ path('app_rename_selected') }}"
@@ -124,7 +153,7 @@
         <span class="dup-bulk-actions-label">Selected: <span data-dup-selected-count aria-live="polite">0</span></span>
         <button type="button" class="primary" data-dup-rename disabled>Rename</button>
         <button type="button" class="primary" data-dup-move disabled>Move</button>
-        <button type="button" data-dup-quarantine disabled>Quarantine</button>
+        <button type="button" class="dup-delete-button" data-dup-delete disabled>Delete</button>
         <button type="button" data-dup-link disabled>Link</button>
       </div>
       {% endif %}
@@ -133,8 +162,9 @@
   {% if groups is not empty and is_granted('ROLE_ADMIN') and not historical|default(false) %}
     <div class="dup-how-to">
       <strong>1.</strong> Expand a group. <strong>2.</strong> Select individual files or use <strong>Select matches</strong>
-      to leave the first copy untouched. <strong>3.</strong> Choose Rename, Move, Quarantine or Link above
-      to preview the change before confirming. Limit: 50 files per action, from one profile.
+      to leave the first copy untouched. <strong>3.</strong> Choose Rename, Move, Delete or Link above
+      to preview the change before confirming. Delete is permanent, not a move or quarantine.
+      Limit: 50 files per action, from one profile.
     </div>
   {% endif %}
   {% if groups is empty %}
@@ -143,7 +173,7 @@
     {% include 'duplicates/_pager.html.twig' %}
     <p class="dup-scroll-hint">Scroll the table sideways to view hashes and file actions.
       {% if is_granted('ROLE_ADMIN') and not historical|default(false) %}
-        Select file checkboxes in expanded rows or click Select matches (which keeps the first file unselected) to use bulk rename, move, quarantine or link (up to 50 files from one profile). Link/quarantine require full SHA-256 matching and at least one unselected survivor per group. Every bulk operation has a separate preview and explicit confirmation.
+        Select files in expanded rows, or use Select matches. Bulk Rename, Move, Delete and Link are available for up to 50 files from one profile. Link requires full SHA-256 matching and an unselected survivor. Delete does not require a survivor and is permanent; the confirmation page lists every affected file.
       {% endif %}</p>
     <div class="table-wrap dup-file-table-wrap">
       <table class="dup-file-table">
@@ -196,27 +226,9 @@
               </td>
               <td class="dup-file-actions">
                 {% if historical|default(false) %}
-                  <span class="muted">Historical record</span>
+                  <span class="muted">Historical</span>
                 {% elseif group.first_file_id and group.first_error_code is null %}
-                  <a href="{{ path('app_file_view',{id:group.first_file_id}) }}" class="dup-action-link">View</a>
-                  <a href="{{ path('app_file_download',{id:group.first_file_id}) }}" class="dup-action-link">Download</a>
-                  {% if is_granted('ROLE_ADMIN') %}
-                  {% if group.file_count <= 51 %}
-                    <button type="button" class="dup-action-link" data-dup-select-group
-                      title="Select all matching files except the first, which remains the survivor">Select matches</button>
-                  {% endif %}
-                  <a href="{{ path('app_rename_file',{id:group.first_file_id}) }}" class="dup-action-link">Rename</a>
-                  {% if group.rules_version == 1 and group.file_count > 1 %}
-                    <form method="post" action="{{ path('app_link_preview',{id:group.first_file_id}) }}">
-                      <input type="hidden" name="_token" value="{{ csrf_token('preview_link_' ~ group.first_file_id) }}">
-                      <button type="submit" class="dup-action-link">Link</button>
-                    </form>
-                    <form method="post" action="{{ path('app_action_preview',{id:group.first_file_id}) }}">
-                      <input type="hidden" name="_token" value="{{ csrf_token('preview_file_' ~ group.first_file_id) }}">
-                      <button type="submit" class="dup-action-link">Quarantine</button>
-                    </form>
-                  {% endif %}
-                  {% endif %}
+                  {{ actions(group.first_file_id,group.rules_version == 1,group.file_count,true) }}
                 {% else %}
                   <span class="muted">{{ group.first_error_code ?? 'Unavailable' }}</span>
                 {% endif %}
@@ -244,9 +256,9 @@
     {% include 'duplicates/_pager.html.twig' %}
   {% endif %}
   <div class="dup-statusline">
-    <span data-dup-message role="status" aria-live="polite">{{ historical|default(false) ? 'Read-only historical scan. Expand groups to inspect the indexed files.' : 'Expand a group to view its matching files. Select files across expanded rows for bulk rename/move.' }}</span>
+    <span data-dup-message role="status" aria-live="polite">{{ historical|default(false) ? 'Read-only historical scan. Expand groups to inspect indexed files.' : 'Expand groups to inspect matches, then select files for Rename, Move, Delete or Link.' }}</span>
     <span>Size and CRC32 matches are candidates; file actions require additional verification.</span>
   </div>
 </section>
-<script type="module" src="{{ asset('assets/duplicates.js') }}?v=6"></script>
+<script type="module" src="{{ asset('assets/duplicates.js') }}?v=7"></script>
 {% endblock %}

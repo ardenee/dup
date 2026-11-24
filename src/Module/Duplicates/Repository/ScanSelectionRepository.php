@@ -51,7 +51,7 @@ final class ScanSelectionRepository
     {
         $run=$this->db->fetchAssociative(
             'SELECT r.id,r.profile_id,r.state,r.started_at,r.finished_at,'.
-            'r.duplicate_groups,r.files_indexed,p.name AS profile_name '.
+            'r.duplicate_groups,r.files_indexed,r.verification_method,r.verified_at,p.name AS profile_name '.
             'FROM scan_runs r JOIN scan_profiles p ON p.id=r.profile_id '.
             "WHERE r.id=? AND r.state IN ('completed','archived')",
             [$runId]

@@ -53,6 +53,14 @@ final class FileMoveService
                 (string)$file['source_root'],$moveRoot,
                 (string)$file['directory'],(string)$file['filename']
             );
+            $overwrite=null;
+            if($this->settings->policy()===ActionSettings::OVERWRITE &&
+               (file_exists($target) || is_link($target))) {
+                if(is_link($target) || !is_file($target))
+                    throw new \DomainException('Cannot overwrite a symbolic link or non-file destination.');
+                $stat=$this->fs->checkedStat($target,(int)filesize($target),(int)filemtime($target));
+                $overwrite=['size'=>(int)$stat['size'],'mtime'=>(int)$stat['mtime']];
+            }
             if($this->settings->policy()===ActionSettings::NUMBER) {
                 $numbered=\App\Module\Renaming\Service\RenameRules::availableName(
                     dirname($target),basename($target),$destinations
@@ -60,13 +68,15 @@ final class FileMoveService
                 $target=dirname($target).DIRECTORY_SEPARATOR.$numbered;
             }
             $key=PHP_OS_FAMILY==='Windows'?mb_strtolower($target):$target;
-            if(isset($destinations[$key]) || file_exists($target) || is_link($target))
+            if(isset($destinations[$key]) ||
+                (!$overwrite && (file_exists($target) || is_link($target))))
                 throw new \DomainException('A target file already exists or appears more than once in the batch.');
             $destinations[$key]=true;
             $items[]=[
                 'file_entry_id'=>$id,'source_path'=>$source,'target_path'=>$target,
                 'expected_size'=>(int)$file['size_bytes'],
-                'expected_mtime'=>(int)$file['mtime_epoch']
+                'expected_mtime'=>(int)$file['mtime_epoch'],
+                'overwrite'=>$overwrite
             ];
         }
         return $this->db->transactional(function(Connection $db) use (
@@ -84,12 +94,20 @@ final class FileMoveService
             ]);
             $batchId=(int)$db->lastInsertId();
             foreach($items as $item) {
+                $backup=$item['overwrite']===null?null:
+                    dirname($item['target_path']).DIRECTORY_SEPARATOR.
+                    '.dup-replaced-'.$batchId.'-'.$item['file_entry_id'];
                 $db->insert('file_action_items',[
                     'batch_id'=>$batchId,'file_entry_id'=>$item['file_entry_id'],
                     'source_path'=>$item['source_path'],
                     'target_path'=>$item['target_path'],
                     'state'=>'planned','expected_size'=>$item['expected_size'],
-                    'expected_mtime'=>$item['expected_mtime']
+                    'expected_mtime'=>$item['expected_mtime'],
+                    ...($item['overwrite']!==null?[
+                        'overwrite_target_size'=>$item['overwrite']['size'],
+                        'overwrite_target_mtime'=>$item['overwrite']['mtime'],
+                        'overwrite_backup_path'=>$backup
+                    ]:[])
                 ]);
             }
             $this->actions->audit($actorId,'MOVE_PREVIEW',$batchId,'planned',[

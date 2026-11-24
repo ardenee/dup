@@ -11,7 +11,7 @@ function ensure(bool $value,string $message): void
 }
 $db=DriverManager::getConnection(['driver'=>'pdo_sqlite','memory'=>true]);
 $db->executeStatement('CREATE TABLE directories (id INTEGER PRIMARY KEY,run_id INT,path TEXT,is_ignored INT)');
-$db->executeStatement('CREATE TABLE file_entries (id INTEGER PRIMARY KEY,run_id INT,directory_id INT,size_bytes BIGINT,hash_value TEXT,error_code TEXT,is_symlink INT NOT NULL DEFAULT 0)');
+$db->executeStatement('CREATE TABLE file_entries (id INTEGER PRIMARY KEY,run_id INT,directory_id INT,size_bytes BIGINT,hash_value TEXT,hash_method TEXT,error_code TEXT,is_symlink INT NOT NULL DEFAULT 0)');
 $db->executeStatement('CREATE TABLE duplicate_groups (id INTEGER PRIMARY KEY AUTOINCREMENT,run_id INT,group_key TEXT,size_bytes BIGINT,file_count INT,reclaimable_bytes BIGINT,rules_version INT)');
 $db->executeStatement('CREATE TABLE duplicate_group_members (id INTEGER PRIMARY KEY AUTOINCREMENT,group_id INT,file_entry_id INT)');
 $db->executeStatement('INSERT INTO directories VALUES (1,1,\'/media\',0),(2,1,\'/media/@eaDir\',1)');
@@ -24,12 +24,12 @@ foreach([
 ] as [$id,$run,$dir,$size,$hash]) {
     $db->insert('file_entries',[
         'id'=>$id,'run_id'=>$run,'directory_id'=>$dir,
-        'size_bytes'=>$size,'hash_value'=>$hash,'error_code'=>null
+        'size_bytes'=>$size,'hash_value'=>$hash,'hash_method'=>'sha256','error_code'=>null
     ]);
 }
 $db->insert('file_entries',[
     'id'=>6,'run_id'=>1,'directory_id'=>1,'size_bytes'=>1000000,
-    'hash_value'=>'ABCDEF12','error_code'=>null,'is_symlink'=>1
+    'hash_value'=>'ABCDEF12','hash_method'=>'sha256','error_code'=>null,'is_symlink'=>1
 ]);
 $rebuild=new DuplicateRebuilder($db);
 $checkpoint=static fn(int $done)=>null;

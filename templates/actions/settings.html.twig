@@ -16,11 +16,11 @@
       <select name="destination_exists" id="destination-exists">
         <option value="fail" {{ policy == 'fail' ? 'selected' : '' }}>Fail — leave both files unchanged</option>
         <option value="number" {{ policy == 'number' ? 'selected' : '' }}>Append Number — file (1).ext, file (2).ext, etc.</option>
-        <option value="overwrite" disabled>Overwrite — disabled (recovery safeguards required)</option>
+        <option value="overwrite" {{ policy == 'overwrite' ? 'selected' : '' }}>Overwrite - replace approved destination</option>
       </select>
     </div>
-    <p class="muted">Applied to new move previews and the default filename-cleanup preview setting. Manual filename edits and already-approved plans always use their exact approved target path. All operations still reject overwriting a destination that appears after preview.</p>
-    <p class="muted">Link replacement deliberately keeps the original file privately for recovery. That procedure cannot use a general overwrite policy.</p>
+    <p class="muted">Applied to new move previews and the default filename-cleanup preview setting. Manual filename edits and already-approved plans always use their exact approved target path. Overwrite only replaces destination files explicitly shown in the preview. Newly appearing files are never overwritten.</p>
+    <p class="muted">Overwrite permanently replaces an approved existing destination file. The worker uses a temporary backup to recover if an operation fails. It does not affect Delete or Link.</p>
     <button class="primary" type="submit">Save file action settings</button>
   </form>
 </section>

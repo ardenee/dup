@@ -115,6 +115,43 @@ final class SafeFileSystem
         return $base;
     }
 
+    /** Stage an approved existing destination in a private unique file next to it. */
+    public function stageReplacement(string $target,string $backup,int $size,int $mtime):void
+    {
+        if(dirname($target)!==dirname($backup) || basename($backup)==='' ||
+           !str_starts_with(basename($backup),'.dup-replaced-'))
+            throw new \DomainException('Invalid temporary overwrite backup path.');
+        if(file_exists($backup) || is_link($backup))
+            throw new \DomainException('The temporary overwrite backup location is occupied.');
+        $before=$this->checkedStat($target,$size,$mtime);
+        $this->renameExactly($target,$backup,$size,$mtime);
+        try {
+            $after=$this->checkedStat($backup,$size,$mtime);
+            if((string)$before['dev']!==(string)$after['dev'] ||
+               (string)$before['ino']!==(string)$after['ino'])
+                throw new \DomainException('Approved overwrite target changed during staging.');
+        } catch(\Throwable $ex) {
+            if(is_file($backup) && !is_link($backup) &&
+               !file_exists($target) && !is_link($target))
+                @rename($backup,$target);
+            throw $ex;
+        }
+    }
+
+    /** Roll back a staged target only if its original pathname is free. */
+    public function restoreReplacement(string $target,string $backup,int $size,int $mtime):void
+    {
+        $this->renameExactly($backup,$target,$size,$mtime);
+    }
+
+    /** The approved overwrite is now committed; discard the previous destination. */
+    public function finishReplacement(string $backup,int $size,int $mtime):void
+    {
+        $this->checkedStat($backup,$size,$mtime);
+        if(!@unlink($backup))
+            throw new \DomainException('Unable to remove the old overwritten destination backup.');
+    }
+
     public function renameExactly(string $source,string $target,int $size,int $mtime): void
     {
         $this->checkedStat($source,$size,$mtime);

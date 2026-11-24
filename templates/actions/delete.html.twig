@@ -1,0 +1,47 @@
+{% extends 'base.html.twig' %}
+{% block title %}Delete files{% endblock %}
+{% block section %}File operations / Delete{% endblock %}
+{% block body %}
+<div class="page-heading">
+  <div><div class="eyebrow">PERMANENT FILE DELETION</div>
+    <h1>Delete {{ batch.items|length }} {{ batch.items|length == 1 ? 'file' : 'files' }}</h1>
+    <p class="muted">{{ batch.profile_name }} · <span class="status">{{ batch.state }}</span></p>
+  </div>
+  <a href="{{ path('app_duplicates') }}" class="secondary link-button">Back to duplicates</a>
+</div>
+<section class="panel">
+  <div class="panel-heading"><h2>Files selected for deletion</h2>
+    <span class="muted">Current scan · original paths</span></div>
+  <div class="table-wrap">
+    <table><thead><tr><th>#</th><th>File to delete</th><th>Size</th><th>Status</th></tr></thead>
+      <tbody>{% for item in batch.items %}
+        <tr><td>{{ loop.index }}</td>
+          <td><code>{{ item.source_path }}</code></td>
+          <td>{{ item.expected_size|number_format }} bytes</td>
+          <td><span class="status">{{ item.state }}</span></td></tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+</section>
+{% if batch.state == 'planned' %}
+<section class="panel panel-content">
+  <h2>Confirm permanent deletion</h2>
+  <p><strong>These files will be deleted permanently.</strong>
+    They will not be moved, quarantined or placed in a recycle folder.
+    There is no built-in restore action. The deletion job will update the
+    duplicate results after processing.</p>
+  <form method="post" action="{{ path('app_delete_confirm',{id:batch.id}) }}"
+        onsubmit="return confirm('Permanently delete {{ batch.items|length }} selected files? This cannot be undone.')">
+    <input type="hidden" name="_token" value="{{ csrf_token('confirm_delete_' ~ batch.id) }}">
+    <input type="hidden" name="confirm" value="DELETE">
+    <button class="primary delete-action" type="submit">Delete {{ batch.items|length }} files permanently</button>
+  </form>
+  <p class="muted">Confirmation expires: {{ batch.expires_at }} UTC</p>
+</section>
+{% else %}
+<section class="panel panel-content">
+  <p>Batch status: <strong>{{ batch.state }}</strong>.
+    <a href="{{ path('app_jobs') }}">View job progress</a>.</p>
+</section>
+{% endif %}
+{% endblock %}

@@ -25,12 +25,12 @@ final class IgnoreRebuildWorker
         $token=(string)$job['worker_token'];
         try {
             $run=$this->db->fetchAssociative(
-                'SELECT state,settings_json,profile_id FROM scan_runs WHERE id=?',[$runId]
+                'SELECT state,settings_json,profile_id,verification_method FROM scan_runs WHERE id=?',[$runId]
             );
             if(!$run || $run['state']!=='completed' || (int)$run['profile_id']!==$profileId)
                 throw new \RuntimeException('Recalculation target is not a successful scan.');
             $data=json_decode((string)$run['settings_json'],true,512,JSON_THROW_ON_ERROR);
-            $mode=(string)($data['hash_mode']??'');
+            $mode=(string)($run['verification_method']?:($data['hash_mode']??''));
             $names=$this->rules->effective($profileId);
             $this->db->transactional(function(Connection $db) use ($id,$runId,$token,$mode,$names):void {
                 $this->jobs->assertRunning($id,$token);

@@ -5,13 +5,15 @@ namespace App\Module\FileActions\Service;
 use Doctrine\DBAL\Connection;
 
 /**
- * Global legacy conflict preference. Overwrite is deliberately unsupported;
- * recovery-aware replacement needs its own operation and verification.
+ * Global destination conflict preference: fail, number or explicitly replace.
+ * An approved overwrite records the existing target and temporarily stages it
+ * during the file operation for rollback if a later step fails.
  */
 final class ActionSettings
 {
     public const FAIL='fail';
     public const NUMBER='number';
+    public const OVERWRITE='overwrite';
 
     public function __construct(private readonly Connection $db) {}
 
@@ -21,14 +23,14 @@ final class ActionSettings
             'SELECT setting_value FROM action_settings WHERE setting_key=?',
             ['destination_exists']
         );
-        return in_array($stored,[self::FAIL,self::NUMBER],true)
+        return in_array($stored,[self::FAIL,self::NUMBER,self::OVERWRITE],true)
             ?(string)$stored:self::FAIL;
     }
 
     public function save(string $value,int $actorId):void
     {
-        if(!in_array($value,[self::FAIL,self::NUMBER],true))
-            throw new \DomainException('Choose Fail or Append Number. Overwrite is not available.');
+        if(!in_array($value,[self::FAIL,self::NUMBER,self::OVERWRITE],true))
+            throw new \DomainException('Choose Fail, Append Number or Overwrite.');
         $this->db->transactional(function(Connection $db) use($value,$actorId):void {
             $current=$db->fetchOne(
                 'SELECT setting_key FROM action_settings WHERE setting_key=?',

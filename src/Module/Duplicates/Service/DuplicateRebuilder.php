@@ -67,6 +67,7 @@ final class DuplicateRebuilder
         $verified=$mode==='sha256';
         $hashed=$mode!=='size';
         $filter=$hashed?' AND f.hash_value IS NOT NULL':'';
+        if($mode==='sha256') $filter.=" AND f.hash_method='sha256'";
         $columns=$hashed?'f.size_bytes,f.hash_value':'f.size_bytes';
         $groups=$this->db->executeQuery(
             'SELECT '.$columns.',COUNT(*) AS members FROM file_entries f ' .
@@ -90,6 +91,7 @@ final class DuplicateRebuilder
                 'WHERE f.run_id=? AND f.size_bytes=? AND f.is_symlink=0 AND d.is_ignored=0 AND f.error_code IS NULL';
             $args=[$runId,$size];
             if($hashed) {$sql.=' AND f.hash_value=?';$args[]=$hash;}
+            if($mode==='sha256') $sql.=" AND f.hash_method='sha256'";
             $files=$this->db->executeQuery($sql.' ORDER BY f.id',$args);
             $batch=[];
             while(($file=$files->fetchAssociative())!==false) {

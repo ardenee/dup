@@ -84,14 +84,14 @@
 
 /* First-class profile / scan chooser: visible before results on every device. */
 .scan-picker-panel{overflow:hidden;margin-bottom:16px}
-.scan-picker{display:grid;grid-template-columns:minmax(220px,1fr) minmax(300px,1.45fr) auto;gap:12px 18px;align-items:end;padding:18px 20px}
+.scan-picker{display:grid;grid-template-columns:minmax(220px,1fr) minmax(300px,1.45fr) auto;gap:12px 18px;align-items:start;padding:18px 20px}
 .scan-picker .field{margin:0;min-width:0}
 .scan-picker .field label{display:block;font-size:12px;margin:0 0 5px;color:#41546b}
 .scan-picker select{display:block;width:100%;min-height:42px;background:#fff;color:var(--ink);border:1px solid #b6c8d3;border-radius:8px;padding:9px 10px;font-size:13px}
 .scan-picker select:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
 .scan-picker select:disabled{opacity:.58;cursor:not-allowed}
-.scan-picker .field small{font-size:11px;line-height:1.4;display:block;margin-top:6px}
-.scan-picker-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:19px}
+.scan-picker .field small{font-size:11px;line-height:1.4;display:block;margin-top:6px;min-height:18px}
+.scan-picker-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;align-self:start;margin:24px 0 0}
 .scan-picker-actions .text-link{white-space:nowrap}
 .scan-selection-summary{display:flex;gap:15px;justify-content:space-between;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding:12px 20px;background:#f6f9fb;font-size:12px}
 .scan-selection-summary strong,.scan-selection-summary span,.scan-selection-summary small{display:block}
@@ -122,3 +122,25 @@
   .dup-how-to{padding:10px 13px}
 }
 @media print{.scan-picker-panel,.dup-how-to{display:none!important}}
+
+
+/* Compact icon-only file actions with accessible names and native tooltips. */
+.dup-icons-definitions{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
+.dup-col-file{width:27%}.dup-col-actions{width:22%}
+.dup-action-icons{display:flex;gap:3px;align-items:center;flex-wrap:wrap;min-width:0}
+.dup-action-icons form{display:inline-flex;margin:0}
+.dup-icon-action{appearance:none;display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 28px;width:28px;height:28px;padding:5px;margin:0;border:1px solid transparent;
+  border-radius:6px;background:transparent;color:#196b7b;cursor:pointer;text-decoration:none}
+.dup-icon-action:hover,.dup-icon-action:focus-visible{border-color:#a2ced8;background:#eaf7fa;color:#0b5263;outline-offset:1px}
+.dup-action-icon{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.dup-icon-danger{color:#9e3436}.dup-icon-danger:hover,.dup-icon-danger:focus-visible{color:#a92222;background:#fff1ee;border-color:#e8b5ad}
+.dup-delete-button{color:#a32929!important;border-color:#edc5c5!important}
+.dup-delete-button:hover:not(:disabled){background:#fff0f0!important}
+.dup-verification-bar{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:17px 21px;margin-bottom:14px;border-left:4px solid #19839a}
+.dup-verification-bar strong{color:#1a566a}
+.dup-verification-bar p{font-size:12px;margin:5px 0 0;line-height:1.55;max-width:760px}
+.dup-verification-bar button{min-width:190px}
+.dup-verification-done{background:#edf8f1;border:1px solid #b6d6bf;padding:12px 18px;border-radius:8px;margin-bottom:12px;color:#236139;font-size:12px}
+@media(max-width:900px){.dup-action-icons{gap:1px}.dup-icon-action{width:30px;height:30px}}
+@media(max-width:650px){.dup-verification-bar{padding:13px 15px}.dup-verification-bar button{width:100%}}

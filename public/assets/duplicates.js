@@ -29,7 +29,7 @@ if (browser) {
   const copyButton = browser.querySelector('[data-dup-copy]');
   const renameButton = browser.querySelector('[data-dup-rename]');
   const moveButton = browser.querySelector('[data-dup-move]');
-  const quarantineButton = browser.querySelector('[data-dup-quarantine]');
+  const deleteButton = browser.querySelector('[data-dup-delete]');
   const linkButton = browser.querySelector('[data-dup-link]');
   const clearButton = browser.querySelector('[data-dup-clear-selection]');
   const selectedCount = browser.querySelector('[data-dup-selected-count]');
@@ -43,7 +43,7 @@ if (browser) {
     if (copyButton) copyButton.disabled = selected.size === 0;
     if (renameButton) renameButton.disabled = selected.size === 0;
     if (moveButton) moveButton.disabled = selected.size === 0;
-    if (quarantineButton) quarantineButton.disabled = selected.size === 0;
+    if (deleteButton) deleteButton.disabled = selected.size === 0;
     if (linkButton) linkButton.disabled = selected.size === 0;
     if (clearButton) clearButton.disabled = selected.size === 0;
   }
@@ -339,7 +339,25 @@ if (browser) {
     document.body.appendChild(form);
     form.submit();
   }
-  quarantineButton?.addEventListener('click', () => submitBulkDuplicate('bulk_quarantine'));
+  deleteButton?.addEventListener('click', () => {
+    if (!selected.size || selected.size > 50) {
+      tell('Select between 1 and 50 files to delete.');
+      return;
+    }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = browser.dataset.bulkDeleteUrl;
+    const token = document.createElement('input');
+    token.type = 'hidden'; token.name = '_token'; token.value = browser.dataset.bulkDeleteToken;
+    form.appendChild(token);
+    for (const id of selected.keys()) {
+      const field = document.createElement('input');
+      field.type = 'hidden'; field.name = 'files[]'; field.value = id;
+      form.appendChild(field);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  });
   linkButton?.addEventListener('click', () => submitBulkDuplicate('bulk_link'));
 
   copyButton?.addEventListener('click', async () => {
