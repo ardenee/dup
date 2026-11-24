@@ -21,3 +21,8 @@ composer.phar
 
 __pycache__/
 *.pyc
+
+# Local legacy configuration and historical original source; never publish.
+/config.local.php
+/orignal/
+/original/
