@@ -90,14 +90,15 @@ final class FileActionWorker
                     [$batchId]
                 );
                 $this->db->executeStatement(
-                    "UPDATE file_action_items SET state='verifying' WHERE batch_id=?",[$batchId]
+                    "UPDATE file_action_items SET state='processing' WHERE batch_id=?",[$batchId]
                 );
-                $this->jobs->event($jobId,'info','ACTION_VERIFICATION_STARTED',[
+                $this->jobs->event($jobId,'info','ACTION_FILE_CHECK_STARTED',[
                     'batch_id'=>$batchId,'target_path'=>$target
                 ]);
-                $this->verify($current,$size,$mtime,$digest,$jobId,$token,0);
-                $this->verify($survivorPath,(int)$survivor['size_bytes'],
-                    (int)$survivor['mtime_epoch'],$digest,$jobId,$token,1);
+                $this->jobs->progress($jobId,$token,'checking_files',0,3);
+                $this->fs->checkedStat($current,$size,$mtime);
+                $this->fs->checkedStat($survivorPath,
+                    (int)$survivor['size_bytes'],(int)$survivor['mtime_epoch']);
                 // No final survivor can be silently removed: verify it still exists.
                 $this->fs->checkedStat($survivorPath,
                     (int)$survivor['size_bytes'],(int)$survivor['mtime_epoch']);
@@ -119,10 +120,11 @@ final class FileActionWorker
                 $this->db->executeStatement(
                     "UPDATE file_action_items SET state='restoring' WHERE batch_id=?",[$batchId]
                 );
-                $this->jobs->event($jobId,'info','RESTORE_VERIFICATION_STARTED',[
+                $this->jobs->event($jobId,'info','RESTORE_FILE_CHECK_STARTED',[
                     'batch_id'=>$batchId,'target_path'=>$source
                 ]);
-                $this->verify($target,$size,$mtime,$digest,$jobId,$token,0);
+                $this->jobs->progress($jobId,$token,'checking_files',0,3);
+                $this->fs->checkedStat($target,$size,$mtime);
                 $from=$target;$to=$source;
             }
             // Final pre-move safety check. The destination is always private and unique.
@@ -168,34 +170,17 @@ final class FileActionWorker
         }
     }
 
-    private function verify(string $path,int $size,int $mtime,string $digest,
-        int $jobId,string $token,int $step): void
-    {
-        $this->jobs->progress($jobId,$token,'verifying_sha256',$step,3);
-        $last=time();
-        $this->fs->verifyDigest($path,$size,$mtime,$digest,function() use (
-            $jobId,$token,$step,&$last
-        ): void {
-            if(time()-$last>=2) {
-                $this->jobs->progress($jobId,$token,'verifying_sha256',$step,3);
-                $last=time();
-            }
-        });
-    }
-
     private function finish(array $job,array $row,bool $restoring): void
     {
         $jobId=(int)$job['id'];
         $token=(string)$job['worker_token'];
         $batchId=(int)$row['batch_id'];
         $entryId=(int)$row['file_entry_id'];
-        $profileId=(int)$row['profile_id'];
-        $runId=(int)$row['run_id'];
         $newFlag=$restoring?null:'QUARANTINED';
         $itemState=$restoring?'restored':'quarantined';
         $batchState=$restoring?'restored':'completed';
         $this->db->transactional(function(Connection $db) use (
-            $jobId,$token,$batchId,$entryId,$profileId,$runId,$newFlag,
+            $jobId,$token,$batchId,$entryId,$newFlag,
             $itemState,$batchState,$restoring,$row
         ): void {
             $this->jobs->assertRunning($jobId,$token);
@@ -221,17 +206,11 @@ final class FileActionWorker
                     $restoring?'file-restore':'file-action',$token]
             );
             if($finished!==1) throw new LostLease('Worker job lease changed before committing.','DUP-FILE-ACTION-LEASE-101');
-            $db->insert('jobs',[
-                'kind'=>'rebuild-duplicates','profile_id'=>$profileId,
-                'active_profile_id'=>$profileId,'run_id'=>$runId,
-                'state'=>'queued','phase'=>'waiting','progress_current'=>'0',
-                'created_at'=>gmdate('Y-m-d H:i:s'),'attempts'=>0
-            ]);
             $this->actions->audit((int)$row['actor_id'],
                 $restoring?'FILE_RESTORED':'FILE_QUARANTINED',$batchId,'completed',
-                ['file_entry_id'=>$entryId,'rebuild_job_id'=>(int)$db->lastInsertId()]);
+                ['file_entry_id'=>$entryId]);
             $this->jobs->event($jobId,'info',$restoring?'RESTORE_COMPLETED':'QUARANTINE_COMPLETED',[
-                'batch_id'=>$batchId,'rebuild_queued'=>true
+                'batch_id'=>$batchId
             ]);
         });
     }

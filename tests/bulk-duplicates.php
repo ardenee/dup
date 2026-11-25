@@ -88,7 +88,8 @@ try {
         'Quarantine status incomplete');
     assertBulk((string)$db->fetchOne('SELECT state FROM file_action_batches WHERE id=?',[$batch])==='completed',
         'Bulk quarantine batch incomplete');
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
+    assertBulk((int)$db->fetchOne("SELECT COUNT(*) FROM jobs WHERE kind='rebuild-duplicates'")===0,
+        'Bulk quarantine triggered duplicate group rebuilding.');
     $restore=$service->restore($batch,1);
     $job=$jobs->claimNext($restore);
     assertBulk($job && $job['kind']==='bulk-restore','Bulk restore was not queued');
@@ -97,7 +98,6 @@ try {
         file_get_contents($source.'/B.mp3')===$content,'Restore failed for one or more files');
     assertBulk((string)$db->fetchOne('SELECT state FROM file_action_batches WHERE id=?',[$batch])==='restored',
         'Restored bulk batch state incorrect');
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
 
     // The link operation must retain the original in a private backup and
     // refuse to replace the designated unselected survivor.
@@ -113,7 +113,6 @@ try {
         assertBulk(file_get_contents($item['target_path'])===$content,'Link backup missing or changed');
     assertBulk(is_file($source.'/C.mp3') && !is_link($source.'/C.mp3'),
         'Link survivor was unexpectedly replaced');
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
     $unlinkJob=$service->restore($linkBatch,1);
     assertBulk($jobs->requestCancel($unlinkJob),'Queued bulk restore could not be cancelled');
     assertBulk((string)$db->fetchOne('SELECT state FROM file_action_batches WHERE id=?',[$linkBatch])==='partial',
@@ -128,7 +127,6 @@ try {
             file_get_contents($source.'/'.$name)===$content,'Bulk unlink failed: '.$name);
     assertBulk((string)$db->fetchOne('SELECT state FROM file_action_batches WHERE id=?',[$linkBatch])==='restored',
         'Bulk link was not restored');
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
 
     // A stale file is rejected independently while unaffected selected files
     // may proceed safely, producing a partial batch with selective restore.
@@ -143,7 +141,6 @@ try {
     assertBulk(!file_exists($source.'/B.mp3'),'Unaffected batch item did not complete');
     assertBulk((string)$db->fetchOne('SELECT state FROM file_action_batches WHERE id=?',[$partial])==='partial',
         'Partial failure state missing');
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
     $partialRestore=$service->restore($partial,1);
     $worker->run($jobs->claimNext($partialRestore));
     assertBulk(file_get_contents($source.'/A.mp3')==='changed file content' &&
@@ -154,7 +151,6 @@ try {
     file_put_contents($source.'/A.mp3',$content);
     touch($source.'/A.mp3',(int)$db->fetchOne('SELECT mtime_epoch FROM file_entries WHERE id=1'));
     clearstatcache(true,$source.'/A.mp3');
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
     $cancelBatch=$service->plan([2],1,'bulk_quarantine');
     $queued=$service->confirm($cancelBatch,1);
     assertBulk($jobs->requestCancel($queued),'Queued bulk quarantine could not be cancelled');

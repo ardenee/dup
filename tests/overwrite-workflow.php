@@ -92,7 +92,6 @@ try {
     assertOverwrite(!file_exists($backup),'Temporary overwritten destination was not cleaned up.');
     assertOverwrite((string)$db->fetchOne('SELECT state FROM file_action_batches WHERE id=?',[$batch])==='completed',
         'Overwritten move not marked complete.');
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
     $restoreJob=$moves->restore($batch,7);
     $moveWorker->run($jobs->claimNext($restoreJob));
     assertOverwrite(file_get_contents($from)===$new && !file_exists($to),
@@ -100,7 +99,6 @@ try {
     // Overwrite is permanent: restoring a move does not resurrect the old destination.
     assertOverwrite(!file_exists($backup),'Old destination was secretly retained.');
 
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
     // Failure after the destination is backed up must restore both files.
     file_put_contents($to,$old);
     $failureBatch=$moves->plan([1],7);
@@ -160,8 +158,8 @@ try {
         'Previous target index entry still claims to be valid.');
     assertOverwrite((string)$db->fetchOne('SELECT filename FROM file_entries WHERE id=2')===$targetFilename,
         'Renamed source index record not updated.');
-    assertOverwrite((int)$db->fetchOne("SELECT COUNT(*) FROM jobs WHERE kind='rebuild-duplicates'")===3,
-        'Renamed duplicate groups were not queued for recalculation.');
+    assertOverwrite((int)$db->fetchOne("SELECT COUNT(*) FROM jobs WHERE kind='rebuild-duplicates'")===0,
+        'An overwrite, move or rename queued an unrequested duplicate rebuild.');
     echo "PASS Move and Rename Overwrite: approved existing targets, staged rollback backup, permanent replacement, index and restore\n";
 } finally {
     foreach([$source,$destination] as $dir) {

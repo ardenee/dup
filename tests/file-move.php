@@ -96,10 +96,11 @@ try {
         'Move batch did not complete');
     checkMove((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action='FILE_MOVED'")===1,
         'Move audit event missing');
-    $digest=(string)$db->fetchOne('SELECT expected_sha256 FROM file_action_items WHERE batch_id=?',[$batch]);
-    checkMove(hash_equals(hash_file('sha256',$destination),$digest),'Full SHA-256 missing');
-    // The standard background worker would now process the duplicate recalculation.
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
+    $digest=$db->fetchOne('SELECT expected_sha256 FROM file_action_items WHERE batch_id=?',[$batch]);
+    checkMove($digest===null || $digest==='',
+        'Moving an indexed file unexpectedly generated a full SHA-256 digest.');
+    checkMove((int)$db->fetchOne("SELECT COUNT(*) FROM jobs WHERE kind='rebuild-duplicates'")===0,
+        'Moving a file triggered an unrequested duplicate rebuild.');
     $restoreJob=$service->restore($batch,1);
     checkMove($restoreJob>0,'No restore job queued');
     $job=$jobs->claimNext($restoreJob);
@@ -117,7 +118,6 @@ try {
 
     // Legacy "Append Number" must be resolved in the preview and must not
     // replace either existing files or the original during execution.
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
     file_put_contents($destination,'KEEP EXISTING');
     $db->update('scan_profiles',['file_exists_policy'=>ActionSettings::NUMBER],['id'=>1]);
     $numbered=$service->plan([1],1);
@@ -134,7 +134,6 @@ try {
         'Numbered move did not execute');
     checkMove(file_get_contents($destination)==='KEEP EXISTING',
         'Existing target was overwritten by numbered move');
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
     $secondRestore=$service->restore($numbered,1);
     $job=$jobs->claimNext($secondRestore);
     checkMove($job!==null,'Numbered restore job was not claimed');
@@ -145,7 +144,6 @@ try {
         'Restore changed the original destination');
 
     // Missing referenced scan records must never turn an approved move into 0/0.
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
     $missingBatch=$service->plan([1],1);
     $missingJob=$service->confirm($missingBatch,1);
     $db->delete('file_entries',['id'=>1]);

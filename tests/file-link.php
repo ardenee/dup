@@ -88,7 +88,8 @@ try {
         'Index did not mark file linked');
     checkLink((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action='FILE_LINK_CREATED'")===1,
         'Link creation audit missing');
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
+    checkLink((int)$db->fetchOne("SELECT COUNT(*) FROM jobs WHERE kind='rebuild-duplicates'")===0,
+        'Linking or unlinking queued an unsolicited duplicate rebuild.');
     $undoJob=$actions->restore($batch,1);
     $claimed=$jobs->claimNext($undoJob);
     checkLink($claimed && $claimed['kind']==='file-unlink','Wrong restore job claimed');
@@ -105,7 +106,6 @@ try {
         'Link restore audit missing');
     // Existing quarantine and restore workflows must still work with the
     // shared action planner after the link support was added.
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
     $quarantine=$actions->plan(1,1);
     checkLink($actions->find($quarantine)['action_kind']==='quarantine','Quarantine plan changed kind');
     $qJob=$actions->confirm($quarantine,1);
@@ -115,7 +115,6 @@ try {
     checkLink(!file_exists($original),'Quarantine did not move original');
     checkLink((string)$db->fetchOne('SELECT error_code FROM file_entries WHERE id=1')==='QUARANTINED',
         'Quarantine status missing');
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
     $qUndo=$actions->restore($quarantine,1);
     $claimed=$jobs->claimNext($qUndo);
     checkLink($claimed && $claimed['kind']==='file-restore','Quarantine restore job kind changed');
@@ -123,7 +122,6 @@ try {
     checkLink(file_get_contents($original)===$contents,'Quarantined original could not be restored');
     checkLink($db->fetchOne('SELECT error_code FROM file_entries WHERE id=1')===null,
         'Quarantine restore did not clear scan status');
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
     // Candidate CRC32 groups must never replace a file with a link.
     $db->executeStatement('UPDATE duplicate_groups SET rules_version=2 WHERE id=1');
     try {$actions->plan(1,1,'link');throw new RuntimeException('CRC32-only link was approved');}

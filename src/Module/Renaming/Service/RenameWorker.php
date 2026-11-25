@@ -38,7 +38,7 @@ final class RenameWorker
         $items=$this->db->fetchAllAssociative(
             'SELECT * FROM file_action_items WHERE batch_id=? ORDER BY id',[$batchId]
         );
-        $total=count($items);$success=0;$errors=0;$anyOverwritten=false;
+        $total=count($items);$success=0;$errors=0;
         try {
             $this->jobs->assertRunning($id,$token);
             if($total<1 || ($job['progress_total']!==null && (int)$job['progress_total']!==$total)) {
@@ -142,7 +142,6 @@ final class RenameWorker
                             throw $ex;
                         }
                     }
-                    if($overwriteStaged) $anyOverwritten=true;
                     $success++;
                 } catch(\Throwable $ex) {
                     if($published) throw $ex;
@@ -186,7 +185,7 @@ final class RenameWorker
                 $this->jobs->progress($id,$token,'renaming',$success+$errors,$total);
             }
             $this->db->transactional(function(Connection $db) use (
-                $id,$token,$batchId,$success,$errors,$total,$anyOverwritten
+                $id,$token,$batchId,$success,$errors,$total
             ):void {
                 $this->jobs->assertRunning($id,$token);
                 $now=gmdate('Y-m-d H:i:s');
@@ -201,15 +200,6 @@ final class RenameWorker
                     [$total,$total,$now,$now,$id,$token]
                 );
                 if($changed!==1) throw new LostLease('Rename worker job lease changed.','DUP-RENAME-LEASE-101');
-                if($anyOverwritten) {
-                    $profile=$db->fetchAssociative('SELECT profile_id,run_id FROM jobs WHERE id=?',[$id]);
-                    $db->insert('jobs',[
-                        'kind'=>'rebuild-duplicates','profile_id'=>$profile['profile_id'],
-                        'active_profile_id'=>$profile['profile_id'],'run_id'=>$profile['run_id'],
-                        'state'=>'queued','phase'=>'waiting','progress_current'=>0,
-                        'created_at'=>$now,'attempts'=>0
-                    ]);
-                }
                 $this->jobs->event($id,'info','RENAME_BATCH_COMPLETE',[
                     'batch_id'=>$batchId,'renamed'=>$success,'failed'=>$errors
                 ]);

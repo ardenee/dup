@@ -132,6 +132,8 @@ try {
         (int)$completed['progress_current']===161 &&
         (int)$completed['progress_total']===161,
         '161-file deletion did not finish with 161 / 161 progress.');
+    ensureLarge((int)$db->fetchOne("SELECT COUNT(*) FROM jobs WHERE kind='rebuild-duplicates'")===0,
+        '161-file deletion queued an unrequested duplicate rebuild.');
     ensureLarge((int)$db->fetchOne("SELECT COUNT(*) FROM file_action_items WHERE batch_id=? AND state='deleted'",[$deleteBatch])===161,
         'Some files were not deleted or were silently skipped.');
     ensureLarge(!file_exists($source.'/Track_0161.mp3') &&

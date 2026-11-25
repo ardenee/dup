@@ -107,6 +107,6 @@ def build(target: Path) -> None:
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
-    parser.add_argument("--output",type=Path,default=ROOT/"dist"/"DUP-Web-0.7.23.zip")
+    parser.add_argument("--output",type=Path,default=ROOT/"dist"/"DUP-Web-0.7.24.zip")
     args=parser.parse_args()
     build(args.output)

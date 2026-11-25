@@ -80,14 +80,32 @@ try {
         'Deletion status not stored per file.');
     assertDelete((string)$db->fetchOne('SELECT state FROM file_action_batches WHERE id=?',[$batchId])==='completed',
         'Completed delete batch status missing.');
-    assertDelete((int)$db->fetchOne("SELECT COUNT(*) FROM jobs WHERE kind='rebuild-duplicates'")===1,
-        'Duplicate group rebuild not queued after deleting files.');
+    assertDelete((int)$db->fetchOne("SELECT COUNT(*) FROM jobs WHERE kind='rebuild-duplicates'")===0,
+        'Deletion must not start duplicate scanning or group rebuilding.');
     assertDelete((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action='FILE_DELETED'")===13,
         'Individual file deletions not audited.');
     assertDelete((int)$db->fetchOne("SELECT COUNT(*) FROM file_entries WHERE error_code='DELETED'")===13,
         'Deleted scan entries still show as available.');
-    // Clear the deliberately pending rebuild job, then verify stale-file protection.
-    $db->executeStatement("UPDATE jobs SET state='completed',active_profile_id=NULL WHERE kind='rebuild-duplicates'");
+    // A content hash stored in the scan is not reread during an approved delete.
+    // Metadata and selected-path checks remain mandatory.
+    $fastFile=$root.'/FastDelete.mp3';
+    file_put_contents($fastFile,str_repeat('FAST',1024));
+    $db->insert('file_entries',[
+        'id'=>16,'run_id'=>1,'directory_id'=>1,'filename'=>'FastDelete.mp3',
+        'size_bytes'=>filesize($fastFile),'mtime_epoch'=>filemtime($fastFile),
+        'hash_method'=>'sha256','hash_value'=>str_repeat('0',64),
+        'error_code'=>null,'is_symlink'=>0
+    ]);
+    $db->insert('duplicate_group_members',['id'=>16,'group_id'=>1,'file_entry_id'=>16]);
+    $fastBatch=$service->plan([16],8);
+    $fastJob=$service->confirm($fastBatch,8);
+    $worker->run($jobs->claimNext($fastJob));
+    assertDelete(!file_exists($fastFile) &&
+        (string)$db->fetchOne('SELECT state FROM file_action_batches WHERE id=?',[$fastBatch])==='completed',
+        'Delete performed an unrequested full-file digest verification.');
+    assertDelete((int)$db->fetchOne("SELECT COUNT(*) FROM jobs WHERE kind='rebuild-duplicates'")===0,
+        'Fast deletion triggered an implicit duplicate rebuild.');
+    // Continue verifying size/mtime changes are still rejected.
     $file=$root.'/D.mp3';
     file_put_contents($file,$payload);
     $db->insert('file_entries',[

@@ -19,7 +19,6 @@ try {
     file_put_contents($source,$sourceContent);
     $size=filesize($source);
     $mtime=filemtime($source);
-    $digest=hash_file('sha256',$source);
     $fs=new SafeFileSystem(new DirectoryBrowser());
 
     refuseFs(static fn()=>$fs->checkedPath($root,'../original.bin'),'Parent traversal accepted');
@@ -27,9 +26,6 @@ try {
     refuseFs(static fn()=>$fs->checkedPath($root,'sub\\original.bin'),'Backslash traversal accepted');
     refuseFs(static fn()=>$fs->checkedPath($root,'missing.bin'),'Missing input accepted');
     $fs->checkedStat($source,$size,$mtime);
-    $fs->verifyDigest($source,$size,$mtime,$digest,static function():void {});
-    refuseFs(static fn()=>$fs->verifyDigest($source,$size,$mtime,str_repeat('0',64),static function():void {}),
-        'Mismatched full SHA-256 was accepted');
     refuseFs(static fn()=>$fs->checkedStat($source,$size+1,$mtime),'Stale file size accepted');
     refuseFs(static fn()=>$fs->checkedStat($source,$size,$mtime+100),'Stale file modification time accepted');
     $fs->requireSameDevice($source,$root);
@@ -70,7 +66,7 @@ try {
         } finally { @rmdir($outside); }
     }
     checkFs(file_get_contents($source)==='FRESH CONTENT','Safety checks modified the source');
-    echo "PASS filesystem safety: traversal, stale size/mtime, digest, collisions, no overwrite, same-device checks; ".
+    echo "PASS filesystem safety: traversal, stale size/mtime, collisions, no overwrite, same-device checks; ".
         ($symlinkTested?'symlink refusal verified':'symlink checks skipped (host privilege unavailable)')."\n";
 }finally{
     foreach(new FilesystemIterator($root,FilesystemIterator::SKIP_DOTS) as $entry){

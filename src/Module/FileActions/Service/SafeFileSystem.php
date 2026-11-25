@@ -54,36 +54,6 @@ final class SafeFileSystem
         return $stat;
     }
 
-    /** Re-hashes the entire file just before a move/restore; detects changes during reading. */
-    public function verifyDigest(
-        string $path,int $size,int $mtime,string $expected,callable $checkpoint
-    ): array {
-        $before=$this->checkedStat($path,$size,$mtime);
-        $stream=@fopen($path,'rb');
-        if(!$stream) throw new \DomainException('File cannot be opened for verification.');
-        try {
-            $hash=hash_init('sha256');$seen=0;
-            while(!feof($stream)) {
-                $chunk=fread($stream,1024*1024);
-                if($chunk===false || ($chunk==='' && !feof($stream)))
-                    throw new \RuntimeException('Error reading file during SHA-256 verification.');
-                if($chunk==='') break;
-                hash_update($hash,$chunk);
-                $seen+=strlen($chunk);
-                $checkpoint();
-            }
-            $actual=hash_final($hash);
-        } finally {
-            fclose($stream);
-        }
-        $after=$this->checkedStat($path,$size,$mtime);
-        if($seen!==$size || (string)$before['dev']!==(string)$after['dev'] ||
-           (string)$before['ino']!==(string)$after['ino'] ||
-           !hash_equals(strtolower($expected),strtolower($actual)))
-            throw new \DomainException('File does not match its verified SHA-256 scan record.');
-        return $after;
-    }
-
     public function requireSameDevice(string $source,string $targetRoot): void
     {
         $sourceStat=@stat($source);

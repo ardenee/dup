@@ -4,7 +4,6 @@ namespace App\Module\FileActions\Service;
 
 use App\Module\Jobs\Service\JobStore;
 use App\Module\Jobs\Service\LostLease;
-use App\Module\Scans\Service\FileHasher;
 use Doctrine\DBAL\Connection;
 
 /** Unlinks only the exact files confirmed in a delete batch. */
@@ -65,14 +64,6 @@ final class FileDeletionWorker
                     throw new \DomainException('File location changed after confirmation.');
                 $size=(int)$item['expected_size'];$mtime=(int)$item['expected_mtime'];
                 $before=$this->fs->checkedStat($source,$size,$mtime);
-                $digest=(string)($item['expected_sha256']??'');
-                if(preg_match('/^[a-f0-9]{64}$/i',$digest)) {
-                    $actual=FileHasher::digest($source,'sha256',$size,$mtime,
-                        fn()=>$this->jobs->assertRunning($jobId,$token)
-                    );
-                    if(!hash_equals(strtolower($digest),strtolower($actual)))
-                        throw new \DomainException('Source contents differ from the approved verified copy.');
-                }
                 $this->jobs->assertRunning($jobId,$token);
                 $last=$this->fs->checkedStat($source,$size,$mtime);
                 if((string)$last['dev']!==(string)$before['dev'] ||
@@ -150,14 +141,6 @@ final class FileDeletionWorker
                 [$now,$now,$done+$failed,count($items),$jobId,$token]
             );
             if($updated!==1) throw new LostLease('Deletion job lost its worker lease.','DUP-DELETE-LEASE-101');
-            if($done>0) {
-                $db->insert('jobs',[
-                    'kind'=>'rebuild-duplicates','profile_id'=>$job['profile_id'],
-                    'active_profile_id'=>$job['profile_id'],'run_id'=>$job['run_id'],
-                    'state'=>'queued','phase'=>'waiting','progress_current'=>0,
-                    'created_at'=>$now,'attempts'=>0
-                ]);
-            }
             $this->jobs->event($jobId,'info','DELETE_BATCH_FINISHED',[
                 'deleted'=>$done,'failed'=>$failed,'irreversible'=>true
             ]);

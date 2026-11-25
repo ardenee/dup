@@ -92,7 +92,7 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>DUP 0.7.23 · First-run setup</title>
+  <title>DUP 0.7.24 · First-run setup</title>
   <link rel="stylesheet" href="assets/app.css">
   <link rel="icon" type="image/png" sizes="120x120" href="assets/dup.png">
 </head>
@@ -170,7 +170,7 @@ $ready=$preflight && $preflight['missing']===[] && ($preflight['mysql'] || $pref
     <p class="muted">This action creates the database if needed, initializes the schema and administrator account, writes a private configuration file, then permanently closes the installer.</p>
   </form>
 <?php endif; ?>
-<footer class="app-footer">DUP 0.7.23 · <a href="assets/license.txt">MIT License</a></footer>
+<footer class="app-footer">DUP 0.7.24 · <a href="assets/license.txt">MIT License</a></footer>
 </div>
 </body>
 </html>

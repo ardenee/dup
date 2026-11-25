@@ -92,17 +92,15 @@ final class FileLinkWorker
                     [$batchId]
                 );
                 $this->db->executeStatement(
-                    "UPDATE file_action_items SET state='verifying' WHERE id=?",
+                    "UPDATE file_action_items SET state='processing' WHERE id=?",
                     [(int)$row['item_id']]
                 );
-                $this->jobs->progress($id,$token,'verifying_sha256',0,4);
+                $this->jobs->progress($id,$token,'checking_files',0,4);
                 $current=$this->fs->checkedPath($directory,(string)$row['filename']);
-                $checkpoint=fn()=>$this->jobs->assertRunning($id,$token);
-                $this->fs->verifyDigest($current,$size,$mtime,$digest,$checkpoint);
-                $this->jobs->progress($id,$token,'verifying_sha256',1,4);
-                $this->fs->verifyDigest($currentSurvivor,
-                    (int)$survivorRow['size_bytes'],(int)$survivorRow['mtime_epoch'],
-                    $digest,$checkpoint);
+                $this->fs->checkedStat($current,$size,$mtime);
+                $this->jobs->progress($id,$token,'checking_files',1,4);
+                $this->fs->checkedStat($currentSurvivor,
+                    (int)$survivorRow['size_bytes'],(int)$survivorRow['mtime_epoch']);
                 $this->jobs->progress($id,$token,'creating_link',2,4);
                 $this->fs->prepareQuarantine($moveRoot,$batchId,$entryId);
                 $this->jobs->assertRunning($id,$token);
@@ -131,8 +129,7 @@ final class FileLinkWorker
                     [(int)$row['item_id']]
                 );
                 $this->jobs->progress($id,$token,'restoring_link',0,3);
-                $this->fs->verifyDigest($backup,$size,$mtime,$digest,
-                    fn()=>$this->jobs->assertRunning($id,$token));
+                $this->fs->checkedStat($backup,$size,$mtime);
                 if(!is_link($source) || (string)@readlink($source)!==$survivor)
                     throw new \DomainException('Link was changed during verification.');
                 $this->jobs->assertRunning($id,$token);
@@ -170,17 +167,11 @@ final class FileLinkWorker
                     [$restoring?3:4,$restoring?3:4,gmdate('Y-m-d H:i:s'),gmdate('Y-m-d H:i:s'),$id,$token]
                 );
                 if($finished!==1) throw new LostLease('Link job lease was lost.','DUP-LINK-LEASE-101');
-                $db->insert('jobs',[
-                    'kind'=>'rebuild-duplicates','profile_id'=>(int)$row['profile_id'],
-                    'active_profile_id'=>(int)$row['profile_id'],
-                    'run_id'=>(int)$row['run_id'],'state'=>'queued','phase'=>'waiting',
-                    'progress_current'=>'0','created_at'=>gmdate('Y-m-d H:i:s'),'attempts'=>0
-                ]);
                 $this->actions->audit((int)$row['actor_id'],
                     $restoring?'FILE_LINK_RESTORED':'FILE_LINK_CREATED',
                     $batchId,'completed',['file_entry_id'=>$entryId]);
                 $this->jobs->event($id,'info',$restoring?'LINK_RESTORE_COMPLETED':'LINK_CREATED',[
-                    'batch_id'=>$batchId,'rebuild_queued'=>true
+                    'batch_id'=>$batchId
                 ]);
             });
             $backedUp=false;$linked=false;$unlinked=false;$restored=false;

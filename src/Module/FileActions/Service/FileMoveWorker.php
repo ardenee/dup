@@ -101,9 +101,9 @@ final class FileMoveWorker
                         $current=$this->fs->checkedPath($directory,(string)$item['filename']);
                         $this->fs->checkedStat($current,$size,$mtime);
                         $this->fs->requireSameDevice($current,$moveRoot);
-                        // Hash even fast-CRC scan entries before moving, so
-                        // restoration cannot silently return modified content.
-                        $digest=$this->digest($current,$size,$mtime,$jobId,$token);
+                        // Atomic same-device move: preserve recorded scan evidence,
+                        // but do not re-hash file contents as a side effect.
+                        $digest=$item['expected_sha256']===null?null:(string)$item['expected_sha256'];
                         $this->paths->ensureParent($moveRoot,$target);
                         $from=$current;$to=$target;
                         if($overwriteBackup!=='') {
@@ -119,14 +119,9 @@ final class FileMoveWorker
                     } else {
                         if($item['file_error']!=='MOVED')
                             throw new \DomainException('The file is no longer recorded as moved.');
-                        $digest=(string)$item['expected_sha256'];
-                        if(!preg_match('/^[a-f0-9]{64}$/i',$digest))
-                            throw new \DomainException('Move verification evidence is missing.');
+                        $digest=$item['expected_sha256']===null?null:(string)$item['expected_sha256'];
                         $this->paths->ensureParent($moveRoot,$target);
                         $this->fs->checkedStat($target,$size,$mtime);
-                        $this->fs->verifyDigest($target,$size,$mtime,$digest,
-                            fn()=>$this->jobs->assertRunning($jobId,$token)
-                        );
                         if(file_exists($source) || is_link($source))
                             throw new \DomainException('The original path is occupied; restore cannot overwrite it.');
                         $this->fs->requireSameDevice($target,$directory);
@@ -243,15 +238,6 @@ final class FileMoveWorker
                     [$now,$now,$jobId,$token]
                 );
                 if($updated!==1) throw new LostLease('Move worker job lease was lost.','DUP-MOVE-LEASE-101');
-                if($success>0) {
-                    $db->insert('jobs',[
-                        'kind'=>'rebuild-duplicates','profile_id'=>(int)$job['profile_id'],
-                        'active_profile_id'=>(int)$job['profile_id'],
-                        'run_id'=>(int)$job['run_id'],
-                        'state'=>'queued','phase'=>'waiting','progress_current'=>'0',
-                        'created_at'=>$now,'attempts'=>0
-                    ]);
-                }
                 $this->jobs->event($jobId,'info','MOVE_BATCH_FINISHED',[
                     'batch_id'=>$batchId,'restoring'=>$restoring,
                     'completed'=>$success,'failed'=>$failures
@@ -268,33 +254,5 @@ final class FileMoveWorker
         }
     }
 
-    private function digest(string $path,int $size,int $mtime,int $jobId,string $token): string
-    {
-        $before=$this->fs->checkedStat($path,$size,$mtime);
-        $handle=@fopen($path,'rb');
-        if(!$handle) throw new \DomainException('Cannot open the file before moving.');
-        $digest=hash_init('sha256');$bytes=0;$last=time();
-        try {
-            $start=@fstat($handle);
-            if(!is_array($start) || (string)$start['ino']!==(string)$before['ino'])
-                throw new \DomainException('File changed after opening.');
-            while(!feof($handle)) {
-                $chunk=fread($handle,1048576);
-                if($chunk===false || ($chunk==='' && !feof($handle)))
-                    throw new \RuntimeException('Unable to read the full file before moving.');
-                if($chunk==='') break;
-                hash_update($digest,$chunk);
-                $bytes+=strlen($chunk);
-                if(time()-$last>=2) {
-                    $this->jobs->assertRunning($jobId,$token);
-                    $last=time();
-                }
-            }
-        } finally {fclose($handle);}
-        $after=$this->fs->checkedStat($path,$size,$mtime);
-        if($bytes!==$size || (string)$before['ino']!==(string)$after['ino'] ||
-           (string)$before['dev']!==(string)$after['dev'])
-            throw new \DomainException('The file changed while being verified.');
-        return hash_final($digest);
-    }
+
 }

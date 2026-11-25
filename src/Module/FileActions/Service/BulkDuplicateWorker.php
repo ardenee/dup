@@ -8,7 +8,7 @@ use Doctrine\DBAL\Connection;
 
 /**
  * One leased job per approved bulk batch, with no arbitrary file count cap. Each item
- * is verified and audited independently; safe per-file failures remain visible.
+ * is checked against its approved metadata and audited independently.
  * Any filesystem rollback failure stops processing for manual recovery.
  */
 final class BulkDuplicateWorker
@@ -77,11 +77,11 @@ final class BulkDuplicateWorker
                 'UPDATE file_action_batches SET state=? WHERE id=?',
                 [$restoring?'restore_executing':'executing',$batchId]
             );
-            $this->jobs->progress($jobId,$token,$restoring?'restoring':'verifying',0,$total);
+            $this->jobs->progress($jobId,$token,$restoring?'restoring':'processing',0,$total);
             foreach($work as $item) {
                 $this->jobs->assertRunning($jobId,$token);
                 try {
-                    $this->runItem($job,$batch,$item,$selected,$link,$restoring,$succeeded,$total);
+                    $this->runItem($job,$batch,$item,$selected,$link,$restoring);
                     $succeeded++;
                 } catch(\Throwable $ex) {
                     if($ex instanceof BulkRecoveryRequired) throw $ex;
@@ -122,15 +122,6 @@ final class BulkDuplicateWorker
                     [$total,$total,$now,$now,$jobId,$token,'running']
                 );
                 if($changed!==1) throw new LostLease('Bulk job lease was lost.','DUP-BULK-LEASE-101');
-                if($succeeded>0) {
-                    $db->insert('jobs',[
-                        'kind'=>'rebuild-duplicates','profile_id'=>(int)$batch['profile_id'],
-                        'active_profile_id'=>(int)$batch['profile_id'],
-                        'run_id'=>(int)$job['run_id'],'state'=>'queued',
-                        'phase'=>'waiting','progress_current'=>0,
-                        'created_at'=>$now,'attempts'=>0
-                    ]);
-                }
                 $this->audit->audit((int)$batch['actor_id'],
                     $restoring?'BULK_DUPLICATES_RESTORED':'BULK_DUPLICATES_PROCESSED',
                     $batchId,$state,['successful'=>$succeeded,'failed'=>$failed]);
@@ -153,7 +144,7 @@ final class BulkDuplicateWorker
 
     private function runItem(
         array $job,array $batch,array $item,array $selected,
-        bool $link,bool $restoring,int $completed,int $total
+        bool $link,bool $restoring
     ):void {
         $jobId=(int)$job['id'];$token=(string)$job['worker_token'];
         $batchId=(int)$batch['id'];
@@ -213,12 +204,12 @@ final class BulkDuplicateWorker
                 $file=$this->fs->checkedPath($directory,(string)$item['filename']);
                 $this->fs->requireSameDevice($file,$moveRoot);
                 $this->db->executeStatement(
-                    "UPDATE file_action_items SET state='verifying' WHERE id=? AND state='planned'",
+                    "UPDATE file_action_items SET state='processing' WHERE id=? AND state='planned'",
                     [(int)$item['id']]
                 );
-                $this->verify($file,$size,$mtime,$digest,$jobId,$token,$completed,$total);
-                $this->verify($survivorPath,(int)$other['size_bytes'],
-                    (int)$other['mtime_epoch'],$digest,$jobId,$token,$completed,$total);
+                $this->fs->checkedStat($file,$size,$mtime);
+                $this->fs->checkedStat($survivorPath,
+                    (int)$other['size_bytes'],(int)$other['mtime_epoch']);
                 $this->fs->checkedStat($survivorPath,
                     (int)$other['size_bytes'],(int)$other['mtime_epoch']);
                 $this->fs->prepareQuarantine($moveRoot,$batchId,$entryId);
@@ -251,7 +242,7 @@ final class BulkDuplicateWorker
                     "UPDATE file_action_items SET state='restoring' WHERE id=?",
                     [(int)$item['id']]
                 );
-                $this->verify($backup,$size,$mtime,$digest,$jobId,$token,$completed,$total);
+                $this->fs->checkedStat($backup,$size,$mtime);
                 if($link) {
                     if(!is_link($source) || (string)@readlink($source)!==$survivor ||
                        !@unlink($source))
@@ -314,19 +305,5 @@ final class BulkDuplicateWorker
         }
     }
 
-    private function verify(
-        string $path,int $size,int $mtime,string $sha,int $jobId,string $token,
-        int $completed,int $total
-    ):void {
-        $last=time();
-        $this->fs->verifyDigest($path,$size,$mtime,$sha,function() use (
-            $jobId,$token,$completed,$total,&$last
-        ):void {
-            $this->jobs->assertRunning($jobId,$token);
-            if(time()-$last>=2) {
-                $this->jobs->progress($jobId,$token,'verifying_sha256',$completed,$total);
-                $last=time();
-            }
-        });
-    }
+
 }
