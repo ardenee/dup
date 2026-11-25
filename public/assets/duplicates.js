@@ -31,7 +31,7 @@ if (browser) {
   const moveButton = browser.querySelector('[data-dup-move]');
   const deleteButton = browser.querySelector('[data-dup-delete]');
   const deleteForm = browser.querySelector('[data-dup-delete-form]');
-  const deleteFields = deleteForm?.querySelector('[data-dup-delete-fields]');
+  const actionIds = [...browser.querySelectorAll('[data-dup-action-ids]')];
   const linkButton = browser.querySelector('[data-dup-link]');
   const clearButton = browser.querySelector('[data-dup-clear-selection]');
   const selectedCount = browser.querySelector('[data-dup-selected-count]');
@@ -45,20 +45,11 @@ if (browser) {
     if (copyButton) copyButton.disabled = selected.size === 0;
     if (renameButton) renameButton.disabled = selected.size === 0;
     if (moveButton) moveButton.disabled = selected.size === 0;
-    if (deleteButton) deleteButton.disabled = selected.size === 0 || selected.size > 50;
-    // Keep a real POST form in sync with every checkbox. The bulk delete button
-    // uses native HTML form submission, not dynamically injected form.submit().
-    if (deleteFields) {
-      const fields = document.createDocumentFragment();
-      for (const id of selected.keys()) {
-        const field = document.createElement('input');
-        field.type = 'hidden';
-        field.name = 'files[]';
-        field.value = id;
-        fields.appendChild(field);
-      }
-      deleteFields.replaceChildren(fields);
-    }
+    if (deleteButton) deleteButton.disabled = selected.size === 0;
+    // Single compact field per form: prevents max_input_vars from silently
+    // truncating large batches, and uses native browser form submission.
+    const csv = [...selected.keys()].join(',');
+    actionIds.forEach(field => { field.value = csv; });
     if (linkButton) linkButton.disabled = selected.size === 0;
     if (clearButton) clearButton.disabled = selected.size === 0;
   }
@@ -176,29 +167,27 @@ if (browser) {
         tell('Unselect the first file in this group to preserve it as a survivor.');
         return;
       }
-      const visibleMatches = [...group.querySelectorAll('[data-dup-child] [data-dup-select]')];
-      const already = visibleMatches.filter(input => selected.has(input.value)).length;
-      if (total - 1 > 50 || selected.size + total - 1 - already > 50) {
-        tell('Select up to 50 duplicates. Clear other selections or choose files individually.');
-        return;
+      try {
+        // Obtain all eligible matches, even when members span multiple
+        // server-paginated pages. The first file remains unselected.
+        const response = await fetch(group.dataset.selectUrl, {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        if (!response.ok) throw new Error('Could not select every matching file. Refresh and try again.');
+        const result = await response.json();
+        if (!Array.isArray(result.files) || result.files.length !== total - 1)
+          throw new Error('Duplicate group changed. Refresh before selecting its matches.');
+        let added = 0;
+        for (const item of result.files) {
+          if (!selected.has(String(item.id))) added++;
+          selected.set(String(item.id), item.path);
+        }
+        restoreSelections(group);
+        tell('Selected ' + added + ' matching files; the first file remains unselected as the survivor.');
+      } catch (error) {
+        tell(error.message || 'Unable to select matching files.');
       }
-      await expand(group);
-      if (!expanded(group)) return;
-      const inputs = [...group.querySelectorAll('[data-dup-child] [data-dup-select]')];
-      if (inputs.length !== total - 1) {
-        tell('Not all matches were loaded. Use the group pager to select files individually.');
-        return;
-      }
-      if (selected.size + inputs.filter(input => !selected.has(input.value)).length > 50) {
-        tell('Your current selection exceeds the 50-file limit.');
-        return;
-      }
-      for (const input of inputs) {
-        input.checked = true;
-        selected.set(input.value, input.dataset.filePath);
-      }
-      syncSelected();
-      tell('Selected ' + inputs.length + ' matching files; the first file remains unselected as the survivor.');
       return;
     }
     const trigger = event.target.closest('[data-dup-toggle]');
@@ -242,16 +231,15 @@ if (browser) {
 
   browser.querySelector('[data-dup-select-visible]')?.addEventListener('click', () => {
     const boxes = [...browser.querySelectorAll('[data-dup-select]')].filter(box => !box.closest('tr').hidden);
-    const capacity = Math.max(0, 50 - selected.size);
     let added = 0;
     for (const box of boxes) {
-      if (selected.has(box.value) || added >= capacity) continue;
+      if (selected.has(box.value)) continue;
       box.checked = true;
       selected.set(box.value, box.dataset.filePath);
       added += 1;
     }
     syncSelected();
-    tell('Selected ' + added + ' additional visible files (maximum 50 per batch).');
+    tell('Selected ' + added + ' additional visible files.');
   });
   clearButton?.addEventListener('click', () => {
     selected.clear();
@@ -267,101 +255,23 @@ if (browser) {
       if (check.checked) selected.set(check.value, check.dataset.filePath);
       else selected.delete(check.value);
     });
-    if (selected.size > 50) {
-      // Copy can remain large; mutation routes still reject batches over 50.
-      tell('Selection contains more than 50 files; choose no more than 50 for a bulk action.');
-    } else {
-      tell('Selection inverted for the files currently visible.');
-    }
+    tell('Selection inverted for the files currently visible.');
     syncSelected();
   });
 
-  renameButton?.addEventListener('click', () => {
-    if (!selected.size) return;
-    if (selected.size > 50) {
-      tell('Select at most 50 files for a rename batch.');
-      return;
-    }
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = browser.dataset.bulkRenameUrl;
-    const token = document.createElement('input');
-    token.type = 'hidden';
-    token.name = '_token';
-    token.value = browser.dataset.bulkRenameToken;
-    form.appendChild(token);
-    for (const id of selected.keys()) {
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'files[]';
-      input.value = id;
-      form.appendChild(input);
-    }
-    document.body.appendChild(form);
-    form.submit();
-  });
-
-  moveButton?.addEventListener('click', () => {
-    if (!selected.size) return;
-    if (selected.size > 50) {
-      tell('Select at most 50 files for a move batch.');
-      return;
-    }
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = browser.dataset.bulkMoveUrl;
-    const token = document.createElement('input');
-    token.type = 'hidden';
-    token.name = '_token';
-    token.value = browser.dataset.bulkMoveToken;
-    form.appendChild(token);
-    for (const id of selected.keys()) {
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'files[]';
-      input.value = id;
-      form.appendChild(input);
-    }
-    document.body.appendChild(form);
-    form.submit();
-  });
-
-  function submitBulkDuplicate(kind) {
-    if (!selected.size || selected.size > 50) {
-      tell('Select between 1 and 50 files for a bulk action.');
-      return;
-    }
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = browser.dataset.bulkDuplicateUrl;
-    for (const [name, value] of [
-      ['_token', browser.dataset.bulkDuplicateToken],
-      ['action_kind', kind]
-    ]) {
-      const field = document.createElement('input');
-      field.type = 'hidden';
-      field.name = name;
-      field.value = value;
-      form.appendChild(field);
-    }
-    for (const id of selected.keys()) {
-      const field = document.createElement('input');
-      field.type = 'hidden';
-      field.name = 'files[]';
-      field.value = id;
-      form.appendChild(field);
-    }
-    document.body.appendChild(form);
-    form.submit();
+  // Native forms share the same selected IDs. Every action still opens its
+  // corresponding preview before any file is changed.
+  for (const form of browser.querySelectorAll(
+      '#dup-bulk-delete-form,#dup-bulk-rename-form,#dup-bulk-move-form,#dup-bulk-link-form')) {
+    form.addEventListener('submit', event => {
+      const ids = form.querySelector('[data-dup-action-ids]');
+      if (!selected.size || !ids || ids.value.split(',').length !== selected.size) {
+        event.preventDefault();
+        tell('Select files before opening an action preview.');
+      }
+    });
   }
-  deleteForm?.addEventListener('submit', event => {
-    if (!selected.size || selected.size > 50 || !deleteFields ||
-        deleteFields.querySelectorAll('input[name="files[]"]').length !== selected.size) {
-      event.preventDefault();
-      tell('Select between 1 and 50 files before previewing a permanent deletion.');
-    }
-  });
-  linkButton?.addEventListener('click', () => submitBulkDuplicate('bulk_link'));
+
 
   copyButton?.addEventListener('click', async () => {
     if (!selected.size) return;

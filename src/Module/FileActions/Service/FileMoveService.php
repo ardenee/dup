@@ -23,8 +23,8 @@ final class FileMoveService
     public function plan(array $ids,int $actorId): int
     {
         $ids=array_values(array_unique($ids));
-        if(count($ids)<1 || count($ids)>50)
-            throw new \DomainException('Select between 1 and 50 indexed files.');
+        if(!$ids)
+            throw new \DomainException('Select at least one indexed file.');
         $items=[];$profileId=0;$runId=0;$destinations=[];$fileExistsPolicy=null;
         foreach($ids as $id) {
             if($id<1) throw new \DomainException('Invalid file selection.');

@@ -4,6 +4,7 @@ namespace App\Module\FileActions\Controller;
 
 use App\Module\Accounts\Domain\Account;
 use App\Module\FileActions\Service\FileMoveService;
+use App\Module\FileActions\Service\SelectedFileIds;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,14 +25,8 @@ final class FileMoveController extends AbstractController
         if(!$this->isCsrfTokenValid('move_selected',
             (string)$request->request->get('_token','')))
             throw $this->createAccessDeniedException('Invalid CSRF token.');
-        $raw=$request->request->all('files');
-        $ids=[];
-        foreach($raw as $item) {
-            $id=filter_var($item,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
-            if($id===false) throw $this->createNotFoundException('Invalid selected file.');
-            $ids[]=$id;
-        }
         try {
+            $ids=SelectedFileIds::fromRequest($request);
             $batch=$moves->plan($ids,$this->actor());
             return $this->redirectToRoute('app_move_detail',['id'=>$batch]);
         } catch(\DomainException $ex) {

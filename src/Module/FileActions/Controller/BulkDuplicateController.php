@@ -4,6 +4,7 @@ namespace App\Module\FileActions\Controller;
 
 use App\Module\Accounts\Domain\Account;
 use App\Module\FileActions\Service\BulkDuplicateService;
+use App\Module\FileActions\Service\SelectedFileIds;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,20 +25,11 @@ final class BulkDuplicateController extends AbstractController
         if(!$this->isCsrfTokenValid('bulk_duplicate_action',
             (string)$request->request->get('_token','')))
             throw $this->createAccessDeniedException('Invalid batch preview token.');
-        $raw=$request->request->all('files');
-        if(!$raw || count($raw)>BulkDuplicateService::MAX_FILES)
-            throw $this->createNotFoundException('Select 1 to 50 files.');
-        $ids=[];
-        foreach($raw as $value) {
-            $id=filter_var($value,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
-            if($id===false || in_array($id,$ids,true))
-                throw $this->createNotFoundException('Invalid or repeated file ID.');
-            $ids[]=$id;
-        }
         $kind=(string)$request->request->get('action_kind','');
         if(!in_array($kind,BulkDuplicateService::ACTIONS,true))
             throw $this->createNotFoundException('Invalid bulk action.');
         try {
+            $ids=SelectedFileIds::fromRequest($request);
             $id=$service->plan($ids,$this->actor(),$kind);
             return $this->redirectToRoute('app_bulk_detail',['id'=>$id]);
         } catch(\DomainException $ex) {

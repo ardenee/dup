@@ -11,7 +11,6 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
  */
 final class FileDeletionService
 {
-    public const MAX_FILES=50;
     public function __construct(
         private readonly Connection $db,
         private readonly SafeFileSystem $fs,
@@ -22,8 +21,8 @@ final class FileDeletionService
     public function plan(array $ids,int $actorId):int
     {
         $ids=array_values(array_unique(array_map('intval',$ids)));
-        if(!$ids || count($ids)>self::MAX_FILES || min($ids)<1)
-            throw new \DomainException('Select 1 to 50 duplicate files to delete.');
+        if(!$ids || min($ids)<1)
+            throw new \DomainException('Select valid duplicate files to delete.');
         $profileId=0;$runId=0;$files=[];
         foreach($ids as $id) {
             $file=$this->db->fetchAssociative(

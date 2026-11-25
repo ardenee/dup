@@ -6,6 +6,7 @@ use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
@@ -99,6 +100,47 @@ final class DuplicateMembersController extends AbstractController
         ]);
         $response->headers->set('Cache-Control','private, no-store');
         return $response;
+    }
+
+    /**
+     * Select all siblings of a duplicate group without loading its entire
+     * paginated member table in the browser. The primary file is preserved.
+     * Return an error instead of silently omitting ignored/changed entries.
+     */
+    #[Route('/duplicates/{id<\\d+>}/selection',name:'app_duplicate_members_selection',methods:['GET'])]
+    public function selection(int $id,Connection $db):Response
+    {
+        if(!$this->isGranted('ROLE_ADMIN'))
+            throw $this->createAccessDeniedException();
+        $group=$db->fetchAssociative(
+            'SELECT g.id,g.file_count,g.run_id,p.id AS profile_id, '.
+            '(SELECT MIN(m.id) FROM duplicate_group_members m WHERE m.group_id=g.id) AS first_member_id '.
+            'FROM duplicate_groups g JOIN scan_runs r ON r.id=g.run_id '.
+            'JOIN scan_profiles p ON p.id=r.profile_id '.
+            "WHERE g.id=? AND r.state='completed' AND ".
+            "r.id=(SELECT MAX(sr.id) FROM scan_runs sr ".
+            "WHERE sr.profile_id=p.id AND sr.state='completed')",[$id]
+        );
+        if(!$group)
+            throw $this->createNotFoundException('This duplicate group is not in the current scan.');
+        $rows=$db->fetchAllAssociative(
+            'SELECT f.id,f.filename,d.path FROM duplicate_group_members m '.
+            'JOIN file_entries f ON f.id=m.file_entry_id '.
+            'JOIN directories d ON d.id=f.directory_id '.
+            'WHERE m.group_id=? AND m.id>? AND f.error_code IS NULL '.
+            'AND d.is_ignored=0 ORDER BY m.id',
+            [$id,(int)$group['first_member_id']]
+        );
+        if(count($rows)!==(int)$group['file_count']-1)
+            return new JsonResponse(['error'=>'Some files are no longer eligible. Refresh the duplicate group.'],409,
+                ['Cache-Control'=>'private, no-store']);
+        $files=[];
+        foreach($rows as $row) {
+            $files[]=['id'=>(string)$row['id'],
+                'path'=>rtrim(str_replace('\\','/',(string)$row['path']),'/').'/'.$row['filename']];
+        }
+        return new JsonResponse(['files'=>$files],200,
+            ['Cache-Control'=>'private, no-store']);
     }
 
     private function cursor(Request $request,string $key): ?int

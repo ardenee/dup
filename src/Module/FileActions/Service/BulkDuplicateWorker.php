@@ -7,7 +7,7 @@ use App\Module\Jobs\Service\LostLease;
 use Doctrine\DBAL\Connection;
 
 /**
- * One leased job per approved bulk batch, bounded to 50 entries. Each item
+ * One leased job per approved bulk batch, with no arbitrary file count cap. Each item
  * is verified and audited independently; safe per-file failures remain visible.
  * Any filesystem rollback failure stops processing for manual recovery.
  */

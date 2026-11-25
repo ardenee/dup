@@ -2,7 +2,7 @@
 
 DUP is a web-based duplicate-file scanner and manager for **Windows, Linux, and Synology DSM 7**. It indexes files, identifies potential duplicates, and lets you review and manage them from a browser. Scans and file operations run as background jobs, with progress, history, and diagnostics.
 
-**[Download the latest release](https://github.com/ardenee/dup/releases/latest)** · [Synology DSM 7 SPK](https://github.com/ardenee/dup/releases/download/0.7.22/DUP-DSM7-0.7.22.spk) · [Generic web-server ZIP](https://github.com/ardenee/dup/releases/download/0.7.22/DUP-Web-0.7.22.zip)
+**[Download the latest release](https://github.com/ardenee/dup/releases/latest)** · [Synology DSM 7 SPK](https://github.com/ardenee/dup/releases/download/0.7.23/DUP-DSM7-0.7.23.spk) · [Generic web-server ZIP](https://github.com/ardenee/dup/releases/download/0.7.23/DUP-Web-0.7.23.zip)
 
 ## Features
 
@@ -25,7 +25,7 @@ DUP is a web-based duplicate-file scanner and manager for **Windows, Linux, and 
 
 ### Windows / Linux web-server installation
 
-1. Download and extract **DUP-Web-0.7.22.zip**.
+1. Download and extract **DUP-Web-0.7.23.zip**.
 2. Configure your web server's document root to **`dup/public/`**. Keep the application's `src`, `config`, `vendor`, and `var` directories outside the public document root.
 3. Open **`https://your-host/setup.php`** and follow the setup wizard to configure the database and create an administrator.
 4. Configure a PHP CLI worker using a service manager, scheduled task, or cron. From the application root:
@@ -48,7 +48,7 @@ Use HTTPS for remote access. Ensure both the web-server account and CLI worker c
 
 1. Install **Web Station**, **PHP 8.2 or later**, and **MariaDB 10**.
 2. Enable the required PHP extensions, particularly **pdo_mysql**, in the Web Station PHP profile used by DUP.
-3. In **Package Center → Manual Install**, select **DUP-DSM7-0.7.22.spk**.
+3. In **Package Center → Manual Install**, select **DUP-DSM7-0.7.23.spk**.
 4. Open DUP at **`https://your-nas/dup/`**. Complete the first-run setup or sign in after upgrading an existing DUP v2 installation.
 5. Configure scan profiles and DSM filesystem permissions. The SPK manages the background worker; ensure the **http** group and worker account have the required access.
 

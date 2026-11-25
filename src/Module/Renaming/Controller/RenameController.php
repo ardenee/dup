@@ -5,6 +5,7 @@ namespace App\Module\Renaming\Controller;
 use App\Module\Accounts\Domain\Account;
 use App\Module\Renaming\Service\RenameRules;
 use App\Module\Renaming\Service\RenameService;
+use App\Module\FileActions\Service\SelectedFileIds;
 use App\Module\FileActions\Service\ActionSettings;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -131,9 +132,11 @@ final class RenameController extends AbstractController
         if(!$this->isCsrfTokenValid('rename_selected',
             (string)$request->request->get('_token','')))
             throw $this->createAccessDeniedException('Invalid form token.');
-        $ids=$request->request->all('files');
-        if(count($ids)<1 || count($ids)>50)
-            throw $this->createNotFoundException('Select between 1 and 50 files to rename.');
+        try {
+            $ids=SelectedFileIds::fromRequest($request);
+        } catch(\DomainException $ex) {
+            throw $this->createNotFoundException($ex->getMessage());
+        }
         $files=[];$profile=0;
         foreach($ids as $value) {
             $id=filter_var($value,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
@@ -160,10 +163,24 @@ final class RenameController extends AbstractController
             (string)$request->request->get('_token','')))
             throw $this->createAccessDeniedException('Invalid form token.');
         $profile=$this->number($request->request->get('profile'));
-        $names=$request->request->all('names');
+        $encoded=$request->request->get('names_json','');
+        if($encoded!=='') {
+            if(!is_string($encoded))
+                throw $this->createNotFoundException('Invalid rename selection.');
+            try {
+                $names=json_decode($encoded,true,512,JSON_THROW_ON_ERROR);
+            } catch(\JsonException) {
+                throw $this->createNotFoundException('Invalid rename selection data.');
+            }
+        } else {
+            $names=$request->request->all('names');
+        }
+        $expected=filter_var($request->request->get('selected_count'),
+            FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
         $collision=$settings->policy($profile);
-        if(!$names || count($names)>50 || $profile<1)
-            throw $this->createNotFoundException('Invalid selection.');
+        if(!is_array($names) || !$names || $profile<1 ||
+            ($expected!==false && count($names)!==$expected))
+            throw $this->createNotFoundException('Incomplete rename selection; reload and try again.');
         $ids=[];$overrides=[];
         foreach($names as $key=>$value) {
             $id=filter_var($key,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);

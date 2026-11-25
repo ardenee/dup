@@ -140,7 +140,25 @@
       {% if selected_profile|default(null) %}
         <input type="hidden" name="return_profile" value="{{ selected_profile }}">
       {% endif %}
-      <span data-dup-delete-fields></span>
+      <input type="hidden" name="file_ids" value="" data-dup-action-ids>
+    </form>
+  {% endif %}
+  {% if is_granted('ROLE_ADMIN') and not historical|default(false) %}
+    <form id="dup-bulk-rename-form" method="post"
+      action="{{ path('app_rename_selected') }}" hidden>
+      <input type="hidden" name="_token" value="{{ csrf_token('rename_selected') }}">
+      <input type="hidden" name="file_ids" data-dup-action-ids value="">
+    </form>
+    <form id="dup-bulk-move-form" method="post"
+      action="{{ path('app_move_preview') }}" hidden>
+      <input type="hidden" name="_token" value="{{ csrf_token('move_selected') }}">
+      <input type="hidden" name="file_ids" data-dup-action-ids value="">
+    </form>
+    <form id="dup-bulk-link-form" method="post"
+      action="{{ path('app_bulk_preview') }}" hidden>
+      <input type="hidden" name="_token" value="{{ csrf_token('bulk_duplicate_action') }}">
+      <input type="hidden" name="action_kind" value="bulk_link">
+      <input type="hidden" name="file_ids" data-dup-action-ids value="">
     </form>
   {% endif %}
   <form method="get" action="{{ path('app_duplicates') }}" class="dup-table-filters">
@@ -182,10 +200,10 @@
       </div>
       <div class="dup-bulk-actions" aria-label="Bulk file actions">
         <span class="dup-bulk-actions-label">Selected: <span data-dup-selected-count aria-live="polite">0</span></span>
-        <button type="button" class="dup-bulk-icon" data-dup-rename aria-label="Rename selected files" title="Rename selected files" disabled>{{ dup_icon('pencil') }}</button>
-        <button type="button" class="dup-bulk-icon" data-dup-move aria-label="Move selected files" title="Move selected files" disabled>{{ dup_icon('move') }}</button>
+        <button type="submit" form="dup-bulk-rename-form" class="dup-bulk-icon" data-dup-rename aria-label="Rename selected files" title="Rename selected files" disabled>{{ dup_icon('pencil') }}</button>
+        <button type="submit" form="dup-bulk-move-form" class="dup-bulk-icon" data-dup-move aria-label="Move selected files" title="Move selected files" disabled>{{ dup_icon('move') }}</button>
         <button type="submit" form="dup-bulk-delete-form" class="dup-bulk-icon dup-bulk-delete" data-dup-delete aria-label="Preview permanent deletion of selected files" title="Preview permanent deletion (confirmation required)" disabled>{{ dup_icon('trash') }}</button>
-        <button type="button" class="dup-bulk-icon" data-dup-link aria-label="Link selected duplicates" title="Link selected duplicates" disabled>{{ dup_icon('link') }}</button>
+        <button type="submit" form="dup-bulk-link-form" class="dup-bulk-icon" data-dup-link aria-label="Link selected duplicates" title="Link selected duplicates" disabled>{{ dup_icon('link') }}</button>
       </div>
       {% endif %}
     </div>
@@ -195,7 +213,7 @@
       <strong>1.</strong> Expand a group. <strong>2.</strong> Select individual files or use <strong>Select matches</strong>
       to leave the first copy untouched. <strong>3.</strong> Choose Rename, Move, Delete or Link above
       to preview the change before confirming. Delete is permanent, not a move or quarantine.
-      Limit: 50 files per action, from one profile.
+      All selected files from one profile can be previewed. Link requires an unselected verified survivor.
     </div>
   {% endif %}
   {% if groups is empty %}
@@ -204,7 +222,7 @@
     {% include 'duplicates/_pager.html.twig' %}
     <p class="dup-scroll-hint">Scroll the table sideways to view hashes and file actions.
       {% if is_granted('ROLE_ADMIN') and not historical|default(false) %}
-        Select files in expanded rows, or use Select matches. Bulk Rename, Move, Delete and Link are available for up to 50 files from one profile. Link requires full SHA-256 matching and an unselected survivor. Delete does not require a survivor and is permanent; the confirmation page lists every affected file.
+        Select files in expanded rows, or use Select matches. Bulk Rename, Move, Delete and Link work with any valid selection from one profile. Link requires full SHA-256 matching and an unselected survivor. Delete does not require a survivor and is permanent; the confirmation page lists every affected file.
       {% endif %}</p>
     <div class="table-wrap dup-file-table-wrap">
       <table class="dup-file-table">
@@ -224,7 +242,8 @@
           </tr>
         </thead>
         {% for group in groups %}
-          <tbody class="dup-set" id="dup-body-{{ group.id }}" data-dup-set data-group-id="{{ group.id }}" data-profile-id="{{ group.profile_id }}" data-file-count="{{ group.file_count }}">
+          <tbody class="dup-set" id="dup-body-{{ group.id }}" data-dup-set data-group-id="{{ group.id }}" data-profile-id="{{ group.profile_id }}" data-file-count="{{ group.file_count }}"
+            data-select-url="{{ path('app_duplicate_members_selection',{id:group.id}) }}">
             <tr class="dup-primary" data-dup-primary>
               <td class="dup-num">
                 <button type="button" class="dup-disclosure" data-dup-toggle
@@ -296,5 +315,5 @@
     <span>Size and CRC32 matches are candidates; file actions require additional verification.</span>
   </div>
 </section>
-<script type="module" src="{{ asset('assets/duplicates.js') }}?v=8"></script>
+<script type="module" src="{{ asset('assets/duplicates.js') }}?v=9"></script>
 {% endblock %}

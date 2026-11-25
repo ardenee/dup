@@ -135,8 +135,8 @@ final class RenameService
         if($collision!==$configured)
             throw new \DomainException('File Exists policy changed; reload this profile before renaming.');
         $entryIds=array_values(array_unique($entryIds));
-        if(count($entryIds)<1 || count($entryIds)>50 || $profileId<1)
-            throw new \DomainException('Select between 1 and 50 files from one profile.');
+        if(!$entryIds || $profileId<1)
+            throw new \DomainException('Select files from one profile.');
         $runId=(int)$this->db->fetchOne(
             "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=? AND state='completed'",
             [$profileId]

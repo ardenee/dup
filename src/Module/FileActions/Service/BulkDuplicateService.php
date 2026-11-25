@@ -12,7 +12,6 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
  */
 final class BulkDuplicateService
 {
-    public const MAX_FILES=50;
     public const ACTIONS=['bulk_quarantine','bulk_link'];
 
     public function __construct(
@@ -27,8 +26,8 @@ final class BulkDuplicateService
         if(!in_array($kind,self::ACTIONS,true))
             throw new \DomainException('Choose bulk quarantine or bulk link.');
         $ids=array_values(array_unique(array_map('intval',$ids)));
-        if(!$ids || count($ids)>self::MAX_FILES || min($ids)<1)
-            throw new \DomainException('Select between 1 and 50 indexed duplicates.');
+        if(!$ids || min($ids)<1)
+            throw new \DomainException('Select valid indexed duplicates.');
         $chosen=array_fill_keys($ids,true);
         $items=[];$groupSurvivors=[];$profileId=0;$runId=0;
         foreach($ids as $id) {
@@ -61,18 +60,27 @@ final class BulkDuplicateService
             $this->fs->requireSameDevice($source,$moveRoot);
             $groupId=(int)$file['group_id'];
             if(!isset($groupSurvivors[$groupId])) {
-                $exclude=implode(',',array_fill(0,count($ids),'?'));
-                $survivor=$this->db->fetchAssociative(
+                // A group may contain thousands of selected files. Avoid a
+                // growing NOT IN list (SQLite/MySQL placeholder limits), and
+                // choose the first eligible member not included in this batch.
+                $survivors=$this->db->fetchAllAssociative(
                     'SELECT f.id,f.filename,f.size_bytes,f.mtime_epoch,f.hash_value,'.
                     'd.path AS directory FROM duplicate_group_members gm '.
                     'JOIN file_entries f ON f.id=gm.file_entry_id '.
                     'JOIN directories d ON d.id=f.directory_id '.
-                    'WHERE gm.group_id=? AND f.id NOT IN ('.$exclude.') '.
+                    'WHERE gm.group_id=? '.
                     "AND f.error_code IS NULL AND f.hash_method='sha256' AND d.is_ignored=0 ".
-                    'AND f.hash_value=? ORDER BY f.id LIMIT 1',
-                    [$groupId,...$ids,(string)$file['hash_value']]
+                    'AND f.hash_value=? ORDER BY f.id',
+                    [$groupId,(string)$file['hash_value']]
                 );
-                if(!$survivor || isset($chosen[(int)$survivor['id']]))
+                $survivor=null;
+                foreach($survivors as $candidate) {
+                    if(!isset($chosen[(int)$candidate['id']])) {
+                        $survivor=$candidate;
+                        break;
+                    }
+                }
+                if(!$survivor)
                     throw new \DomainException(
                         'Keep at least one unselected verified survivor in each duplicate group. '.
                         'Unselect a file and preview again.'

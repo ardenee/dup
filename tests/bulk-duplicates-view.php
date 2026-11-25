@@ -35,7 +35,7 @@ foreach(['data-dup-rename','data-dup-move','data-dup-delete','data-dup-link',
     'data-bulk-duplicate-url','data-bulk-duplicate-token',
     'id="dup-bulk-delete-form"','data-dup-delete-form',
     'form="dup-bulk-delete-form"','name="return_profile"',
-    'token-delete_selected'] as $needle)
+    'token-delete_selected','data-dup-action-ids'] as $needle)
     if(!str_contains($view,$needle))throw new RuntimeException('Bulk browser missing '.$needle);
 // The delete button must use the browser's native POST form, never a
 // dynamically created form whose form.submit() can silently fail.
@@ -44,13 +44,20 @@ if(!preg_match('~<button[^>]*type="submit"[^>]*form="dup-bulk-delete-form"[^>]*d
 if(!preg_match('~<form[^>]*id="dup-bulk-delete-form"[^>]*method="post"[^>]*action="/app_delete_preview"~',$view))
     throw new RuntimeException('Bulk delete preview endpoint must receive POST.');
 $javascript=file_get_contents(dirname(__DIR__).'/public/assets/duplicates.js');
-foreach(["deleteFields.replaceChildren(fields)",
-    "deleteForm?.addEventListener('submit'", "field.name = 'files[]'",
-    "deleteButton.disabled = selected.size === 0 || selected.size > 50"] as $needle)
+foreach(["actionIds.forEach(field => { field.value = csv; })",
+    "form.addEventListener('submit'", "const csv = [...selected.keys()].join(',')",
+    "deleteButton.disabled = selected.size === 0"] as $needle)
     if(!str_contains($javascript,$needle))
         throw new RuntimeException('Bulk delete selection/validation missing '.$needle);
-if(str_contains($javascript,"deleteButton?.addEventListener('click'"))
-    throw new RuntimeException('Old temporary bulk deletion form handler still active.');
+if(str_contains($javascript,"deleteButton?.addEventListener('click'") ||
+    str_contains($javascript,"form.submit()"))
+    throw new RuntimeException('A temporary form handler must not be used for any bulk action.');
+foreach(['form="dup-bulk-rename-form"','form="dup-bulk-move-form"',
+    'form="dup-bulk-link-form"','data-select-url'] as $needle)
+    if(!str_contains($view,$needle))
+        throw new RuntimeException('Bulk actions must use native forms and group selections: '.$needle);
+if(str_contains($view,'Limit: 50') || str_contains($view,'up to 50'))
+    throw new RuntimeException('Unnecessary bulk file limit is still in the interface.');
 $item=[
     'id'=>5,'source_path'=>'/data/Music/Track Copy.mp3',
     'target_path'=>'/recovery/.dup-quarantine/entry-5/Track Copy.mp3',

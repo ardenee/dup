@@ -41,7 +41,7 @@ header("Content-Security-Policy: default-src 'none'; style-src 'self'; img-src '
         <a class="primary link-button" href="./login">Continue to sign in</a>
       </div>
     </section>
-    <footer class="app-footer">DUP 0.7.22 · <a href="assets/license.txt">MIT License</a></footer>
+    <footer class="app-footer">DUP 0.7.23 · <a href="assets/license.txt">MIT License</a></footer>
   </div>
 </body>
 </html>

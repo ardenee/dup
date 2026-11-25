@@ -4,6 +4,7 @@ namespace App\Module\FileActions\Controller;
 
 use App\Module\Accounts\Domain\Account;
 use App\Module\FileActions\Service\FileDeletionService;
+use App\Module\FileActions\Service\SelectedFileIds;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,17 +25,8 @@ final class FileDeletionController extends AbstractController
         if(!$this->isCsrfTokenValid('delete_selected',
             (string)$request->request->get('_token','')))
             throw $this->createAccessDeniedException('Invalid deletion token.');
-        $raw=$request->request->all('files');
-        if(!$raw || count($raw)>FileDeletionService::MAX_FILES)
-            throw $this->createNotFoundException('Select 1 to 50 files.');
-        $ids=[];
-        foreach($raw as $item) {
-            $id=filter_var($item,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
-            if($id===false || in_array($id,$ids,true))
-                throw $this->createNotFoundException('Invalid file selection.');
-            $ids[]=$id;
-        }
         try {
+            $ids=SelectedFileIds::fromRequest($request);
             return $this->redirectToRoute('app_delete_detail',[
                 'id'=>$service->plan($ids,$this->actor())
             ]);
