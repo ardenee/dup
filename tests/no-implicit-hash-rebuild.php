@@ -34,7 +34,7 @@ $explicit=file_get_contents($root.'/src/Module/Duplicates/Service/DuplicateVerif
 assertFastActions(str_contains($scan,'hash_init(') && str_contains($explicit,'FileHasher::digest('),
     'Explicit scan/verification functionality was accidentally removed.');
 $delete=file_get_contents($root.'/src/Module/FileActions/Service/FileDeletionWorker.php');
-assertFastActions(str_contains($delete,'@unlink($source)') &&
+assertFastActions(str_contains($delete,'$this->fs->unlinkApproved($source)') &&
     str_contains($delete,"UPDATE file_entries SET error_code='DELETED'"),
     'Fast deletion must still delete only approved files and mark their indexed state.');
 echo "PASS no full-file hash or automatic duplicate rebuild in all six file-action workers; explicit verification retained\n";

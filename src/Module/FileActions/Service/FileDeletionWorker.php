@@ -47,7 +47,7 @@ final class FileDeletionWorker
             );
             throw new \DomainException('Delete batch item count changed before processing. Review the batch; no files were deleted by this job.');
         }
-        $done=0;$failed=0;
+        $done=0;$failed=0;$firstFailure=null;
         $this->jobs->assertRunning($jobId,$token);
         $this->db->executeStatement(
             "UPDATE file_action_batches SET state='executing' WHERE id=? AND state='queued'",[$batchId]
@@ -69,8 +69,7 @@ final class FileDeletionWorker
                 if((string)$last['dev']!==(string)$before['dev'] ||
                    (string)$last['ino']!==(string)$before['ino'])
                     throw new \DomainException('File identity changed since confirmation.');
-                if(!@unlink($source))
-                    throw new \DomainException('Unable to delete the selected file.');
+                $this->fs->unlinkApproved($source);
                 clearstatcache(true,$source);
                 if(file_exists($source) || is_link($source))
                     throw new \RuntimeException('File still exists after deletion.');
@@ -113,36 +112,48 @@ final class FileDeletionWorker
                     throw $ex;
                 }
                 $failed++;
+                $firstFailure??=$ex->getMessage();
                 $this->db->executeStatement(
                     "UPDATE file_action_items SET state='failed',result_code='DELETE_FAILED' WHERE id=?",
                     [(int)$item['id']]
                 );
                 $this->jobs->event($jobId,'warning','DELETE_ITEM_FAILED',[
                     'file_entry_id'=>(int)$item['file_entry_id'],
-                    'reason'=>mb_substr($ex->getMessage(),0,200)
+                    'directory'=>(string)$item['directory'],
+                    'diagnostic_code'=>$ex instanceof \App\Core\Diagnostics\DiagnosticFailure?
+                        $ex->errorCode():null,
+                    'reason'=>mb_substr($ex->getMessage(),0,500)
                 ]);
             }
             $this->jobs->progress($jobId,$token,'deleting_files',$done+$failed,count($items));
         }
         $this->db->transactional(function(Connection $db) use (
-            $job,$jobId,$token,$batchId,$done,$failed,$items
+            $job,$jobId,$token,$batchId,$done,$failed,$items,$firstFailure
         ):void {
             $this->jobs->assertRunning($jobId,$token);
             $now=gmdate('Y-m-d H:i:s');
             $state=$failed?($done?'partial':'failed'):'completed';
+            $batchCode=$failed?($done?'DELETE_PARTIAL_FAILURE':'DELETE_ALL_FAILED'):null;
             $db->executeStatement(
                 'UPDATE file_action_batches SET state=?,completed_at=?,error_code=? WHERE id=?',
-                [$state,$now,$failed?'DELETE_PARTIAL_FAILURE':null,$batchId]
+                [$state,$now,$batchCode,$batchId]
             );
+            // All failures are not a successful job just because every file
+            // was attempted. The individual failed records remain available.
+            $jobState=($failed>0 && $done===0)?'failed':'completed';
+            $jobReason=$jobState==='failed'?
+                mb_substr('All '.$failed.' deletions failed. '.($firstFailure??'Check file-action events.'),0,1000):null;
             $updated=$db->executeStatement(
-                "UPDATE jobs SET state='completed',phase='completed',active_profile_id=NULL,".
+                "UPDATE jobs SET state=?,phase=?,error_code=?,last_failure_reason=?,active_profile_id=NULL,".
                 "finished_at=?,heartbeat_at=?,progress_current=?,progress_total=? ".
                 "WHERE id=? AND worker_token=? AND state='running'",
-                [$now,$now,$done+$failed,count($items),$jobId,$token]
+                [$jobState,$jobState,$jobState==='failed'?'DUP-DELETE-201':null,$jobReason,
+                    $now,$now,$done+$failed,count($items),$jobId,$token]
             );
             if($updated!==1) throw new LostLease('Deletion job lost its worker lease.','DUP-DELETE-LEASE-101');
-            $this->jobs->event($jobId,'info','DELETE_BATCH_FINISHED',[
-                'deleted'=>$done,'failed'=>$failed,'irreversible'=>true
+            $this->jobs->event($jobId,$failed?'warning':'info','DELETE_BATCH_FINISHED',[
+                'deleted'=>$done,'failed'=>$failed,
+                'first_failure'=>$firstFailure===null?null:mb_substr($firstFailure,0,500)
             ]);
         });
     }

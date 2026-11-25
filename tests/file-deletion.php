@@ -124,6 +124,15 @@ try {
     assertDelete((string)$db->fetchOne(
         'SELECT state FROM file_action_batches WHERE id=?',[$other])==='failed',
         'Changed file did not mark batch failure.');
+    $allFailed=$db->fetchAssociative(
+        'SELECT state,error_code,last_failure_reason,progress_current,progress_total FROM jobs WHERE id=?',[$job]
+    );
+    assertDelete($allFailed && $allFailed['state']==='failed' &&
+        $allFailed['error_code']==='DUP-DELETE-201' &&
+        (string)$db->fetchOne('SELECT error_code FROM file_action_batches WHERE id=?',[$other])==='DELETE_ALL_FAILED' &&
+        (int)$allFailed['progress_current']===1 && (int)$allFailed['progress_total']===1 &&
+        str_contains((string)$allFailed['last_failure_reason'],'All 1 deletions failed'),
+        'A zero-success delete job must be marked failed with a useful summary.');
     // A missing indexed entry must not make a confirmed deletion complete as 0/0.
     $missingPath=$root.'/E.mp3';
     file_put_contents($missingPath,$payload);

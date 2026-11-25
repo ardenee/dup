@@ -66,6 +66,22 @@ try {
         } finally { @rmdir($outside); }
     }
     checkFs(file_get_contents($source)==='FRESH CONTENT','Safety checks modified the source');
+    $deleteFixture=$root.DIRECTORY_SEPARATOR.'approved-for-removal.bin';
+    file_put_contents($deleteFixture,'disposable');
+    $fs->unlinkApproved($deleteFixture);
+    checkFs(!file_exists($deleteFixture),'Approved unlink did not remove the disposable file.');
+    try {
+        $fs->unlinkApproved($deleteFixture);
+        throw new RuntimeException('Missing file did not provide a filesystem failure reason.');
+    } catch(\App\Core\Diagnostics\CodedDomainFailure $ex) {
+        checkFs($ex->errorCode()==='DUP-FS-105' &&
+            str_contains($ex->getMessage(),'Filesystem deletion failed:') &&
+            str_contains($ex->getMessage(),'Worker=') &&
+            str_contains($ex->getMessage(),'http group=') &&
+            str_contains($ex->getMessage(),'containing folder writable=') &&
+            !str_contains($ex->getMessage(),'The operating system did not report a cause'),
+            'Deletion failure discarded the OS diagnostic or worker identity.');
+    }
     echo "PASS filesystem safety: traversal, stale size/mtime, collisions, no overwrite, same-device checks; ".
         ($symlinkTested?'symlink refusal verified':'symlink checks skipped (host privilege unavailable)')."\n";
 }finally{

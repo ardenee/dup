@@ -54,6 +54,47 @@ final class SafeFileSystem
         return $stat;
     }
 
+    /**
+     * Remove an already-approved file without rereading its contents.
+     * On failure, preserve the filesystem's real error and the effective
+     * account/directory writability instead of hiding them behind @unlink.
+     */
+    public function unlinkApproved(string $path):void
+    {
+        error_clear_last();
+        if(@unlink($path)) return;
+        $raw=(string)(error_get_last()['message']??'');
+        $reason=trim((string)preg_replace('/^unlink\\(.*\\):\\s*/s','',$raw));
+        if($reason==='')$reason='The operating system did not report a cause';
+        $directory=dirname($path);
+        $canWrite=@is_writable($directory);
+        $account='unknown';
+        if(function_exists('posix_geteuid') && function_exists('posix_getpwuid')) {
+            $info=@posix_getpwuid(posix_geteuid());
+            if(is_array($info) && isset($info['name']))$account=(string)$info['name'];
+        } elseif(PHP_OS_FAMILY==='Windows') {
+            $account=(string)(getenv('USERNAME')?:'unknown');
+        }
+        $httpGroup='unknown';
+        if(function_exists('posix_getgroups') && function_exists('posix_getgrnam')) {
+            $http=@posix_getgrnam('http');
+            $groups=@posix_getgroups();
+            if(is_array($http) && isset($http['gid']) && is_array($groups))
+                $httpGroup=in_array((int)$http['gid'],$groups,true)?'yes':'no';
+        }
+        $hint='';
+        if(preg_match('/permission denied|access is denied|operation not permitted/i',$reason)) {
+            $hint='Check write/delete permission on the containing directory and any shared-folder ACL.';
+        } elseif(preg_match('/read.only file system|read.only filesystem/i',$reason)) {
+            $hint='Check whether the shared volume is mounted read-only.';
+        }
+        throw new CodedDomainFailure('DUP-FS-105',
+            'Filesystem deletion failed: '.mb_substr($reason,0,115).
+            '. Worker='.$account.'; http group='.$httpGroup.
+            '; containing folder writable='.($canWrite?'yes':'no').
+            ($hint!==''?'. '.$hint:''));
+    }
+
     public function requireSameDevice(string $source,string $targetRoot): void
     {
         $sourceStat=@stat($source);

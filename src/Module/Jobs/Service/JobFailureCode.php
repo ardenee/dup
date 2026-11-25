@@ -14,6 +14,8 @@ final class JobFailureCode
         'DUP-BULK-LEASE-101'=>'Bulk file-operation worker lost its lease',
         'DUP-FILE-ACTION-LEASE-101'=>'File-action worker lost its lease during commit',
         'DUP-DELETE-LEASE-101'=>'Deletion worker lost its lease',
+        'DUP-DELETE-201'=>'Every selected file failed during permanent deletion; inspect DELETE_ITEM_FAILED events for filesystem errors',
+        'DUP-FS-105'=>'The operating system rejected a file deletion; inspect worker identity, containing folder permissions, DSM ACL, and the original filesystem error',
         'DUP-MOVE-LEASE-101'=>'Move worker lost its lease',
         'DUP-LINK-LEASE-101'=>'Link worker lost its lease',
         'DUP-JOB-HEARTBEAT-101'=>'Job ownership is valid but a non-no-op heartbeat write was not persisted',
