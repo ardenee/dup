@@ -30,6 +30,8 @@ if (browser) {
   const renameButton = browser.querySelector('[data-dup-rename]');
   const moveButton = browser.querySelector('[data-dup-move]');
   const deleteButton = browser.querySelector('[data-dup-delete]');
+  const deleteForm = browser.querySelector('[data-dup-delete-form]');
+  const deleteFields = deleteForm?.querySelector('[data-dup-delete-fields]');
   const linkButton = browser.querySelector('[data-dup-link]');
   const clearButton = browser.querySelector('[data-dup-clear-selection]');
   const selectedCount = browser.querySelector('[data-dup-selected-count]');
@@ -43,7 +45,20 @@ if (browser) {
     if (copyButton) copyButton.disabled = selected.size === 0;
     if (renameButton) renameButton.disabled = selected.size === 0;
     if (moveButton) moveButton.disabled = selected.size === 0;
-    if (deleteButton) deleteButton.disabled = selected.size === 0;
+    if (deleteButton) deleteButton.disabled = selected.size === 0 || selected.size > 50;
+    // Keep a real POST form in sync with every checkbox. The bulk delete button
+    // uses native HTML form submission, not dynamically injected form.submit().
+    if (deleteFields) {
+      const fields = document.createDocumentFragment();
+      for (const id of selected.keys()) {
+        const field = document.createElement('input');
+        field.type = 'hidden';
+        field.name = 'files[]';
+        field.value = id;
+        fields.appendChild(field);
+      }
+      deleteFields.replaceChildren(fields);
+    }
     if (linkButton) linkButton.disabled = selected.size === 0;
     if (clearButton) clearButton.disabled = selected.size === 0;
   }
@@ -339,24 +354,12 @@ if (browser) {
     document.body.appendChild(form);
     form.submit();
   }
-  deleteButton?.addEventListener('click', () => {
-    if (!selected.size || selected.size > 50) {
-      tell('Select between 1 and 50 files to delete.');
-      return;
+  deleteForm?.addEventListener('submit', event => {
+    if (!selected.size || selected.size > 50 || !deleteFields ||
+        deleteFields.querySelectorAll('input[name="files[]"]').length !== selected.size) {
+      event.preventDefault();
+      tell('Select between 1 and 50 files before previewing a permanent deletion.');
     }
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = browser.dataset.bulkDeleteUrl;
-    const token = document.createElement('input');
-    token.type = 'hidden'; token.name = '_token'; token.value = browser.dataset.bulkDeleteToken;
-    form.appendChild(token);
-    for (const id of selected.keys()) {
-      const field = document.createElement('input');
-      field.type = 'hidden'; field.name = 'files[]'; field.value = id;
-      form.appendChild(field);
-    }
-    document.body.appendChild(form);
-    form.submit();
   });
   linkButton?.addEventListener('click', () => submitBulkDuplicate('bulk_link'));
 

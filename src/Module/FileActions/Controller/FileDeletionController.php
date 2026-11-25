@@ -40,7 +40,12 @@ final class FileDeletionController extends AbstractController
             ]);
         } catch(\DomainException $ex) {
             $this->addFlash('warning',$ex->getMessage());
-            return $this->redirectToRoute('app_duplicates');
+            // Preserve the profile the user selected; otherwise a rejected
+            // preview silently drops them into the global duplicate list.
+            $profile=filter_var($request->request->get('return_profile'),
+                FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+            return $this->redirectToRoute('app_duplicates',
+                $profile===false?[]:['profile'=>$profile]);
         }
     }
 

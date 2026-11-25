@@ -33,8 +33,24 @@ $view=$twig->render('duplicates/index.html.twig',$app+[
 foreach(['data-dup-rename','data-dup-move','data-dup-delete','data-dup-link',
     'Select matching files','data-dup-select-visible','data-dup-clear-selection',
     'data-bulk-duplicate-url','data-bulk-duplicate-token',
-    'data-bulk-delete-url','data-bulk-delete-token'] as $needle)
+    'id="dup-bulk-delete-form"','data-dup-delete-form',
+    'form="dup-bulk-delete-form"','name="return_profile"',
+    'token-delete_selected'] as $needle)
     if(!str_contains($view,$needle))throw new RuntimeException('Bulk browser missing '.$needle);
+// The delete button must use the browser's native POST form, never a
+// dynamically created form whose form.submit() can silently fail.
+if(!preg_match('~<button[^>]*type="submit"[^>]*form="dup-bulk-delete-form"[^>]*data-dup-delete~',$view))
+    throw new RuntimeException('Bulk delete must submit a persistent native form.');
+if(!preg_match('~<form[^>]*id="dup-bulk-delete-form"[^>]*method="post"[^>]*action="/app_delete_preview"~',$view))
+    throw new RuntimeException('Bulk delete preview endpoint must receive POST.');
+$javascript=file_get_contents(dirname(__DIR__).'/public/assets/duplicates.js');
+foreach(["deleteFields.replaceChildren(fields)",
+    "deleteForm?.addEventListener('submit'", "field.name = 'files[]'",
+    "deleteButton.disabled = selected.size === 0 || selected.size > 50"] as $needle)
+    if(!str_contains($javascript,$needle))
+        throw new RuntimeException('Bulk delete selection/validation missing '.$needle);
+if(str_contains($javascript,"deleteButton?.addEventListener('click'"))
+    throw new RuntimeException('Old temporary bulk deletion form handler still active.');
 $item=[
     'id'=>5,'source_path'=>'/data/Music/Track Copy.mp3',
     'target_path'=>'/recovery/.dup-quarantine/entry-5/Track Copy.mp3',

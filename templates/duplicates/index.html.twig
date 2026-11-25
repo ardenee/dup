@@ -123,8 +123,6 @@
 {% endif %}
 
 <section class="panel dup-browser" id="duplicate-groups"
-  data-bulk-delete-url="{{ path('app_delete_preview') }}"
-  data-bulk-delete-token="{{ csrf_token('delete_selected') }}"
   data-bulk-move-url="{{ path('app_move_preview') }}"
   data-bulk-move-token="{{ csrf_token('move_selected') }}"
   data-bulk-rename-url="{{ path('app_rename_selected') }}"
@@ -132,6 +130,19 @@
   data-bulk-duplicate-url="{{ path('app_bulk_preview') }}"
   data-bulk-duplicate-token="{{ csrf_token('bulk_duplicate_action') }}"
   data-historical="{{ historical|default(false) ? '1' : '0' }}">
+  {# Native form keeps the permanent-delete preview working without JS form.submit().
+     JavaScript only synchronizes the selected IDs; the server still enforces CSRF
+     protection, permissions, selected-file validation and explicit confirmation. #}
+  {% if is_granted('ROLE_ADMIN') and not historical|default(false) %}
+    <form id="dup-bulk-delete-form" data-dup-delete-form method="post"
+      action="{{ path('app_delete_preview') }}" hidden>
+      <input type="hidden" name="_token" value="{{ csrf_token('delete_selected') }}">
+      {% if selected_profile|default(null) %}
+        <input type="hidden" name="return_profile" value="{{ selected_profile }}">
+      {% endif %}
+      <span data-dup-delete-fields></span>
+    </form>
+  {% endif %}
   <form method="get" action="{{ path('app_duplicates') }}" class="dup-table-filters">
     {% if selected_run|default(null) %}<input type="hidden" name="run" value="{{ selected_run }}">{% elseif selected_profile|default(null) %}<input type="hidden" name="profile" value="{{ selected_profile }}">{% endif %}
     <input type="hidden" name="sort" value="{{ sort|default('id') }}">
@@ -173,7 +184,7 @@
         <span class="dup-bulk-actions-label">Selected: <span data-dup-selected-count aria-live="polite">0</span></span>
         <button type="button" class="dup-bulk-icon" data-dup-rename aria-label="Rename selected files" title="Rename selected files" disabled>{{ dup_icon('pencil') }}</button>
         <button type="button" class="dup-bulk-icon" data-dup-move aria-label="Move selected files" title="Move selected files" disabled>{{ dup_icon('move') }}</button>
-        <button type="button" class="dup-bulk-icon dup-bulk-delete" data-dup-delete aria-label="Delete selected files" title="Delete selected files permanently" disabled>{{ dup_icon('trash') }}</button>
+        <button type="submit" form="dup-bulk-delete-form" class="dup-bulk-icon dup-bulk-delete" data-dup-delete aria-label="Preview permanent deletion of selected files" title="Preview permanent deletion (confirmation required)" disabled>{{ dup_icon('trash') }}</button>
         <button type="button" class="dup-bulk-icon" data-dup-link aria-label="Link selected duplicates" title="Link selected duplicates" disabled>{{ dup_icon('link') }}</button>
       </div>
       {% endif %}
@@ -285,5 +296,5 @@
     <span>Size and CRC32 matches are candidates; file actions require additional verification.</span>
   </div>
 </section>
-<script type="module" src="{{ asset('assets/duplicates.js') }}?v=7"></script>
+<script type="module" src="{{ asset('assets/duplicates.js') }}?v=8"></script>
 {% endblock %}
