@@ -1,9 +1,9 @@
 {% extends 'base.html.twig' %}
 {% from 'duplicates/_format.html.twig' import bytes, hash, method %}
-{% from 'duplicates/_actions.html.twig' import actions %}
+{% from 'duplicates/_actions.html.twig' import actions, icon as dup_icon %}
 {% block title %}Duplicates{% endblock %}
 {% block section %}Duplicates{% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ asset('assets/duplicates.css') }}?v=4">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ asset('assets/duplicates.css') }}?v=5">{% endblock %}
 {% from '_table_headers.html.twig' import sort as sort_heading %}
 {% block body %}
 {% include 'duplicates/_icons.html.twig' %}
@@ -171,10 +171,10 @@
       </div>
       <div class="dup-bulk-actions" aria-label="Bulk file actions">
         <span class="dup-bulk-actions-label">Selected: <span data-dup-selected-count aria-live="polite">0</span></span>
-        <button type="button" class="primary" data-dup-rename disabled>Rename</button>
-        <button type="button" class="primary" data-dup-move disabled>Move</button>
-        <button type="button" class="dup-delete-button" data-dup-delete disabled>Delete</button>
-        <button type="button" data-dup-link disabled>Link</button>
+        <button type="button" class="dup-bulk-icon" data-dup-rename aria-label="Rename selected files" title="Rename selected files" disabled>{{ dup_icon('pencil') }}</button>
+        <button type="button" class="dup-bulk-icon" data-dup-move aria-label="Move selected files" title="Move selected files" disabled>{{ dup_icon('move') }}</button>
+        <button type="button" class="dup-bulk-icon dup-bulk-delete" data-dup-delete aria-label="Delete selected files" title="Delete selected files permanently" disabled>{{ dup_icon('trash') }}</button>
+        <button type="button" class="dup-bulk-icon" data-dup-link aria-label="Link selected duplicates" title="Link selected duplicates" disabled>{{ dup_icon('link') }}</button>
       </div>
       {% endif %}
     </div>

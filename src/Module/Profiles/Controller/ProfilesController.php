@@ -13,6 +13,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Doctrine\DBAL\Connection;
 
 final class ProfilesController extends AbstractController
 {
@@ -24,6 +25,7 @@ final class ProfilesController extends AbstractController
         $unresponsive=0;
         $busy=0;
         foreach($profiles as &$profile) {
+            $profile['schedule_label']=ScanScheduleService::description((int)($profile['schedule_interval']??0));
             $profile['job_overdue']=in_array($profile['active_state']??null,
                 ['running','cancelling'],true) && (
                 empty($profile['active_heartbeat']) ||
@@ -38,6 +40,53 @@ final class ProfilesController extends AbstractController
             'profiles'=>$profiles,'types'=>$repository->types(),
             'unresponsive_count'=>$unresponsive,'busy_count'=>$busy
         ]);
+    }
+
+    /** Display profile configuration and activity, without duplicate results. */
+    #[Route('/profiles/{id<\\d+>}',name:'app_profile_view',methods:['GET'])]
+    public function view(int $id,ProfileRepository $repository,
+        ScanScheduleService $schedules,Connection $db):Response
+    {
+        $profile=$repository->find($id);
+        if(!$profile)throw $this->createNotFoundException('Profile not found.');
+        $scans=$db->fetchAllAssociative(
+            'SELECT id,state,files_indexed,duplicate_groups,finished_at FROM scan_runs '.
+            'WHERE profile_id=? ORDER BY id DESC LIMIT 10',[$id]
+        );
+        $jobs=$db->fetchAllAssociative(
+            'SELECT id,kind,state,phase,progress_current,progress_total,created_at '.
+            'FROM jobs WHERE profile_id=? ORDER BY id DESC LIMIT 10',[$id]
+        );
+        return $this->render('profiles/view.html.twig',[
+            'profile'=>$profile,'schedule'=>$schedules->details($id),
+            'schedule_label'=>ScanScheduleService::description((int)($schedules->details($id)['interval_minutes']??0)),
+            'scans'=>$scans,'jobs'=>$jobs
+        ]);
+    }
+
+    /** UI schedule presets plus a custom interval and first-run UTC timestamp. */
+    private function scheduleSelection(Request $request,ScanScheduleService $schedules):array
+    {
+        $selected=(string)$request->request->get('schedule_choice','off');
+        $presets=['off'=>0,'hourly'=>60,'6hours'=>360,'12hours'=>720,
+            'daily'=>1440,'weekly'=>10080];
+        if(isset($presets[$selected]))return [$presets[$selected],null];
+        if($selected!=='custom')
+            throw new \DomainException('Choose a valid scan schedule.');
+        $number=filter_var($request->request->get('schedule_amount'),FILTER_VALIDATE_INT,
+            ['options'=>['min_range'=>1,'max_range'=>525600]]);
+        $units=['minutes'=>1,'hours'=>60,'days'=>1440,'weeks'=>10080];
+        $unit=(string)$request->request->get('schedule_unit','minutes');
+        if($number===false || !isset($units[$unit]))
+            throw new \DomainException('Choose a valid custom scan interval.');
+        $minutes=$number*$units[$unit];
+        $start=(string)$request->request->get('schedule_first_utc','');
+        if($start==='')
+            throw new \DomainException('Set the first scan date and time in UTC.');
+        // Validation is performed by save() only when the schedule actually
+        // changes. Editing other profile settings must not fail merely
+        // because an existing next-run time is now overdue.
+        return [$minutes,$start];
     }
 
     /** Same form and same validation for both create and edit. */
@@ -73,7 +122,8 @@ final class ProfilesController extends AbstractController
     }
 
     #[Route('/profiles/new',name:'app_profile_new',methods:['GET','POST'])]
-    public function create(Request $request,ProfileRepository $repository,DirectoryBrowser $browser): Response
+    public function create(Request $request,ProfileRepository $repository,DirectoryBrowser $browser,
+        ScanScheduleService $schedules,Connection $db): Response
     {
         $errors=[];
         if($request->isMethod('POST')) {
@@ -81,18 +131,29 @@ final class ProfilesController extends AbstractController
                 throw $this->createAccessDeniedException('Invalid form token.');
             [$errors,$name,$source,$move,$type,$size,$mode,$fileExists]=$this->validate($request,$repository,$browser);
             if(!$errors) {
-                $repository->create($name,$source,$move,$type,$size,$mode,$fileExists);
-                $this->addFlash('success','Profile created. Start a scan to index its files.');
-                return $this->redirectToRoute('app_profiles');
+                try {
+                    [$minutes,$first]=$this->scheduleSelection($request,$schedules);
+                    $actor=$this->getUser();
+                    if(!$actor instanceof Account)throw $this->createAccessDeniedException();
+                    $db->transactional(function() use ($repository,$name,$source,$move,
+                        $type,$size,$mode,$fileExists,$schedules,$minutes,$first,$actor):void {
+                        $new=$repository->create($name,$source,$move,$type,$size,$mode,$fileExists);
+                        if($minutes>0)$schedules->save($new,$minutes,$actor->id,$first);
+                    });
+                    $this->addFlash('success','Profile created with the chosen schedule.');
+                    return $this->redirectToRoute('app_profiles');
+                } catch(\DomainException $ex) {$errors[]=$ex->getMessage();}
             }
         }
         return $this->render('profiles/new.html.twig',[
-            'types'=>$repository->types(),'errors'=>$errors,'profile'=>null
+            'types'=>$repository->types(),'errors'=>$errors,'profile'=>null,
+            'schedule'=>false
         ]);
     }
 
     #[Route('/profiles/{id<\\d+>}/edit',name:'app_profile_edit',methods:['GET','POST'])]
-    public function edit(int $id,Request $request,ProfileRepository $repository,DirectoryBrowser $browser): Response
+    public function edit(int $id,Request $request,ProfileRepository $repository,DirectoryBrowser $browser,
+        ScanScheduleService $schedules,Connection $db): Response
     {
         $profile=$repository->find($id);
         if(!$profile) throw $this->createNotFoundException('Profile not found.');
@@ -103,8 +164,23 @@ final class ProfilesController extends AbstractController
             [$errors,$name,$source,$move,$type,$size,$mode,$fileExists]=$this->validate($request,$repository,$browser);
             if(!$errors) {
                 try {
-                    $repository->update($id,$name,$source,$move,$type,$size,$mode,$fileExists);
-                    $this->addFlash('success','Profile settings updated. Existing scan history was preserved.');
+                    $oldSchedule=$schedules->details($id);
+                    [$minutes,$first]=$request->request->has('schedule_choice')
+                        ?$this->scheduleSelection($request,$schedules)
+                        :[(int)($oldSchedule['interval_minutes']??0),null];
+                    $actor=$this->getUser();
+                    if(!$actor instanceof Account)throw $this->createAccessDeniedException();
+                    $oldMinutes=(int)($oldSchedule['interval_minutes']??0);
+                    $oldNext=substr(str_replace(' ','T',(string)($oldSchedule['next_run_at']??'')),0,16);
+                    $scheduleChanged=$minutes!==$oldMinutes ||
+                        ($first!==null && $first!==$oldNext);
+                    $db->transactional(function()use($repository,$id,$name,$source,
+                        $move,$type,$size,$mode,$fileExists,$schedules,$scheduleChanged,
+                        $minutes,$first,$actor):void {
+                        $repository->update($id,$name,$source,$move,$type,$size,$mode,$fileExists);
+                        if($scheduleChanged)$schedules->save($id,$minutes,$actor->id,$first);
+                    });
+                    $this->addFlash('success','Profile and schedule saved. Existing scan history was preserved.');
                     return $this->redirectToRoute('app_profiles');
                 } catch(\DomainException $ex) {
                     $errors[]=$ex->getMessage();
@@ -112,7 +188,8 @@ final class ProfilesController extends AbstractController
             }
         }
         return $this->render('profiles/new.html.twig',[
-            'types'=>$repository->types(),'errors'=>$errors,'profile'=>$profile
+            'types'=>$repository->types(),'errors'=>$errors,'profile'=>$profile,
+            'schedule'=>$schedules->details($id)
         ]);
     }
 

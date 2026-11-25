@@ -24,9 +24,9 @@
     <form method="post" action="{{ path('app_job_debug_test') }}" class="diagnostic-test-form">
       <input type="hidden" name="_token" value="{{ csrf_token('test_job_debug') }}">
       <button type="submit" class="primary">Test debug logging now</button>
-      <span class="muted">Writes a unique test entry and reads it back as the Web Station account.
-        If this fails, you will see the exact error rather than a blank log.
-        The worker's own <code>worker.boot</code> entry independently proves CLI logging.</span>
+      <p class="muted diagnostic-test-explainer">Checks that the Web Station account can write and read a diagnostic entry.
+        If the check fails, the exact error is displayed. CLI logging is checked separately by the
+        <code>worker.boot</code> event.</p>
     </form>
     <dl class="details diagnostic-storage-details">
       <div><dt>Diagnostic directory</dt><dd><code>{{ storage.directory }}</code></dd></div>
@@ -53,9 +53,9 @@
     <div class="field"><label for="worker-debug-job">Job number</label>
       <input id="worker-debug-job" name="job" type="number" min="0"
         value="{{ selected_job|default(0) }}" required>
-      <small class="muted">0 = worker lifecycle; enter a number from Job Monitor for file-level details.</small>
     </div>
     <button class="primary" type="submit">View debug log</button>
+    <p class="muted debug-job-hint">Use <strong>0</strong> for worker lifecycle events, or enter a job number from Job Monitor to inspect individual file operations.</p>
   </form>
   <div class="panel-content">
     {% if recent_debug_jobs|default([]) is not empty %}
@@ -106,19 +106,18 @@
         </tbody>
       </table>
     </div>
-    <div class="table-footer"><span>{{ debug.rows|length }} recent diagnostic entries shown · 250 maximum per view</span>
-      <a href="{{ path('app_job_debug_download',{job:selected_job|default(0)}) }}">Download rotated history</a>
+    <div class="table-footer diagnostic-log-footer"><span>{{ debug.rows|length }} recent diagnostic entries shown (250 maximum per view)</span>
+      <a href="{{ path('app_job_debug_download',{job:selected_job|default(0)}) }}">Download complete rotated history</a>
     </div>
   {% else %}
     <div class="empty-state">{{ debug.message|default('No diagnostic entries recorded.') }}
       <p>Logs begin with jobs run after installation of the debug-logging release. Older job events cannot be retroactively reconstructed.</p>
     </div>
   {% endif %}
+  <div class="panel-content diagnostic-page-note"><p class="muted">These file-backed diagnostics remain accessible when the database is blocked.
+    For current worker heartbeats use <a href="{{ path('app_jobs') }}">Job Monitor</a> or
+    <a href="{{ path('app_system') }}">System Health</a>.</p></div>
 </section>
-<p class="muted">This diagnostic page deliberately makes no database queries, so you can read the file logs
-  even when a scanner is blocked inside an SQL operation. For current worker heartbeats,
-  visit <a href="{{ path('app_jobs') }}">Job Monitor</a> or
-  <a href="{{ path('app_system') }}">System Health</a>.</p>
 <section class="panel">
   <div class="panel-heading"><div><h2>DSM service output</h2>
     <p class="muted">CLI output, PHP errors and fatal exceptions: <code>{{ log.path }}</code></p></div>
@@ -152,5 +151,5 @@
   {% endif %}
 </section>
 {% endif %}
-<p class="muted">Logs can contain source paths and error traces. This page and downloads require administrator access.</p>
+<div class="panel panel-content"><p class="muted diagnostic-privacy-note">Logs may contain filesystem paths and error traces. Diagnostic pages and downloads require administrator access.</p></div>
 {% endblock %}

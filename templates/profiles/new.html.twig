@@ -44,9 +44,55 @@
     </div>
     <div class="field"><label for="minimum">Minimum file size (bytes)</label>
       <input id="minimum" name="minimum_bytes" type="number" min="0" step="1" value="{{ app.request.request.get('minimum_bytes',editing ? profile.minimum_bytes : '0') }}" required></div>
+    {% set scheduleMinutes = schedule.interval_minutes|default(0) + 0 %}
+    {% set scheduledDefault = scheduleMinutes == 0 ? 'off' : (scheduleMinutes == 60 ? 'hourly' : (scheduleMinutes == 360 ? '6hours' : (scheduleMinutes == 720 ? '12hours' : (scheduleMinutes == 1440 ? 'daily' : (scheduleMinutes == 10080 ? 'weekly' : 'custom'))))) %}
+    {% set scheduleChoice = app.request.request.get('schedule_choice',scheduledDefault) %}
+    {% set customUnit = scheduleMinutes >= 10080 and scheduleMinutes % 10080 == 0 ? 'weeks' : (scheduleMinutes >= 1440 and scheduleMinutes % 1440 == 0 ? 'days' : (scheduleMinutes >= 60 and scheduleMinutes % 60 == 0 ? 'hours' : 'minutes')) %}
+    {% set customMultiplier = customUnit == 'weeks' ? 10080 : (customUnit == 'days' ? 1440 : (customUnit == 'hours' ? 60 : 1)) %}
+    {% set customAmount = scheduleMinutes > 0 ? (scheduleMinutes / customMultiplier)|round(0,'floor') : 1 %}
+    <fieldset class="profile-schedule-fields">
+      <legend>Automatic scans</legend>
+      <div class="field">
+        <label for="schedule-choice">Repeat schedule</label>
+        <select id="schedule-choice" name="schedule_choice" data-profile-schedule-choice>
+          {% for value,label in {'off':'Off','hourly':'Hourly','6hours':'Every 6 hours','12hours':'Every 12 hours','daily':'Daily','weekly':'Weekly','custom':'Custom interval and start time'} %}
+            <option value="{{ value }}" {{ scheduleChoice == value ? 'selected' : '' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="profile-schedule-custom" data-profile-schedule-custom {{ scheduleChoice != 'custom' ? 'hidden' : '' }}>
+        <div class="profile-custom-interval">
+          <div class="field">
+            <label for="schedule-amount">Repeat every</label>
+            <input type="number" min="1" max="525600" id="schedule-amount" name="schedule_amount"
+              value="{{ app.request.request.get('schedule_amount',customAmount) }}" data-custom-schedule-required>
+          </div>
+          <div class="field">
+            <label for="schedule-unit">Units</label>
+            {% set selectedUnit = app.request.request.get('schedule_unit',customUnit) %}
+            <select name="schedule_unit" id="schedule-unit">
+              {% for value,label in {'minutes':'Minutes','hours':'Hours','days':'Days','weeks':'Weeks'} %}
+                <option value="{{ value }}" {{ selectedUnit == value ? 'selected' : '' }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="schedule-first-utc">First run (UTC)</label>
+          <input type="datetime-local" id="schedule-first-utc" name="schedule_first_utc"
+            value="{{ app.request.request.get('schedule_first_utc',(schedule.next_run_at|default('')|replace({' ':'T'}))|slice(0,16)) }}"
+            data-custom-schedule-required>
+          <small class="muted">Set the next scan's starting date and time in UTC. Later scans repeat from this time without drifting if the worker starts late. UTC does not shift for daylight saving time.</small>
+        </div>
+      </div>
+      {% if schedule.next_run_at|default(null) %}
+        <p class="muted">Currently scheduled next: <strong>{{ schedule.next_run_at }} UTC</strong></p>
+      {% endif %}
+    </fieldset>
     <div class="form-actions"><button class="primary" type="submit">{{ editing ? 'Save changes' : 'Save profile' }}</button>
       <a class="secondary link-button" href="{{ path('app_profiles') }}">Cancel</a></div>
   </form>
 </section>
 <script type="module" src="{{ asset('assets/folder-picker.js') }}"></script>
+<script type="module" src="{{ asset('assets/profile-schedule.js') }}?v=1"></script>
 {% endblock %}

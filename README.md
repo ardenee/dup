@@ -32,7 +32,7 @@ DUP is a web-based duplicate-file scanner and manager for **Windows, Linux, and 
 
 ## Windows or Linux installation
 
-1. Extract the generic **DUP-Web-0.7.20.zip** package into a private directory.
+1. Extract the generic **DUP-Web-0.7.21.zip** package into a private directory.
 2. Point Apache, IIS, or Nginx at its **dup/public/** directory. Never publicly expose src, vendor, config, var, or private environment files.
 3. Open **https://your-host/setup.php**. Provide the database connection and create the first administrator. A missing database can be created if the supplied database account has the required privileges.
 4. Sign in, create a scan profile, select accessible folders, and start a scan.
@@ -49,7 +49,7 @@ Use HTTPS for remote access. The web and worker accounts must have the appropria
 ## Synology DSM 7 installation
 
 1. Install Web Station, PHP 8.2 or later and MariaDB 10, and enable the necessary PHP extensions.
-2. Open **DSM Package Center → Manual Install** and select **DUP-DSM7-0.7.20.spk**.
+2. Open **DSM Package Center → Manual Install** and select **DUP-DSM7-0.7.21.spk**.
 3. Open DUP at **/dup/** over HTTPS. Complete the setup wizard for a new installation, or sign in after an existing DUP v2 upgrade.
 4. Configure scan profiles, file-access permissions and schedules. The DSM package manages its background worker.
 
@@ -62,7 +62,7 @@ On DSM, the web process uses the http group. The background worker must also hav
 The release packages are built using:
 
 - Python: packaging/build_release.py (generic ZIP)
-- Python: packaging/build_dsm_release.py --version 0.7.20 (Synology SPK)
+- Python: packaging/build_dsm_release.py --version 0.7.21 (Synology SPK)
 
 The published ZIP and SPK contain the application and required dependencies, but do not include the repository test suite, runtime data or developer utilities.
 

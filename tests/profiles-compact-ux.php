@@ -85,7 +85,8 @@ assertProfileUx(str_contains($render,'3 total') &&
     'The compact overview lost important profile settings or scan results.');
 assertProfileUx(str_contains($render,'File-type presets') &&
     str_contains($render,'Manage presets (2)') &&
-    str_contains($render,'schedule_profile_3'),
+    str_contains($render,'profile-schedule-label') &&
+    str_contains($render,'app_profile_edit'),
     'Preset management or schedule saving is missing.');
 assertProfileUx(str_contains($render,'disabled') &&
     str_contains($render,'Job Monitor'),

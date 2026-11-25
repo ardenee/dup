@@ -52,7 +52,7 @@ $base=file_get_contents($root.'/templates/base.html.twig');
 ckTable(str_contains($base,"asset('assets/table-local.js')"),
     'Local table utility was not included globally.');
 $js=file_get_contents($root.'/public/assets/table-local.js');
-foreach(['data-local-table','aria-sort','local-row-filtered','sortValue','input.addEventListener'] as $needle)
+foreach(['data-local-table','aria-sort','local-row-filtered','sortValue','search.addEventListener','local-table-pager','pageStatus'] as $needle)
     ckTable(str_contains($js,$needle),'Local table utility missing '.$needle);
 
 $twig=new Twig\Environment(new Twig\Loader\FilesystemLoader($root.'/templates'));

@@ -18,10 +18,10 @@ function canReach(array $rules,string $method,string $uri,string $role):bool
     }
     return false;
 }
-foreach(['/','/duplicates','/duplicates/12','/search','/reports','/reports/run/14','/files/2','/files/2/download','/files/2/inline'] as $url) {
+foreach(['/','/duplicates','/duplicates/12','/search','/profiles/5','/reports','/reports/run/14','/files/2','/files/2/download','/files/2/inline'] as $url) {
     check(canReach($rules,'GET',$url,'ROLE_USER'),'User blocked on read-only endpoint '.$url);
 }
-foreach(['/accounts','/settings/viewer','/settings/ignored-folders','/profiles','/jobs','/jobs/42','/jobs/cleanup','/reports/cleanup','/move/3','/actions','/actions/cleanup','/actions/45/remove','/rename','/system'] as $url) {
+foreach(['/accounts','/settings/viewer','/settings/ignored-folders','/profiles','/profiles/5/edit','/jobs','/jobs/42','/jobs/cleanup','/reports/cleanup','/move/3','/actions','/actions/cleanup','/actions/45/remove','/rename','/system'] as $url) {
     check(!canReach($rules,'GET',$url,'ROLE_USER'),'User gained administrative GET '.$url);
     check(canReach($rules,'GET',$url,'ROLE_ADMIN'),'Administrator blocked on '.$url);
 }

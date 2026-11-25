@@ -26,7 +26,7 @@ $html=$twig->render('profiles/index.html.twig',[
 ]);
 foreach(['Historical results available','4 retained scans',
     'Browse scans for Old music','profile=5','Reports and scan history','Completed scans',
-    '4 retained scans','schedule_profile_5','2026-11-25 09:00:00',
+    '4 retained scans','profile-schedule-label','2026-11-25 09:00:00',
     'Failed to read root directory','Ignored folders'] as $expected)
     if(!str_contains($html,$expected))
         throw new RuntimeException('Archived-only profile view missing: '.$expected);

@@ -1,5 +1,6 @@
 {% extends 'base.html.twig' %}
 {% from '_action_icons.html.twig' import icon %}
+{% from 'duplicates/_format.html.twig' import bytes %}
 {% block title %}Dashboard{% endblock %}
 {% block section %}Dashboard{% endblock %}
 {% block body %}
@@ -26,7 +27,7 @@
     <small>Browse matching groups</small></a>
   <a class="stat stat-link" href="{{ path('app_duplicates') }}">
     <span>Potential verified recovery</span>
-    <strong>{{ metrics.verified_potential_bytes|number_format }} <small>bytes</small></strong>
+    <strong title="{{ metrics.verified_potential_bytes|number_format }} bytes">{{ bytes(metrics.verified_potential_bytes) }}</strong>
     <small>Examine verified duplicates</small></a>
   {% if is_granted('ROLE_ADMIN') %}
     <a class="stat stat-link" href="{{ path('app_jobs') }}">

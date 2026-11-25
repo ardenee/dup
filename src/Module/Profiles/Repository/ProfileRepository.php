@@ -41,7 +41,7 @@ final class ProfileRepository
         );
     }
 
-    public function create(string $name,string $source,string $move,int $type,int $minimum,string $hashMode,string $fileExists='fail'): void
+    public function create(string $name,string $source,string $move,int $type,int $minimum,string $hashMode,string $fileExists='fail'): int
     {
         \App\Module\FileActions\Service\ActionSettings::validate($fileExists);
         $this->db->insert('scan_profiles',[
@@ -51,6 +51,7 @@ final class ProfileRepository
             'enabled'=>1,'created_at'=>gmdate('Y-m-d H:i:s'),
             'updated_at'=>gmdate('Y-m-d H:i:s')
         ]);
+        return (int)$this->db->lastInsertId();
     }
 
     public function update(int $id,string $name,string $source,string $move,int $type,int $minimum,string $hashMode,string $fileExists='fail'): void

@@ -1,5 +1,7 @@
 {% extends 'base.html.twig' %}
 {% from '_table_headers.html.twig' import sort as sort_heading %}
+{% from '_action_icons.html.twig' import icon %}
+{% from 'duplicates/_format.html.twig' import bytes %}
 {% block title %}Search{% endblock %}
 {% block section %}Search{% endblock %}
 {% block body %}
@@ -72,7 +74,7 @@
     <p class="report-explanation">Symbolic links are indexed by their own path and target, but never followed, hashed or included in duplicate groups.</p>
   {% endif %}
 </section>
-<section class="panel">
+<section class="panel" data-match-terms="{{ term }}" data-match-case="{{ case_sensitive ? '1' : '0' }}">
   <div class="panel-heading">
     <h2>{{ mode == 'history' ? 'File-action history' : 'Results' }}</h2>
     <span class="muted">{{ submitted ? (results.total|number_format ~ (mode == 'history' ? ' action records' : ' files found')) : 'Enter a search above' }}</span>
@@ -100,11 +102,11 @@
           <tr>
             <td>{{ row.requested_at }}</td>
             <td>
-              <strong>{{ row.profile_name }}</strong>
+              <strong><a href="{{ path('app_profile_view',{id:row.profile_id}) }}">{{ row.profile_name }}</a></strong>
               <small class="muted">Run #{{ row.run_id ?? 'Unknown' }}{% if row.scan_finished_at %} · {{ row.scan_finished_at }}{% endif %}</small>
             </td>
             <td>{{ row.action_kind|capitalize }}</td>
-            <td><code>{{ row.source_path }}</code></td>
+            <td><code data-highlight-text>{{ row.source_path }}</code></td>
             <td>
               {% if row.action_kind == 'link' %}
                 <span class="muted">Points to:</span> <code>{{ row.link_target_path ?? 'Unknown' }}</code>
@@ -137,7 +139,7 @@
             {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'path','File path') }}
             {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'profile','Profile') }}
             {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'size','Size') }}
-            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'modified','Modified (Unix time)') }}
+            {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'modified','Modified (UTC)') }}
             {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'method','Hash method') }}
             {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'state','State') }}
             {{ sort_heading('app_search',filters|default({}),sort|default('id'),dir|default('desc'),'group','Duplicate group') }}
@@ -149,14 +151,15 @@
           {% for row in results.rows %}
           <tr>
             <td>
-              <code>{{ row.directory }}{{ row.directory ends with '/' or row.directory ends with '\\' ? '' : '/' }}{{ row.filename }}</code>
+              <div class="search-directory" title="{{ row.directory }}"><code data-highlight-text>{{ row.directory }}</code></div>
+              <strong class="search-filename" title="{{ row.filename }}" data-highlight-text>{{ row.filename }}</strong>
               {% if row.is_symlink %}
                 <small class="muted">Symlink → <code>{{ row.link_target ?? 'Target unavailable' }}</code></small>
               {% endif %}
             </td>
-            <td>{{ row.profile_name }}</td>
-            <td class="group-size">{{ row.is_symlink ? 'Link' : row.size_bytes|number_format }}</td>
-            <td>{{ row.mtime_epoch }}</td>
+            <td><a class="text-link" href="{{ path('app_profile_view',{id:row.profile_id}) }}" title="View profile configuration">{{ row.profile_name }}</a></td>
+            <td class="group-size" title="{{ row.size_bytes|number_format }} bytes">{{ row.is_symlink ? 'Link' : bytes(row.size_bytes) }}</td>
+            <td title="Unix timestamp: {{ row.mtime_epoch }}">{{ row.mtime_epoch is not null ? row.mtime_epoch|date('Y-m-d H:i','UTC') ~ ' UTC' : 'Unknown' }}</td>
             <td>
               {% if row.is_symlink %}
                 Symbolic link — not hashed
@@ -177,11 +180,13 @@
               {% if row.is_symlink %}
                 <span class="muted">Link metadata only</span>
               {% elseif row.error_code is null and not row.is_ignored %}
-                <a class="text-link" href="{{ path('app_file_view',{id:row.id}) }}">View</a>
-                <a class="text-link" href="{{ path('app_file_download',{id:row.id}) }}">Download</a>
-                {% if is_granted('ROLE_ADMIN') %}
-                  <a class="text-link" href="{{ path('app_rename_file',{id:row.id}) }}">Rename</a>
-                {% endif %}
+                <div class="action-icon-group" role="group" aria-label="File actions for {{ row.filename }}">
+                  <a class="action-icon-button" href="{{ path('app_file_view',{id:row.id}) }}" title="View file" aria-label="View {{ row.filename }}">{{ icon('eye') }}</a>
+                  <a class="action-icon-button" href="{{ path('app_file_download',{id:row.id}) }}" title="Download file" aria-label="Download {{ row.filename }}">{{ icon('download') }}</a>
+                  {% if is_granted('ROLE_ADMIN') %}
+                    <a class="action-icon-button" href="{{ path('app_rename_file',{id:row.id}) }}" title="Rename file" aria-label="Rename {{ row.filename }}">{{ icon('edit') }}</a>
+                  {% endif %}
+                </div>
               {% else %}
                 <span class="muted">See file-action history</span>
               {% endif %}
@@ -206,4 +211,5 @@
     </div>
   {% endif %}
 </section>
+<script type="module" src="{{ asset('assets/text-highlights.js') }}?v=1"></script>
 {% endblock %}

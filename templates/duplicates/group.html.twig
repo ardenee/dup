@@ -1,13 +1,14 @@
 {% extends 'base.html.twig' %}
 {% from 'duplicates/_actions.html.twig' import actions %}
 {% from '_table_headers.html.twig' import sort as sort_heading %}
+{% from 'duplicates/_format.html.twig' import bytes %}
 {% block title %}Duplicate group #{{ group.id }}{% endblock %}
 {% block section %}Duplicates / Group #{{ group.id }}{% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ asset('assets/duplicates.css') }}?v=4">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ asset('assets/duplicates.css') }}?v=5">{% endblock %}
 {% block body %}
 {% include 'duplicates/_icons.html.twig' %}
 <div class="page-heading"><div><div class="eyebrow">DUPLICATE COMPARISON</div><h1>Group #{{ group.id }}</h1>
-  <p class="muted">{{ group.profile_name }} · {{ group.file_count|number_format }} files · {{ group.size_bytes|number_format }} bytes each</p>
+  <p class="muted">{{ group.profile_name }} · {{ group.file_count|number_format }} files · <span title="{{ group.size_bytes|number_format }} bytes">{{ bytes(group.size_bytes) }}</span> each</p>
   <p><span class="status">{{ group.rules_version == 1 ? 'Verified SHA-256' : (group.rules_version == 2 ? 'CRC32 3 Part — candidate' : (group.rules_version == 3 ? 'CRC32 Full — candidate' : 'Size only — candidate')) }}</span></p>
 </div><a class="secondary link-button" href="{{ path('app_duplicates',historical|default(false) ? {run:group.run_id} : {profile:group.profile_id}) }}">Back to groups</a></div>
 {% if historical|default(false) %}
@@ -16,8 +17,8 @@
 {% endif %}
 <div class="stats-grid">
   <div class="stat"><span>Files</span><strong>{{ group.file_count|number_format }}</strong></div>
-  <div class="stat"><span>Bytes per file</span><strong>{{ group.size_bytes|number_format }}</strong></div>
-  <div class="stat"><span>Potential reclaimable bytes</span><strong>{{ group.reclaimable_bytes|number_format }}</strong></div>
+  <div class="stat"><span>Size per file</span><strong title="{{ group.size_bytes|number_format }} bytes">{{ bytes(group.size_bytes) }}</strong></div>
+  <div class="stat"><span>Potential reclaimable</span><strong title="{{ group.reclaimable_bytes|number_format }} bytes">{{ bytes(group.reclaimable_bytes) }}</strong></div>
 </div>
 <section class="panel">
   <div class="panel-heading"><h2>File members</h2><span class="muted">{{ historical|default(false) ? 'Historical records only — no filesystem actions' : 'View, rename, move, link or permanently delete. Delete always requires confirmation.' }}</span></div>
@@ -40,14 +41,14 @@
   {% else %}
     <div class="table-wrap"><table><thead><tr>
       {{ sort_heading('app_duplicate_group',table_filters|default({id:group.id}),sort|default('id'),dir|default('asc'),'file','File path') }}
-      {{ sort_heading('app_duplicate_group',table_filters|default({id:group.id}),sort|default('id'),dir|default('asc'),'size','Size (bytes)') }}
-      {{ sort_heading('app_duplicate_group',table_filters|default({id:group.id}),sort|default('id'),dir|default('asc'),'modified','Modified (Unix time)') }}
+      {{ sort_heading('app_duplicate_group',table_filters|default({id:group.id}),sort|default('id'),dir|default('asc'),'size','Size') }}
+      {{ sort_heading('app_duplicate_group',table_filters|default({id:group.id}),sort|default('id'),dir|default('asc'),'modified','Modified (UTC)') }}
       {{ sort_heading('app_duplicate_group',table_filters|default({id:group.id}),sort|default('id'),dir|default('asc'),'hash','Hash') }}
       <th>Actions</th></tr></thead>
     <tbody>{% for file in members %}
       <tr><td><code>{{ file.path }}{{ file.path ends with '/' or file.path ends with '\\' ? '' : '/' }}{{ file.filename }}</code></td>
-      <td class="group-size">{{ file.size_bytes|number_format }}</td>
-      <td>{{ file.mtime_epoch }}</td>
+      <td class="group-size" title="{{ file.size_bytes|number_format }} bytes">{{ bytes(file.size_bytes) }}</td>
+      <td title="Unix timestamp: {{ file.mtime_epoch }}">{{ file.mtime_epoch is not null ? file.mtime_epoch|date('Y-m-d H:i','UTC') ~ ' UTC' : 'Unknown' }}</td>
       <td><code>{{ file.hash_value ?? 'Not computed' }}</code></td>
       <td>{% if historical|default(false) %}
         <span class="muted">Historical record</span>

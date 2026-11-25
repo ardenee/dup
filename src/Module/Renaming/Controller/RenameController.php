@@ -52,6 +52,9 @@ final class RenameController extends AbstractController
         if(!in_array($collision,['fail','number','overwrite'],true))
             throw $this->createNotFoundException('Invalid collision policy.');
         $after=$this->number($request->query->get('after'),0);
+        $before=$this->number($request->query->get('before'),0);
+        if($after>0 && $before>0)
+            throw $this->createNotFoundException('Choose only one rename page cursor.');
         $sort=(string)$request->query->get('sort','id');
         $dir=(string)$request->query->get('dir','asc');
         $name=trim((string)$request->query->get('name',''));
@@ -62,8 +65,8 @@ final class RenameController extends AbstractController
             throw $this->createNotFoundException('Invalid cleanup options.');
         $candidates=$profile>0?$renames->candidates(
             $profile,$filters,$dots,$unders,$collapse,$dups,$after>0?$after:null,$collision==='number',$find,$replace,$collision==='overwrite',
-            $sort,$dir,$name
-        ):['rows'=>[],'next'=>null,'scanned'=>0];
+            $sort,$dir,$name,$before>0?$before:null
+        ):['rows'=>[],'next'=>null,'previous'=>null,'scanned'=>0];
         return $this->render('rename/index.html.twig',[
             'profiles'=>$profiles,'profile'=>$profile,'filters'=>$filters,
             'dots'=>$dots,'unders'=>$unders,'collapse'=>$collapse,

@@ -1,0 +1,86 @@
+{% extends 'base.html.twig' %}
+{% from '_action_icons.html.twig' import icon %}
+{% from 'duplicates/_format.html.twig' import bytes %}
+{% block title %}{{ profile.name }} · Profile{% endblock %}
+{% block section %}Profiles / {{ profile.name }}{% endblock %}
+{% block body %}
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">SCAN PROFILE</div>
+    <h1>{{ profile.name }}</h1>
+    <p class="muted">Profile configuration, automatic schedule, recent scans and jobs.</p>
+  </div>
+  <div class="profile-page-actions">
+    <a class="secondary link-button" href="{{ path('app_duplicates',{profile:profile.id}) }}">Browse duplicates</a>
+    <a class="secondary link-button" href="{{ path('app_reports',{profile:profile.id}) }}">All scan history</a>
+    {% if is_granted('ROLE_ADMIN') %}
+      <a class="primary link-button" href="{{ path('app_profile_edit',{id:profile.id}) }}">{{ icon('edit') }} Edit profile</a>
+    {% endif %}
+  </div>
+</div>
+<section class="panel">
+  <div class="panel-heading"><h2>Profile settings</h2>
+    <span class="status">{{ profile.enabled ? 'Enabled' : 'Disabled' }}</span></div>
+  <dl class="details profile-view-details">
+    <div><dt>Source folder</dt><dd><code>{{ profile.source_root }}</code></dd></div>
+    <div><dt>Move folder</dt><dd><code>{{ profile.move_root }}</code></dd></div>
+    <div><dt>File-type preset</dt><dd>#{{ profile.profile_type_id }}</dd></div>
+    <div><dt>Matching method</dt><dd>{{ profile.hash_mode|replace({'_':' '})|upper }}</dd></div>
+    <div><dt>Minimum indexed size</dt><dd title="{{ profile.minimum_bytes|number_format }} bytes">{{ bytes(profile.minimum_bytes) }}</dd></div>
+    <div><dt>File exists policy</dt><dd>{{ profile.file_exists_policy|replace({'fail':'Fail','number':'Append Number','overwrite':'Overwrite'}) }}</dd></div>
+    <div><dt>Automatic scan</dt><dd>{{ schedule ? schedule_label : 'Off' }}</dd></div>
+    {% if schedule %}
+      <div><dt>Next automatic scan</dt><dd>{{ schedule.next_run_at }} UTC</dd></div>
+      {% if schedule.last_error %}<div><dt>Schedule error</dt><dd class="report-error">{{ schedule.last_error }}</dd></div>{% endif %}
+    {% endif %}
+  </dl>
+</section>
+<section class="panel">
+  <div class="panel-heading"><h2>Recent scans</h2>
+    <a class="text-link" href="{{ path('app_reports',{profile:profile.id}) }}">View full paginated history</a></div>
+  {% if scans is empty %}
+    <div class="empty-state">No scans recorded for this profile.</div>
+  {% else %}
+    <div class="table-wrap"><table data-local-table="recent profile scans">
+      <thead><tr><th>Run</th><th>Status</th><th>Indexed files</th><th>Duplicate groups</th><th>Finished (UTC)</th><th>Actions</th></tr></thead>
+      <tbody>{% for scan in scans %}
+        <tr>
+          <td><a href="{{ path('app_report_run',{id:scan.id}) }}">#{{ scan.id }}</a></td>
+          <td><span class="status">{{ scan.state }}</span></td>
+          <td class="group-size">{{ scan.files_indexed|default(0)|number_format }}</td>
+          <td class="group-size">{{ scan.duplicate_groups|default(0)|number_format }}</td>
+          <td>{{ scan.finished_at ?? 'Not finished' }}</td>
+          <td><div class="action-icon-group">
+            {% if scan.state in ['completed','archived'] %}
+              <a class="action-icon-button" href="{{ path('app_duplicates',{run:scan.id}) }}"
+                title="View duplicate results" aria-label="View duplicate results for scan {{ scan.id }}">{{ icon('eye') }}</a>
+            {% endif %}
+            <a class="action-icon-button" href="{{ path('app_report_run',{id:scan.id}) }}"
+              title="Scan report" aria-label="Scan report {{ scan.id }}">{{ icon('report') }}</a>
+          </div></td>
+        </tr>
+      {% endfor %}</tbody></table></div>
+  {% endif %}
+</section>
+<section class="panel">
+  <div class="panel-heading"><h2>Recent jobs</h2>
+    {% if is_granted('ROLE_ADMIN') %}
+      <a class="text-link" href="{{ path('app_jobs',{profile:profile.id}) }}">View full paginated job history</a>
+    {% endif %}</div>
+  {% if jobs is empty %}
+    <div class="empty-state">No background jobs recorded for this profile.</div>
+  {% else %}
+    <div class="table-wrap"><table data-local-table="recent profile jobs">
+      <thead><tr><th>Job</th><th>Type</th><th>Stage</th><th>Status</th><th>Progress</th><th>Created (UTC)</th></tr></thead>
+      <tbody>{% for job in jobs %}
+        <tr>
+          <td>{% if is_granted('ROLE_ADMIN') %}<a href="{{ path('app_job_detail',{id:job.id}) }}">#{{ job.id }}</a>{% else %}#{{ job.id }}{% endif %}</td>
+          <td>{{ job.kind|replace({'-':' '}) }}</td><td>{{ job.phase|replace({'_':' '}) }}</td>
+          <td><span class="status">{{ job.state }}</span></td>
+          <td class="group-size">{{ job.progress_current|number_format }}{% if job.progress_total is not null %} / {{ job.progress_total|number_format }}{% endif %}</td>
+          <td>{{ job.created_at }}</td>
+        </tr>
+      {% endfor %}</tbody></table></div>
+  {% endif %}
+</section>
+{% endblock %}

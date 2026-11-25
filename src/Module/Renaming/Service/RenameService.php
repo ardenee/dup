@@ -53,16 +53,18 @@ final class RenameService
         int $profileId,string $filters,int $dots,int $unders,bool $collapse,
         bool $duplicatesOnly=false,?int $after=null,bool $numberCollisions=false,
         string $find='',string $replace='',bool $overwriteCollisions=false,
-        string $sort='id',string $direction='asc',string $name=''
+        string $sort='id',string $direction='asc',string $name='',?int $before=null
     ): array {
         $latest=(int)$this->db->fetchOne(
             "SELECT COALESCE(MAX(id),0) FROM scan_runs WHERE profile_id=? AND state='completed'",
             [$profileId]
         );
-        if(!$latest) return ['rows'=>[],'next'=>null,'scanned'=>0];
+        if(!$latest) return ['rows'=>[],'next'=>null,'previous'=>null,'scanned'=>0];
         if(!isset(self::PREVIEW_SORTS[$sort]) || !in_array($direction,['asc','desc'],true))
             throw new \DomainException('Invalid rename preview sort.');
         if(mb_strlen($name)>200) throw new \DomainException('File filter is too long.');
+        if($before!==null && $after!==null)
+            throw new \DomainException('Choose only one rename preview paging cursor.');
         $sql='FROM file_entries f JOIN directories d ON d.id=f.directory_id '.
             'WHERE f.run_id=:run AND f.error_code IS NULL AND d.is_ignored=0';
         $args=['run'=>$latest];
@@ -81,7 +83,7 @@ final class RenameService
         $page=KeysetPage::fetch(
             $this->db,'f.id,f.filename,f.size_bytes,f.mtime_epoch,d.path AS directory',
             ' '.$sql,$args,'f.id',self::PREVIEW_SORTS[$sort],strtoupper($direction),100,
-            $after,null,in_array($sort,['id','size'],true)
+            $after,$before,in_array($sort,['id','size'],true)
         );
         $data=$page['rows'];
         $next=$page['next'];
@@ -112,7 +114,7 @@ final class RenameService
         }
         return [
             'rows'=>$list,
-            'next'=>$next,
+            'next'=>$next,'previous'=>$page['previous'],
             'scanned'=>count($data)
         ];
     }

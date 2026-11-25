@@ -1,5 +1,6 @@
 {% extends 'base.html.twig' %}
 {% from '_table_headers.html.twig' import sort as sort_heading %}
+{% from '_action_icons.html.twig' import icon %}
 {% block title %}File actions{% endblock %}
 {% block section %}File actions{% endblock %}
 {% block body %}
@@ -77,19 +78,17 @@
           <td>
             <a class="text-link" href="{{ batch.action_kind == 'move' ? path('app_move_detail',{id:batch.id}) : path('app_action_detail',{id:batch.id}) }}">#{{ batch.id }} &mdash; {{ batch.action_kind|capitalize }}</a>
           </td>
-          <td><strong>{{ batch.profile_name }}</strong>
+          <td><strong><a href="{{ path('app_profile_view',{id:batch.profile_id}) }}" title="View profile">{{ batch.profile_name }}</a></strong>
             <div><code>{{ batch.source_path ?? 'Not recorded' }}</code></div>
           </td>
-          <td>{{ batch.item_count|number_format }}
-            {% if batch.state in ['completed','partial','failed','restored'] %}
-              <small class="muted">{{ batch.successful_items|number_format }} {{ batch.action_kind == 'delete' ? 'deleted' : 'succeeded' }}{% if batch.failed_items > 0 %} · {{ batch.failed_items|number_format }} failed{% endif %}</small>
-            {% endif %}
+          <td><strong>{{ batch.successful_items|number_format }} / {{ batch.item_count|number_format }}</strong>
+            <small class="muted">Successful / selected{% if batch.failed_items > 0 %} · {{ batch.failed_items|number_format }} failed{% endif %}</small>
           </td>
           <td><span class="status">{{ batch.state|replace({'_':' '}) }}</span></td>
           <td>{{ batch.requested_at }}</td>
           <td>{{ batch.completed_at ?? 'Pending' }}</td>
           <td>{{ batch.error_code ?? '—' }}</td>
-          <td><a class="text-link" href="{{ path('app_action_remove',{id:batch.id}) }}">Review / remove</a></td>
+          <td><a class="action-icon-button" href="{{ path('app_action_remove',{id:batch.id}) }}" title="Review / remove batch {{ batch.id }}" aria-label="Review or remove action batch {{ batch.id }}">{{ icon('details') }}</a></td>
         </tr>
       {% endfor %}
       </tbody>

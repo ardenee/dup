@@ -62,8 +62,8 @@
           {% for profile in profiles %}
           <tr>
             <td>
-              <a class="profile-name-link" href="{{ path('app_duplicates',{profile:profile.id}) }}"
-                title="Browse current and older duplicate results for {{ profile.name }}">{{ profile.name }}</a>
+              <a class="profile-name-link" href="{{ path('app_profile_view',{id:profile.id}) }}"
+                title="View configuration, schedule and jobs for {{ profile.name }}">{{ profile.name }}</a>
               <div class="profile-path" title="{{ profile.source_root }}">{{ profile.source_root }}</div>
             </td>
             <td>
@@ -93,19 +93,8 @@
               {% endif %}
             </td>
             <td>
-              <form method="post" action="{{ path('app_profile_schedule',{id:profile.id}) }}"
-                class="schedule-inline-form profile-schedule-compact">
-                <input type="hidden" name="_token" value="{{ csrf_token('schedule_profile_' ~ profile.id) }}">
-                <label class="sr-only" for="profile-schedule-{{ profile.id }}">Automatic scan interval for {{ profile.name }}</label>
-                <select id="profile-schedule-{{ profile.id }}" name="interval_minutes"
-                  aria-label="Automatic scan interval for {{ profile.name }}">
-                  {% for minutes,description in {0:'Off',60:'Hourly',360:'Every 6 hours',720:'Every 12 hours',1440:'Daily',10080:'Weekly'} %}
-                    <option value="{{ minutes }}" {{ (profile.schedule_interval|default(0)) == minutes ? 'selected' : '' }}>{{ description }}</option>
-                  {% endfor %}
-                </select>
-                <button class="action-icon-button" type="submit" title="Save automatic scan schedule"
-                  aria-label="Save schedule for {{ profile.name }}">{{ icon('save') }}</button>
-              </form>
+              <a class="profile-schedule-label" href="{{ path('app_profile_edit',{id:profile.id}) }}"
+                title="Edit automatic scan schedule">{{ profile.schedule_label|default('Off') }}</a>
               {% if profile.schedule_next %}
                 <div class="profile-meta" title="Next scheduled scan">Next: {{ profile.schedule_next }} UTC</div>
               {% endif %}

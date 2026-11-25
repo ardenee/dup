@@ -35,12 +35,24 @@ try {
     $jobs=new JobStore($db,new DirectoryBrowser());
     $schedule=new ScanScheduleService($db,$jobs);
     try {
-        $schedule->save(1,20,8);
+        $schedule->save(1,5,8);
         throw new RuntimeException('Accepted unsupported scan interval.');
     } catch(DomainException) {}
     try {
         $schedule->save(123,60,8);
         throw new RuntimeException('Accepted schedule for nonexistent profile.');
+    } catch(DomainException) {}
+    // Custom timing must retain a user-specified UTC first run and be validated.
+    $first=gmdate('Y-m-d\\TH:i',time()+3600);
+    $schedule->save(1,20,8,$first);
+    ckSchedule((int)$db->fetchOne('SELECT interval_minutes FROM scan_schedules WHERE profile_id=1')===20,
+        'Custom 20-minute schedule was rejected or stored incorrectly.');
+    ckSchedule((string)$db->fetchOne('SELECT next_run_at FROM scan_schedules WHERE profile_id=1')===
+        str_replace('T',' ',$first).':00',
+        'User-selected first scan time (UTC) was not persisted.');
+    try {
+        $schedule->save(1,20,8,'2020-01-01T10:00');
+        throw new RuntimeException('Accepted first run date in the past.');
     } catch(DomainException) {}
     $schedule->save(1,60,8);
     ckSchedule((int)$db->fetchOne('SELECT interval_minutes FROM scan_schedules WHERE profile_id=1')===60,
@@ -56,8 +68,10 @@ try {
     ckSchedule((int)$db->fetchOne('SELECT COUNT(*) FROM job_events WHERE job_id=?',[$queued[0]])===2,
         'Scheduled scan event not recorded.');
     ckSchedule($schedule->dispatchDue()===[],'Scheduled job queued twice.');
-    ckSchedule((string)$db->fetchOne('SELECT next_run_at FROM scan_schedules WHERE profile_id=1') >
-        gmdate('Y-m-d H:i:s'),'Next automatic run not advanced.');
+    $advanced=(string)$db->fetchOne('SELECT next_run_at FROM scan_schedules WHERE profile_id=1');
+    ckSchedule($advanced>gmdate('Y-m-d H:i:s'),'Next automatic run not advanced.');
+    ckSchedule((strtotime($advanced.' UTC')-strtotime('2020-01-01 01:00:00 UTC'))%3600===0,
+        'A late worker shifted the requested recurring start time instead of preserving its cadence.');
     ckSchedule($db->fetchOne('SELECT last_queued_at FROM scan_schedules WHERE profile_id=1')!==null,
         'Last queued time not persisted.');
 
@@ -91,7 +105,7 @@ try {
     $schedule->save(1,0,8);
     ckSchedule((int)$db->fetchOne('SELECT COUNT(*) FROM scan_schedules WHERE profile_id=1')===0,
         'Schedule disabling did not remove stored schedule.');
-    ckSchedule((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action='PROFILE_SCAN_SCHEDULE_CHANGED'")===4,
+    ckSchedule((int)$db->fetchOne("SELECT COUNT(*) FROM audit_events WHERE action='PROFILE_SCAN_SCHEDULE_CHANGED'")===5,
         'Schedule changes not audited.');
     echo "PASS per-profile scan schedule, 6 allowed intervals, worker dispatch, busy lock, disabled profile and audit\n";
 } finally {

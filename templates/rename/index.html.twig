@@ -1,5 +1,6 @@
 {% extends 'base.html.twig' %}
 {% from '_action_icons.html.twig' import icon %}
+{% from 'duplicates/_format.html.twig' import bytes %}
 {% from '_table_headers.html.twig' import sort as sort_heading %}
 {% block title %}Rename files{% endblock %}
 {% block section %}Files / Rename{% endblock %}
@@ -54,7 +55,7 @@
     <div class="empty-state">No completed scans are available. <a href="{{ path('app_profiles') }}">Scan a profile</a> first.</div>
   {% elseif candidates.rows is empty %}
     <div class="empty-state">No filenames on this page require cleanup. Try different rules or the next page.</div>
-    {% if candidates.next %}<div class="result-toolbar"><span class="muted">Continue looking</span><a href="{{ path('app_rename',paging|merge({after:candidates.next})) }}">Next page</a></div>{% endif %}
+    {% if candidates.next or candidates.previous %}<div class="result-toolbar"><span class="muted">Continue looking through the indexed files</span><nav aria-label="Rename candidates pagination">{% if candidates.previous %}<a href="{{ path('app_rename',paging|merge({before:candidates.previous})) }}">Previous page</a>{% endif %}{% if candidates.next %}<a href="{{ path('app_rename',paging|merge({after:candidates.next})) }}">Next page</a>{% endif %}</nav></div>{% endif %}
   {% else %}
   <form method="post" action="{{ path('app_rename_queue') }}">
     <input type="hidden" name="_token" value="{{ csrf_token('queue_renames') }}">
@@ -66,9 +67,9 @@
     <input type="hidden" name="dots" value="{{ dots }}">
     <input type="hidden" name="unders" value="{{ unders }}">
     <input type="hidden" name="collapse" value="{{ collapse ? '1' : '0' }}">
-    <p class="muted">Destinations are fixed in this preview. Overwrite applies only to existing destinations explicitly approved here. Files appearing after the preview are never replaced.</p>
-    <div class="table-wrap"><table>
-      <thead><tr><th><label><input type="checkbox" id="rename-select-all" aria-label="Select all shown"> Select</label></th>
+    <p class="muted rename-preview-note">Destinations are fixed in this preview. Overwrite applies only to existing destinations explicitly approved here. Files appearing after the preview are never replaced.</p>
+    <div class="table-wrap" data-match-terms="{{ [name_filter|default(''),find|default(''),filters]|join(',') }}"><table>
+      <thead><tr><th class="rename-select-col"><label><input type="checkbox" id="rename-select-all" aria-label="Select all shown"><span>Select</span></label></th>
         {{ sort_heading('app_rename',paging|default({}),sort|default('id'),dir|default('asc'),'folder','Folder') }}
         {{ sort_heading('app_rename',paging|default({}),sort|default('id'),dir|default('asc'),'file','Current filename') }}
         <th>Proposed filename</th>
@@ -77,11 +78,11 @@
       <tbody>{% for file in candidates.rows %}
         <tr>
           <td><input type="checkbox" name="files[]" value="{{ file.id }}" class="rename-selection" aria-label="Select {{ file.filename }}"></td>
-          <td><code>{{ file.directory }}</code></td>
-          <td><code>{{ file.filename }}</code></td>
-          <td><strong>{{ file.new_name }}</strong>{% if file.collision_numbered %}<small class="muted">Numbered to avoid conflict</small>{% endif %}{% if file.overwrite_existing|default(false) %}<small class="report-error">Overwrite existing file</small>{% endif %}
+          <td class="rename-folder"><code data-highlight-text>{{ file.directory }}</code></td>
+          <td class="rename-current"><code data-highlight-text>{{ file.filename }}</code></td>
+          <td class="rename-proposed"><strong>{{ file.new_name }}</strong>{% if file.collision_numbered %}<small class="muted">Numbered to avoid conflict</small>{% endif %}{% if file.overwrite_existing|default(false) %}<small class="report-error">Overwrite existing file</small>{% endif %}
             <input type="hidden" name="planned_names[{{ file.id }}]" value="{{ file.new_name }}"></td>
-          <td class="group-size">{{ file.size_bytes|number_format }}</td>
+          <td class="group-size" title="{{ file.size_bytes|number_format }} bytes">{{ bytes(file.size_bytes) }}</td>
           <td><a class="action-icon-button" href="{{ path('app_rename_file',{id:file.id}) }}"
               title="Rename this file" aria-label="Rename {{ file.filename }}">{{ icon('edit') }}</a></td>
         </tr>
@@ -89,13 +90,13 @@
     </table></div>
     <div class="result-toolbar">
       <div class="rename-batch-actions"><button type="submit" class="primary" id="rename-queue" disabled>Queue selected renames</button><span class="muted" id="rename-selected-count">0 selected</span></div>
-      {% if candidates.next %}<a href="{{ path('app_rename',paging|merge({after:candidates.next})) }}">Next page</a>{% endif %}
+      <nav aria-label="Rename candidates pagination">{% if candidates.previous %}<a href="{{ path('app_rename',paging|merge({before:candidates.previous})) }}">Previous page</a>{% endif %}{% if candidates.next %}<a href="{{ path('app_rename',paging|merge({after:candidates.next})) }}">Next page</a>{% endif %}</nav>
     </div>
   </form>
   {% endif %}
 </section>
 <section class="panel">
-  <div class="panel-heading"><h2>Recent rename operations</h2><span class="muted">Recorded in the file-action audit history</span></div>
+  <div class="panel-heading"><h2>Recent rename operations</h2><a class="text-link" href="{{ path('app_actions',{kind:'rename'}) }}">Browse full paginated rename history</a></div>
   {% if batches is empty %}<div class="empty-state">No renaming jobs have been queued.</div>
   {% else %}<div class="table-wrap"><table data-local-table="recent rename operations"><thead><tr><th>Batch</th><th>Profile</th><th>Status</th><th data-sort-type="number">Renamed</th><th data-sort-type="number">Failed</th><th>Created (UTC)</th></tr></thead>
     <tbody>{% for batch in batches %}
@@ -105,4 +106,5 @@
     {% endfor %}</tbody></table></div>{% endif %}
 </section>
 <script type="module" src="{{ asset('assets/rename.js') }}"></script>
+<script type="module" src="{{ asset('assets/text-highlights.js') }}?v=1"></script>
 {% endblock %}

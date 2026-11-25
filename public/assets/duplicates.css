@@ -154,3 +154,50 @@
 .dup-table-filters input,.dup-table-filters select{width:100%;min-width:0;box-sizing:border-box}
 .dup-filter-buttons{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .dup-file-table th:has(.table-sort-link){padding-top:3px;padding-bottom:3px}
+
+/* Consistent desktop filter row: fields and actions share one baseline. */
+.dup-table-filters{
+  display:grid;
+  grid-template-columns:minmax(220px,1.7fr) minmax(160px,1fr)
+    minmax(135px,1fr) minmax(135px,1fr) auto;
+  align-items:end;gap:12px;padding:15px 17px;background:#f7fafc
+}
+.dup-table-filters .field,.dup-table-filters .field:first-of-type{
+  min-width:0;flex:none;margin:0
+}
+.dup-table-filters input,.dup-table-filters select{min-height:42px}
+.dup-filter-buttons{flex-wrap:nowrap;align-self:end;white-space:nowrap}
+.dup-filter-buttons .link-button,.dup-filter-buttons button{min-height:42px}
+@media(max-width:1250px){
+  .dup-table-filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dup-filter-buttons{grid-column:1/-1}
+}
+@media(max-width:600px){.dup-table-filters{grid-template-columns:1fr}}
+.dup-bulk-actions{display:flex;gap:3px;align-items:center}
+.dup-controls .dup-bulk-icon{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:31px;height:31px;padding:5px;border:1px solid #cedee6;
+  border-radius:6px;background:#fff;color:#146d7a
+}
+.dup-controls .dup-bulk-icon svg{width:17px;height:17px;stroke-width:1.8}
+.dup-controls .dup-bulk-icon:hover:not(:disabled),
+.dup-controls .dup-bulk-icon:focus-visible{background:#e8f5f7;border-color:#77aab8}
+.dup-controls .dup-bulk-icon:disabled{background:#edf2f5;border-color:#e0e6ec;color:#a0afbc}
+.dup-controls .dup-bulk-delete{color:#a92222;border-color:#efc9c9}
+.dup-controls .dup-bulk-delete:hover:not(:disabled){background:#fff0f0;border-color:#d88d8d}
+/* Parent row is light; opened matching rows have a distinct blue-grey band. */
+.dup-file-table .dup-set[data-expanded="true"]>.dup-primary{
+  background:#f0f4f8;border-top:2px solid #acc8d5
+}
+.dup-file-table tr.dup-child,
+.dup-file-table tr.dup-child:nth-of-type(odd){
+  background:#e8f1f7;box-shadow:inset 4px 0 #7faabd
+}
+.dup-file-table tr.dup-child:nth-of-type(even){
+  background:#dfecf5;box-shadow:inset 4px 0 #7faabd
+}
+.dup-file-table tr.dup-child td{border-bottom:1px solid #cbdce8}
+.dup-file-table tr.dup-child:hover{background:#d0e5f0}
+.dup-child .dup-child-num{color:#45667d;font-weight:700}
+.dup-child .dup-file-name{padding-left:27px}
+.dup-child-path{font-weight:550;color:#24465d}

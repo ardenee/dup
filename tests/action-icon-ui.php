@@ -13,7 +13,7 @@ verifyIcons(str_contains($base,"include \"_action_sprite.html.twig\""),
 verifyIcons(str_contains($macro,'class="action-icon"'),'Shared SVG helper is missing.');
 $targets=[
     'dashboard/index.html.twig'=>['View duplicate results','View scan report'],
-    'profiles/index.html.twig'=>['Browse scans and duplicates','Start scan','Reports and scan history','Edit profile and File Exists settings','Save automatic scan schedule'],
+    'profiles/index.html.twig'=>['Browse scans and duplicates','Start scan','Reports and scan history','Edit profile and File Exists settings'],
     'profiles/types.html.twig'=>['Edit file type preset','Delete unused preset'],
     'jobs/index.html.twig'=>['Job details and events','Scan duplicate results','Request cancellation of job','Delete job #'],
     'reports/index.html.twig'=>['Browse scan duplicate results','Review report and manage scan'],
